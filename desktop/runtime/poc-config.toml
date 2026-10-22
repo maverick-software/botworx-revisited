@@ -1,0 +1,62 @@
+project_id = "agentopia-desktop-poc"
+
+[experimental]
+stack = true
+
+[api]
+enabled = true
+port = 56321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 56322
+shadow_port = 56320
+major_version = 17
+health_timeout = "3m"
+
+[db.seed]
+enabled = false
+
+[db.pooler]
+enabled = false
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:5173"
+additional_redirect_urls = ["http://127.0.0.1:5173/**"]
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+enable_confirmations = false
+
+[realtime]
+enabled = true
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[studio]
+enabled = true
+port = 56323
+api_url = "http://127.0.0.1"
+
+[local_smtp]
+enabled = true
+port = 56324
+
+[analytics]
+enabled = false
+
+[edge_runtime]
+enabled = true
+policy = "per_worker"
+inspector_port = 56325
+
+[functions.runtime-probe]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/runtime-probe/index.ts"

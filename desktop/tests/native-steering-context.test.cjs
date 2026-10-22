@@ -1,0 +1,11 @@
+const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
+const {CodexHarness}=require(path.resolve(process.env.AGENTOPIA_GOAL_BUILD,'codex-harness.js'));
+test('steering reuses active file context, rejects newly attached context and remains idempotent',async()=>{
+ const calls=[],record={owner:'owner',ended:false,rootFinished:false,turnRunning:true,controller:new AbortController(),validate:async()=>{},options:{files:['existing'],windows:['selected-window']},state:{threadId:'thread',turnId:'turn',steering:[]},worker:{client:{request:async(method,args)=>{calls.push({method,args});if(args.expectedTurnId!=='turn')throw Error('Stale turn');}}}},harness=Object.create(CodexHarness.prototype);Object.assign(harness,{running:new Map([['request',record]]),guard:async()=>{},publish:()=>{},persist:async()=>{}});
+ const context={thinking:'default',mode:'chat',permission:'ask',files:['existing'],windows:['selected-window']};
+ await harness.steer('owner','request','turn','Use the existing folder.','one',context);await harness.steer('owner','request','turn','Use the existing folder.','one',context);assert.equal(calls.length,1);
+ await assert.rejects(harness.steer('owner','request','turn','Read the new file.','two',{...context,files:['new-file']}),/queued turn/);await assert.rejects(harness.steer('owner','request','turn','Use the new window.','three',{...context,windows:['new-window']}),/queued turn/);assert.equal(calls.length,1);
+ await assert.rejects(harness.steer('owner','request','turn','Use a new page.','new-source',{...context,sources:[{kind:'browser',id:'page',text:'NEW'}]}),/queued turn/);assert.equal(calls.length,1);
+ record.options.sources=[{kind:'browser',id:'page',text:'SNAPSHOT'}];await assert.rejects(harness.steer('owner','request','turn','Use changed page.','changed-source',{...context,sources:[{kind:'browser',id:'page',text:'CHANGED'}]}),/queued turn/);assert.equal(calls.length,1);
+ await assert.rejects(harness.steer('owner','request','old-turn','Late steering.','four',context),/active turn changed/);assert.equal(calls.length,1);assert.equal(record.state.steering.length,1);await assert.rejects(harness.steer('other','request','turn','Other account.','five',context),/no longer/);
+});

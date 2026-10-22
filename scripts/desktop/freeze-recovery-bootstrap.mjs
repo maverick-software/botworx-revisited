@@ -1,0 +1,63 @@
+import {readFile,writeFile,mkdir,cp,readdir,lstat,symlink} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {spawn} from 'node:child_process';
+import {Readable} from 'node:stream';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import ts from 'typescript';
+import {build} from 'vite';
+import {listPackage,statFile,extractFile,createPackageFromStreams} from '@electron/asar';
+import {desktopOperation} from './operation-lock.mjs';
+
+desktopOperation('freeze recovery bootstrap candidate');
+const root=path.resolve(import.meta.dirname,'../..'),json=async file=>JSON.parse(await readFile(file,'utf8')),sha=bytes=>createHash('sha256').update(bytes).digest('hex');
+const records=path.join(root,'.supabase/desktop-recovery-bootstrap'),checks=await json(path.join(records,'current.json'));
+assert.equal(checks.javascriptChecks,70);assert.equal(checks.pythonCases,12);assert.equal(checks.launcherCases,7);assert.equal(checks.legacyCases,18);
+const baseReceipt=path.join(root,'.supabase/desktop-export-relocation/reopened.json'),base=await json(baseReceipt),baseImage='C:/Users/charl/AppData/Local/AgentopiaDesktop/app-0.44.47/resources/app.asar';
+assert(base.success&&base.normalReopeningPassed&&base.tablesCompared===126);assert.equal(sha(await readFile(baseImage)),base.imageSha256);
+const previous=await json(path.join(root,'.supabase/desktop-export-relocation/current.json')),accepted=await json(previous.proof);
+const work=path.join(records,Date.now()+'-candidate'),sourceRoot=path.join(work,'source'),source=path.join(sourceRoot,'desktop'),backend=path.join(source,'build'),ui=path.join(work,'ui');await mkdir(work,{recursive:true});
+await writeFile(path.join(work,'package.json'),JSON.stringify({private:true,type:'commonjs'}));
+await cp(accepted.source,source,{recursive:true});
+const names=['broker','chat-files','main','public-file-recovery','recovery-bootstrap','recovery-startup','restored-public-files','runtime','secrets','workspace'];
+const changed=[...names.map(name=>'src/'+name+'.ts'),'src/recovery-resource-manifest.json','ui/StartupScreen.tsx'].sort();
+for(const name of changed)await cp(path.join(root,'desktop',name),path.join(source,name));
+await cp(path.join(root,'desktop/tests'),path.join(source,'tests'),{recursive:true});
+await mkdir(path.join(source,'runtime'),{recursive:true});await mkdir(path.join(source,'resources'),{recursive:true});await mkdir(path.join(sourceRoot,'.supabase'),{recursive:true});
+for(const name of ['prepare-desktop-recovery.py','relocate-native-profile.py'])await cp(path.join(root,'desktop/runtime',name),path.join(source,'runtime',name));
+await symlink(path.join(root,'desktop/resources/script-runtimes'),path.join(source,'resources/script-runtimes'),'junction');
+await symlink(path.join(root,'node_modules'),path.join(sourceRoot,'node_modules'),'junction');
+await mkdir(path.join(sourceRoot,'scripts/desktop'),{recursive:true});
+for(const name of ['test-native-relocation.py','import-backup.ps1','test-desktop-recovery-launcher.ps1','test-recovery-preflight.ps1','build.mjs'])await cp(path.join(root,'scripts/desktop',name),path.join(sourceRoot,'scripts/desktop',name));
+async function hashes(dir){const result={};for(const name of(await readdir(dir,{recursive:true})).sort()){const full=path.join(dir,name),info=await lstat(full);assert(!info.isSymbolicLink());if(info.isFile())result[name.replaceAll('\\','/')]=sha(await readFile(full));}return result;}
+const sourceHashes={};for(const directory of ['src','ui'])for(const [name,digest]of Object.entries(await hashes(path.join(source,directory))))sourceHashes[directory+'/'+name]=digest;
+const actualChanged=Object.keys(sourceHashes).filter(name=>accepted.sourceHashes[name]!==sourceHashes[name]).sort();assert.deepEqual(actualChanged,changed);
+for(const [name,digest]of Object.entries(sourceHashes))assert.equal(sha(await readFile(path.join(root,'desktop',name))),digest,'Source drift: '+name);
+const config=ts.readConfigFile(path.join(source,'tsconfig.json'),ts.sys.readFile);assert(!config.error);const parsed=ts.parseJsonConfigFileContent(config.config,ts.sys,source);assert.equal(parsed.errors.length,0);
+const program=ts.createProgram(parsed.fileNames,parsed.options),diagnostics=ts.getPreEmitDiagnostics(program);await writeFile(path.join(work,'frozen-types.log'),ts.formatDiagnosticsWithColorAndContext(diagnostics,{getCanonicalFileName:x=>x,getCurrentDirectory:()=>root,getNewLine:()=> '\n'}));assert.equal(diagnostics.length,0);
+const emitted=program.emit();assert(!emitted.emitSkipped);assert.equal(emitted.diagnostics.length,0);
+async function run(label,command,args,cwd=root){return new Promise((resolve,reject)=>{const child=spawn(command,args,{cwd,windowsHide:true,env:process.env});let output='';for(const stream of [child.stdout,child.stderr])stream.on('data',bytes=>output+=bytes);child.once('error',reject);child.once('exit',async code=>{try{await writeFile(path.join(work,label+'.log'),output);assert.equal(code,0,label+' failed; inspect log');resolve(output);}catch(error){reject(error);}});});}
+await run('frozen-ui-types',process.execPath,[path.join(root,'node_modules/typescript/bin/tsc'),'-p',path.join(source,'ui/tsconfig.json')]);
+const tests=['public-file-recovery','public-file-recovery-broker','secrets-transaction','chat-output-edits','native-background-broker','agent-assignments','agent-queue','agent-policy','agent-references','attachments','recovery-startup','native-relocation','recovery-bootstrap','recovery-main-startup'];
+const output=await run('frozen-tests',process.execPath,['--test','--test-reporter=tap','--test-timeout=30000',...tests.map(name=>path.join(source,'tests',name+'.test.cjs'))]);assert.match(output,/# pass 70\b/);assert.match(output,/# fail 0\b/);
+await run('frozen-python',path.join(root,'desktop/resources/script-runtimes/python-3.14.8/python.exe'),['-I','-B',path.join(source,'tests/full-recovery-preparation.test.py')]);
+await run('frozen-launcher','pwsh',['-NoProfile','-File',path.join(sourceRoot,'scripts/desktop/test-desktop-recovery-launcher.ps1')]);
+await run('frozen-legacy','pwsh',['-NoProfile','-File',path.join(sourceRoot,'scripts/desktop/test-recovery-preflight.ps1')]);
+await build({configFile:path.join(source,'vite.config.mjs'),build:{outDir:ui}});
+const resourceManifest=await json(path.join(source,'src/recovery-resource-manifest.json'));for(const [name,digest]of Object.entries(resourceManifest.files))assert.equal(sha(await readFile(path.join(source,name))),digest);
+const replacements=Object.fromEntries(await Promise.all([...names.map(name=>name+'.js'),'recovery-resource-manifest.json'].map(async name=>['build/'+name,{bytes:await readFile(path.join(backend,name)),stat:await lstat(path.join(backend,name))}])));
+const stage='C:/Users/charl/AgentopiaQA/chat-output-edits/1792472868437/staging',entries=listPackage(baseImage).map(name=>name.replaceAll('\\','/').replace(/^\//,'')),streams=[];
+for(const name of entries){const entry=statFile(baseImage,path.normalize(name));assert(!entry.link&&!entry.unpacked);if(entry.files){streams.push({path:name,type:'directory',unpacked:false});continue;}const replacement=replacements[name],bytes=replacement?.bytes??extractFile(baseImage,path.normalize(name)),info=replacement?.stat??await lstat(path.join(stage,name));assert.equal(info.size,bytes.length);streams.push({path:name,type:'file',unpacked:false,stat:info,streamGenerator:()=>Readable.from([bytes])});}
+for(const [name,{bytes,stat}]of Object.entries(replacements))if(!entries.includes(name))streams.push({path:name,type:'file',unpacked:false,stat,streamGenerator:()=>Readable.from([bytes])});
+const image=path.join(work,'app.asar');await createPackageFromStreams(image,streams);
+const files=file=>listPackage(file).map(name=>name.replaceAll('\\','/').replace(/^\//,'')).filter(name=>!statFile(file,path.normalize(name)).files),old=new Set(files(baseImage)),modified=[],added=[];
+for(const name of files(image)){if(!old.delete(name))added.push(name);else if(!extractFile(baseImage,path.normalize(name)).equals(extractFile(image,path.normalize(name))))modified.push(name);}
+assert.equal(old.size,0);assert.deepEqual([...modified,...added].sort(),Object.keys(replacements).sort());
+for(const [name,{bytes}]of Object.entries(replacements))assert(extractFile(image,path.normalize(name)).equals(bytes));
+const uiHashes=await hashes(ui),backendHashes=Object.fromEntries(Object.entries(replacements).map(([name,{bytes}])=>[name,sha(bytes)])),resourceHashes={};
+for(const name of ['prepare-desktop-recovery.py','relocate-native-profile.py'])resourceHashes['runtime/'+name]=sha(await readFile(path.join(source,'runtime',name)));
+resourceHashes['runtime/Restore-Agentopia.ps1']=sha(await readFile(path.join(sourceRoot,'scripts/desktop/import-backup.ps1')));
+assert.equal(sha(await readFile(baseImage)),base.imageSha256);
+const proof={success:true,at:new Date().toISOString(),revision:'recovery-bootstrap-15',version:'0.44.47',work,source,sourceRoot,sourceHashes,backend,backendHashes,ui,uiHashes,image,imageSha256:sha(await readFile(image)),baseImageSha256:base.imageSha256,baseAcceptedReceipt:baseReceipt,changedSourceFiles:changed,modifiedArchiveEntries:modified,addedArchiveEntries:added,resourceHashes,javascriptChecks:70,pythonCases:12,launcherCases:7,legacyCases:18,uiUnchanged:false,uiChange:'Recovery progress text',installed:false,fullInstallerCreated:false,providerRequests:0,databaseImported:false,fullApplicationRestoreProven:false,fullGoalComplete:false};
+const proofFile=path.join(work,'proof.json');await writeFile(proofFile,JSON.stringify(proof,null,2),{flag:'wx'});await writeFile(path.join(records,'candidate-current.json'),JSON.stringify({work,source,image,ui,proof:proofFile},null,2));
+console.log(JSON.stringify({success:true,work,modified,added,uiFiles:Object.keys(uiHashes).length,imageSha256:proof.imageSha256,installed:false}));

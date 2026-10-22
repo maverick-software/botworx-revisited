@@ -1,0 +1,5 @@
+import assert from 'node:assert/strict';import {readFile,writeFile} from 'node:fs/promises';import path from 'node:path';
+const root=path.resolve(import.meta.dirname,'../..');let source=await readFile(path.join(root,'scripts/desktop/diagnose-native-start50.mjs'),'utf8');
+const marker="const child=original.apply(this,arguments);if(path.resolve(file).toLowerCase()!==path.resolve(exe).toLowerCase()||!args.includes('app-server'))return child;";assert(source.includes(marker));
+const replacement="const selected=path.resolve(file).toLowerCase()===path.resolve(exe).toLowerCase()&&args.includes('app-server');const child=selected?original.call(this,file,args,{...options,env:{...options.env,RUST_LOG:'codex_app_server=debug,codex_core=debug'}}):original.apply(this,arguments);if(!selected)return child;";
+source=source.replace(marker,replacement);await writeFile(path.join(root,'scripts/desktop/diagnose-debug-native50.mjs'),source);console.log(JSON.stringify({prepared:true,onlyOwnedNativeProcessLoggingChanged:true,privateControlledFixture:true}));

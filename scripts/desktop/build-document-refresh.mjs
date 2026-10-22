@@ -1,0 +1,23 @@
+import {readFile,writeFile,cp,symlink,readdir,lstat,statfs} from 'node:fs/promises';
+import {spawnSync} from 'node:child_process';
+import {createHash} from 'node:crypto';
+import {extractAll,extractFile,listPackage,statFile,createPackage} from '@electron/asar';
+import {build} from 'vite';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {desktopOperation} from './operation-lock.mjs';
+desktopOperation('build frozen active document refresh update');
+const root=path.resolve(import.meta.dirname,'../..'),json=async p=>JSON.parse(await readFile(p,'utf8')),sha=b=>createHash('sha256').update(b).digest('hex'),pointer=await json(path.join(root,'.supabase/desktop-document-refresh/current.json')),qualification=await json(pointer.proof),work=pointer.work,source=qualification.source;
+assert(qualification.success&&!qualification.installed&&qualification.interfaceWorkflowGroups===12&&qualification.backendWorkflowGroups===6);assert.equal(path.dirname(path.resolve(work)),path.resolve('C:/Users/charl/AgentopiaQA/document-refresh'));
+const reserve=await statfs(work);assert(reserve.bavail*reserve.bsize>1024**3+110*1024**2,'Keep the system-drive recovery reserve.');
+for(const [file,digest]of Object.entries(qualification.sourceHashes))assert.equal(sha(await readFile(path.join(source,file))),digest);
+await symlink(path.join(root,'node_modules'),path.join(work,'source/node_modules'),'junction').catch(error=>{if(error.code!=='EEXIST')throw error;});
+const types=spawnSync(process.execPath,['node_modules/typescript/bin/tsc','-p',path.join(source,'ui/tsconfig.json')],{cwd:root,windowsHide:true,encoding:'utf8'});await writeFile(path.join(work,'frozen-ui-types.log'),types.stdout+types.stderr,{flag:'wx'});assert.equal(types.status,0);
+const ui=path.join(work,'production-ui');await build({configFile:path.join(source,'vite.config.mjs'),build:{outDir:ui}});
+const installed=qualification.baseImage;assert.equal(sha(await readFile(installed)),qualification.baseImageSha256);const stage=path.join(work,'staging'),image=path.join(work,'app.asar');extractAll(installed,stage);
+for(const entry of qualification.changedCompiledModules)await cp(path.join(work,entry),path.join(stage,entry));await createPackage(stage,image);
+const entries=file=>listPackage(file).map(n=>n.replaceAll('\\','/').replace(/^\//,'')).filter(n=>!statFile(file,path.normalize(n)).files),old=new Set(entries(installed)),modified=[];
+for(const file of entries(image)){assert(old.delete(file));if(!extractFile(installed,path.normalize(file)).equals(extractFile(image,path.normalize(file))))modified.push(file);}assert.equal(old.size,0);assert.deepEqual(modified.sort(),qualification.changedCompiledModules);
+async function hashes(dir){const result={};for(const file of(await readdir(dir,{recursive:true})).sort()){const info=await lstat(path.join(dir,file));assert(!info.isSymbolicLink());if(info.isFile())result[file.replaceAll('\\','/')]=sha(await readFile(path.join(dir,file)));}return result;}
+const proof={...qualification,at:new Date().toISOString(),revision:'document-refresh-12',qualification:pointer.proof,qualificationSha256:sha(await readFile(pointer.proof)),image,imageSha256:sha(await readFile(image)),ui,uiHashes:await hashes(ui),changedArchiveEntries:modified,beforeArchive:'D:/Users/charl/software/Agentopia/.supabase/desktop-office-guidance/1792469604520/app.asar',installed:false,productionRendererQualified:false,recoveryPrepared:false};assert.equal(sha(await readFile(proof.beforeArchive)),qualification.baseImageSha256);
+await writeFile(path.join(work,'proof.json'),JSON.stringify(proof,null,2),{flag:'wx'});await writeFile(path.join(root,'.supabase/desktop-document-refresh/current.json'),JSON.stringify({work,source,proof:path.join(work,'proof.json'),qualification:qualification.qualification??pointer.proof,ui,image},null,2));console.log(JSON.stringify({success:true,work,uiFiles:Object.keys(proof.uiHashes).length,imageSha256:proof.imageSha256,modified,installed:false}));

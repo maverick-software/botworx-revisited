@@ -11,19 +11,26 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { 
+  Save, 
+  X, 
+  AlertCircle, 
   Eye, 
+  ToggleLeft, 
   ToggleRight,
   Edit3,
+  Plus,
+  Loader2,
   HelpCircle,
+  Upload,
+  FileText,
+  Trash2,
+  Paperclip
 } from 'lucide-react';
 import { StepEditorProps, TaskStepFormData } from '@/types/tasks';
 import { cn } from '@/lib/utils';
 import { MediaLibrarySelector } from '@/components/modals/MediaLibrarySelector';
-import { AttachmentsPanel } from './step-editor/AttachmentsPanel';
-import { FooterPanels } from './step-editor/FooterPanels';
-import { AttachedFile } from './step-editor/types';
-import { validateStepEditorForm } from './step-editor/validation';
 
 export function StepEditor({
   step,
@@ -49,7 +56,13 @@ export function StepEditor({
   const [showGuidelinesHelp, setShowGuidelinesHelp] = useState(false);
   const [showContextHelp, setShowContextHelp] = useState(false);
   const [showMediaLibrary, setShowMediaLibrary] = useState(false);
-  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
+  const [attachedFiles, setAttachedFiles] = useState<Array<{
+    id: string;
+    name: string;
+    size: number;
+    type: string;
+    url?: string;
+  }>>([]);
   const [isUploading, setIsUploading] = useState(false);
 
   // Initialize form when step changes
@@ -74,8 +87,30 @@ export function StepEditor({
 
   // Form validation
   const validateForm = useCallback((): string[] => {
-    return validateStepEditorForm({ formData, stepOrder: step?.step_order });
-  }, [formData, step]);
+    const errors: string[] = [];
+    
+    if (!formData.step_name.trim()) {
+      errors.push('Step name is required');
+    } else if (formData.step_name.length > 100) {
+      errors.push('Step name must be 100 characters or less');
+    }
+    // Note: Removed uniqueness validation - system handles uniqueness automatically
+    
+    if (!formData.instructions.trim()) {
+      errors.push('Instructions are required');
+    } else if (formData.instructions.trim().length < 10) {
+      errors.push('Instructions must be at least 10 characters');
+    } else if (formData.instructions.length > 5000) {
+      errors.push('Instructions must be 5000 characters or less');
+    }
+    
+    // Context validation - can't enable context for first step
+    if (formData.include_previous_context && step?.step_order === 1) {
+      errors.push('First step cannot include previous context');
+    }
+    
+    return errors;
+  }, [formData, step, existingStepNames]);
 
   // Handle form submission
   const handleSave = useCallback(async () => {
@@ -159,10 +194,10 @@ export function StepEditor({
   const handleAttachFromLibrary = (libraryFiles: any[]) => {
     const newFiles = libraryFiles.map(file => ({
       id: file.id,
-      name: file.name || file.display_name || file.file_name,
-      size: file.size || file.file_size || 0,
-      type: file.type || file.file_type || '',
-      url: file.url || file.file_url
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      url: file.url
     }));
     
     setAttachedFiles(prev => [...prev, ...newFiles]);
@@ -345,28 +380,202 @@ export function StepEditor({
 
           {/* Right Column - File Attachments */}
           <div className="space-y-4">
-            <AttachmentsPanel
-              attachedFiles={attachedFiles}
-              isUploading={isUploading}
-              isSaving={isSaving}
-              onUploadFiles={handleFileUpload}
-              onOpenLibrary={() => setShowMediaLibrary(true)}
-              onRemoveFile={handleRemoveFile}
-              onCancel={handleCancel}
-              onSave={handleSave}
-              isEditing={isEditing}
-            />
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">
+                File Attachments
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Upload files or attach from media library to provide additional context for this step.
+              </p>
+            </div>
+
+            {/* File Upload Actions */}
+            <div className="space-y-3">
+              <div className="flex space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.multiple = true;
+                    input.accept = '.pdf,.doc,.docx,.txt,.md,.json,.csv,.xlsx,.xls,.png,.jpg,.jpeg,.gif,.webp';
+                    input.onchange = (e) => {
+                      const files = (e.target as HTMLInputElement).files;
+                      if (files) {
+                        handleFileUpload(Array.from(files));
+                      }
+                    };
+                    input.click();
+                  }}
+                  className="flex-1"
+                  disabled={isUploading}
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  {isUploading ? 'Uploading...' : 'Upload Files'}
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowMediaLibrary(true)}
+                  className="flex-1"
+                >
+                  <Paperclip className="h-4 w-4 mr-2" />
+                  From Library
+                </Button>
+              </div>
+
+              {/* Attached Files List */}
+              {attachedFiles.length > 0 && (
+                <Card className="rounded-lg">
+                  <CardContent className="p-3">
+                    <h4 className="text-sm font-medium text-foreground mb-2">
+                      Attached Files ({attachedFiles.length})
+                    </h4>
+                    <div className="space-y-2">
+                      {attachedFiles.map((file) => (
+                        <div
+                          key={file.id}
+                          className="flex items-center justify-between p-2 bg-muted/50 rounded border"
+                        >
+                          <div className="flex items-center space-x-2 flex-1 min-w-0">
+                            <FileText className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium text-foreground truncate">
+                                {file.name}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {(file.size / 1024).toFixed(1)} KB
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemoveFile(file.id)}
+                            className="p-1 h-6 w-6 text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* File Upload Guidelines */}
+              <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800 rounded-lg">
+                <CardContent className="p-3">
+                  <h4 className="text-sm font-medium text-foreground mb-2">
+                    Supported File Types
+                  </h4>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p><strong>Documents:</strong> PDF, DOC, DOCX, TXT, MD</p>
+                    <p><strong>Data:</strong> JSON, CSV, XLSX, XLS</p>
+                    <p><strong>Images:</strong> PNG, JPG, JPEG, GIF, WEBP</p>
+                    <p className="mt-2 text-blue-600 dark:text-blue-400">
+                      Files are stored in your media library and can be reused across steps.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Action Buttons - moved from footer */}
+              <div className="flex justify-between space-x-3 pt-4 border-t border-border dark:border-border">
+                <Button
+                  variant="outline"
+                  onClick={handleCancel}
+                  disabled={isSaving}
+                  className="flex-1"
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Cancel
+                </Button>
+                
+                <Button
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="flex-1"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      {isEditing ? 'Update Step' : 'Add Step'}
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
 
-        <FooterPanels
-          canShowContextPreview={canShowContextPreview}
-          previousStepResult={previousStepResult}
-          showContextPreview={showContextPreview}
-          onToggleContextPreview={() => setShowContextPreview(!showContextPreview)}
-          showValidationErrors={showValidationErrors}
-          validationErrors={validationErrors}
-        />
+        <div className="space-y-4">
+
+          {/* Context preview (only show if context is enabled and we have previous results) */}
+          {canShowContextPreview && (
+            <Card className="bg-muted/50 dark:bg-muted/50 border-border dark:border-border rounded-lg">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="text-sm font-medium text-foreground">
+                    Previous Step Result Preview
+                  </Label>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowContextPreview(!showContextPreview)}
+                    className="h-6 px-2 text-xs"
+                  >
+                    <Eye className="h-3 w-3 mr-1" />
+                    {showContextPreview ? 'Hide' : 'Show'}
+                  </Button>
+                </div>
+                
+                {showContextPreview && (
+                  <div className="bg-background dark:bg-background border border-border dark:border-border rounded p-3 max-h-32 overflow-y-auto">
+                    <pre className="text-xs text-foreground whitespace-pre-wrap">
+                      {JSON.stringify(previousStepResult, null, 2)}
+                    </pre>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Validation errors - only show after save attempt */}
+          {showValidationErrors && validationErrors.length > 0 && (
+            <Card className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/20 rounded-lg">
+              <CardContent className="p-4">
+                <div className="flex items-start space-x-2">
+                  <HelpCircle className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
+                      Please complete the following:
+                    </p>
+                    <ul className="space-y-1">
+                      {validationErrors.map((error, index) => (
+                        <li key={index} className="text-xs text-blue-700 dark:text-blue-300 flex items-start">
+                          <span className="mr-2">•</span>
+                          <span>{error}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+
+        </div>
+
+
       </DialogContent>
 
       {/* Media Library Selector Modal */}

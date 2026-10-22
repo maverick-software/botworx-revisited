@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {spawn} from 'node:child_process';
+import {desktopOperation} from './operation-lock.mjs';
+import {hash} from './phased-backup-control.mjs';
+desktopOperation('exact61 frozen Windows clipboard recovery preparation');
+const root=path.resolve(import.meta.dirname,'../..'),json=async p=>JSON.parse(await readFile(p,'utf8')),proof=await json((await json(path.join(root,'.supabase/desktop-image-attachment-release61/current.json'))).proof),out=path.join(proof.out,'clipboard-python-prepared'),file=path.join(proof.source,'tests/clipboard-preparation.test.py'),runtime=path.join(proof.source,'runtime/prepare-desktop-recovery.py');
+assert.equal(await hash(runtime),proof.resourceFiles['runtime/prepare-desktop-recovery.py']);await mkdir(out);await mkdir(path.join(path.dirname(proof.source),'.supabase'),{recursive:true});
+const child=spawn('python.exe',['-B',file],{cwd:root,windowsHide:true,stdio:['ignore','pipe','pipe']});let log='';for(const stream of [child.stdout,child.stderr])stream.on('data',chunk=>log+=chunk);const code=await new Promise((resolve,reject)=>{child.once('error',reject);child.once('close',resolve);});await writeFile(path.join(out,'tests.log'),log);const tests=Number(log.match(/Ran (\d+) tests/)?.[1]??0),success=code===0&&tests===9&&log.includes('OK');await writeFile(path.join(out,'evidence.json'),JSON.stringify({success,at:new Date().toISOString(),tests,code,runtimeSha256:await hash(runtime),testSha256:await hash(file),providerRequests:0},null,2));console.log(JSON.stringify({success,tests,out}));if(!success)console.log(log);assert(success);

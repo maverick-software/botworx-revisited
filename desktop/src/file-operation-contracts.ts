@@ -1,0 +1,11 @@
+export type WorkspaceFileChange={revision:number;referenceId:string;from:string;to?:string;action:'move'|'remove'|'create'};
+export type FileOperationCursor={createdAt:string;id:string};
+export type FileOperationPage={rows:FileOperationView[];next:FileOperationCursor|null};
+export type FileAction='move'|'remove'|'create_folder';
+export type FileOperationStatus='prepared'|'applying'|'completed'|'denied'|'failed'|'interrupted'|'restoring'|'restored';
+export type FileNode={path:string;kind:'file'|'folder';identity:string;mtime:number;size:number;sha256?:string};
+export type FileSnapshot={nodes:FileNode[];fingerprint:string;contentHash:string;files:number;folders:number;bytes:number};
+export type FileOperationPreview={root:string;rootIdentity:string;referenceId:string;path:string;destination:string;source:string;target:string;parentIdentity:string;snapshot:FileSnapshot|null;after?:FileSnapshot;reason:string};
+export type FileOperation={id:string;user_id:string;request_id:string|null;tool_id:string|null;source:'user'|'agent';action:FileAction;status:FileOperationStatus;phase:'apply'|'restore';preview:FileOperationPreview;result:FileOperationResult|null;error:string|null;created_at:string;updated_at:string;change_revision?:number};
+export type FileOperationResult={operation_id:string;action:FileAction;path:string;destination?:string;kind?:'file'|'folder';changed:boolean;removed?:boolean;restored?:boolean;observed_after_restart?:boolean;warning?:string};
+export type FileOperationView={id:string;source:'user'|'agent';action:FileAction;status:FileOperationStatus;phase:'apply'|'restore';workspaceName:string;kind:'file'|'folder';referenceId:string;path:string;destination:string;reason:string;files:number;folders:number;bytes:number;sample:string[];fingerprint:string|null;error:string|null;createdAt:string;result:FileOperationResult|null};

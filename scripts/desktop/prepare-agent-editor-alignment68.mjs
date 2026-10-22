@@ -1,0 +1,25 @@
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import {mkdir,cp,readFile,writeFile,readdir,lstat} from 'node:fs/promises';
+import {desktopOperation} from './operation-lock.mjs';
+import {json,hash} from './phased-backup-control.mjs';
+desktopOperation('prepare CSS-only agent editor column alignment');
+const root=path.resolve(import.meta.dirname,'../..'),base=await json((await json(path.join(root,'.supabase/desktop-agent-apps68-release/current.json'))).proof),program='C:/Users/charl/AppData/Local/AgentopiaDesktop/app-0.44.68',current=path.join(program,'resources/resources/ui');
+assert((await json(path.join(base.out,'delivery-accepted.json'))).success);assert.equal(await hash(path.join(program,'resources/app.asar')),base.imageSha256);
+const css=await readFile(path.join(root,'desktop/ui/agent-editor-page.css'),'utf8'),marker='/* The navigation and the complete agent body share one grid and top edge. */',start=css.indexOf(marker);assert(start>=0);
+const end=css.indexOf('.agent-editor-resources{',start);assert(end>start);const overrides=css.slice(start,end);
+assert.equal((css.slice(0,start)+css.slice(end)).replace(/\s+/g,''),(await readFile(path.join(base.source,'ui/agent-editor-page.css'),'utf8')).replace(/\s+/g,''));
+const out=path.join(root,'.supabase/desktop-agent-editor-alignment68',String(Date.now())),ui=path.join(out,'ui');await mkdir(out,{recursive:true});
+async function inventory(dir){const result={};for(const name of(await readdir(dir,{recursive:true})).sort()){const file=path.join(dir,name),info=await lstat(file);assert(!info.isSymbolicLink());if(info.isFile())result[name.replaceAll('\\','/')]=await hash(file);}return result;}
+assert.deepEqual(await inventory(current),base.uiFiles);await cp(current,ui,{recursive:true,errorOnExist:true,force:false});
+const styles=Object.keys(base.uiFiles).filter(n=>/^assets\/app-[^/]+\.css$/.test(n));assert.equal(styles.length,1);const target=path.join(ui,styles[0]);await writeFile(target,(await readFile(target,'utf8'))+'\n'+overrides);
+const proof={success:true,at:new Date().toISOString(),out,ui,uiFiles:await inventory(ui),baseUiFiles:base.uiFiles,baseImageSha256:base.imageSha256,baseProof:path.join(base.out,'package-proof.json'),version:'0.44.68',changedUiFiles:[styles[0]],sourceCssSha256:await hash(path.join(root,'desktop/ui/agent-editor-page.css')),backendChanges:[],providerRequests:0,installed:false};
+assert.deepEqual(Object.keys(proof.uiFiles).filter(n=>proof.uiFiles[n]!==base.uiFiles[n]),proof.changedUiFiles);
+await writeFile(path.join(out,'proof.json'),JSON.stringify(proof,null,2),{flag:'wx'});await writeFile(path.join(root,'.supabase/desktop-agent-editor-alignment68/current.json'),JSON.stringify({out,proof:path.join(out,'proof.json')},null,2));
+let workflow=await readFile(path.join(root,'scripts/desktop/test-agent-app68-full-app.mjs'),'utf8');
+const line=workflow.split('\n').find(s=>s.startsWith('const root=path.resolve(import.meta.dirname'));
+workflow=workflow.replace(line,"const root=path.resolve(import.meta.dirname,'../..'),require=createRequire(import.meta.url),pointer=await json(path.join(root,'.supabase/desktop-agent-editor-alignment68/current.json')),proof=await json(pointer.proof),out=path.join(proof.out,'rendered-'+Date.now());await mkdir(out);");
+const observation=`await expect(editor).toBeVisible();e.layoutObservations=[];for(const width of [1460,800,560]){await page.setViewportSize({width,height:950});await page.screenshot({path:path.join(out,'aligned-editor-'+width+'.png')});e.layoutObservations.push(await page.evaluate(()=>{const box=s=>{const r=document.querySelector(s).getBoundingClientRect();return {top:r.top,left:r.left,width:r.width,bottom:r.bottom}};return {width:innerWidth,identity:box('.agent-editor-page-identity'),navigation:box('.agent-editor-page .settings-nav'),body:box('.agent-editor-page .settings-content'),scrollWidth:document.querySelector('.agent-editor-page-scroll').scrollWidth};}));}await page.setViewportSize({width:1360,height:1000});await expect(page.getByRole('dialog')).toHaveCount(0);`;
+assert(workflow.includes("await expect(editor).toBeVisible();await expect(page.getByRole('dialog')).toHaveCount(0);"));workflow=workflow.replace("await expect(editor).toBeVisible();await expect(page.getByRole('dialog')).toHaveCount(0);",observation);
+await writeFile(path.join(root,'scripts/desktop/inspect-agent-editor-alignment68.mjs'),workflow);
+console.log(JSON.stringify({success:true,out,changedUiFiles:proof.changedUiFiles,backendChanges:[]}));

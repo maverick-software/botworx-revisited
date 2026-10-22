@@ -1,0 +1,26 @@
+# Installed agent verification — October 20, 2026
+
+The current installed Agentopia 0.44.50 passed a read-only saved-agent audit and a new bounded ChatGPT workflow. The workflow used the actual ordinary account, installed application, ChatGPT OAuth connection and Codex 0.163.0 runtime. No provider or model responses were substituted. There were two parent requests and one named specialist request, with no OpenRouter request and no replay.
+
+The initial audit found two active general assistants, 15 saved assignments and one persistent memory. It checked agent/account ownership, definition revisions, saved skill hashes, assignment/request/parent bindings, memory source links, authenticated database visibility for both accounts and memory-search isolation between identities. There were no ownership or reference errors and no queued or running assignments. The historical failed assignment recorded a ChatGPT subscription-sharing usage-limit rejection; it was already terminal. The current connection accepted all three new requests.
+
+The two original profiles have no custom role, standard procedures or persistent skills configured. The test therefore created two clearly labelled verification identities, leaving the original definitions unchanged. The coordinator received a role, a generated procedure marker and a generated persistent skill marker. The specialist received its own role and marker, with only memory search and assignment-status tools; memory writing, delegation, native commands and browsing were unavailable to it. Two generated projects had project-wide chat memory disabled so another identity could not receive the coordinator's fact through project recall.
+
+The coordinator reported the role, procedure and skill markers from its saved definition, saved exactly one generated fact with a citation to the source user message, and invoked the specialist exactly once. The specialist searched its own memory and found no match, reported its configured identity and marker, and queried its actual running assignment. The coordinator then read the specialist's completed saved result and reported it with its citation. A later coordinator request used a separate project, conversation and native thread. Its prompt contained the memory title but omitted the fact; its completed memory search returned that fact and its original citation. The saved role, procedure and skill also appeared in this fresh conversation.
+
+Six tool calls completed. One earlier transcript read requested 20,000 characters, exceeding the 12,000-character limit. The backend rejected it; the agent corrected the length and completed the read. The named invocation was not repeated. This records a recovered argument error rather than an all-successful tool-call history.
+
+Independent collection checked actual request rows, tool receipts, message authorship, definition revisions, inherited restrictions, memory records, source links and native session files under the published private profile. All three requests completed. The collector compared pre-existing row fingerprints across 14 tables, including agent definitions, previous conversations/messages/requests/native state, accounts/passwords and encrypted database records. No pre-existing row changed.
+
+After verification, the two generated identities were retired and their three chats archived. Their two labelled projects, memory and saved histories remain as evidence. The original two general assistants remain active. The original chat, draft, selected model, provider choices and document pane were restored. Screenshots of the live coordinator result and restored original chat were visually inspected. Agentopia closed normally and reopened through its ordinary Windows launcher without debugger flags. The subsequent read-only audit found 18 assignments: 17 completed and the same historical failure. Request counts increased by exactly three, with no running or queued requests and no replay after reopening. Existing account/agent visibility checks still passed.
+
+This establishes the described identity, role/procedure/skill use, memory recall and isolation, named delegation, status inspection, result reporting and normal restart preservation in the installed app. Five simultaneous live-model completions, extended unattended reliability, Windows reboot acceptance and visible Windows notifications remain separate checks. The existing 667-case exact-archive qualification supplies controlled coverage for concurrency, cancellation, queues, permissions and other retained behavior; those controlled results are not additional live model completions. The supported Windows inspection helper still fails before initialization, so fresh native reference-app comparison remains unavailable.
+
+Evidence:
+
+- Live acceptance: `F:/Agentopia/.supabase/desktop-agent-live50/1792551857404/acceptance.json`.
+- Initial audit: `F:/Agentopia/.supabase/desktop-agent-health50/1792551691214/evidence.json`.
+- Post-restart audit: `F:/Agentopia/.supabase/desktop-agent-health50/1792552369587/evidence.json`.
+- Controlled archive checks: `F:/Agentopia/.supabase/desktop-agent-controls50/1792549932462/evidence.json`.
+
+The broader parity and workspace-agent goal is active again at the user's request. This checkpoint does not mark the whole objective complete.

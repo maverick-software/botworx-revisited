@@ -1,0 +1,36 @@
+from pathlib import Path
+ROOT=Path(__file__).resolve().parents[2]
+def edit(name,old,new):
+    file=ROOT/name;text=file.read_text(encoding='utf-8');assert text.count(old)==1,(name,old[:110],text.count(old));file.write_text(text.replace(old,new),encoding='utf-8',newline='\n')
+
+edit('desktop/src/composer.ts',"import {chatDeliveryText}","import {selectedContexts} from './selected-context';\nimport {chatDeliveryText}")
+edit('desktop/src/composer.ts',"return {...(result.windows", "return {...(v.sources!==undefined?{sources:selectedContexts(v.sources)}:{}),...(result.windows")
+edit('desktop/src/chat-drafts.ts',"import {chatOptions}","import {selectedContextFiles} from './selected-context';\nimport {chatOptions}")
+edit('desktop/src/chat-drafts.ts',"const options=chatOptions(raw.options);delete options.goalId;","const options=chatOptions(raw.options);selectedContextFiles(options.sources,owner,'ask');delete options.goalId;")
+edit('desktop/src/chat-drafts.ts',"!draft.options.files.length&&", "!draft.options.files.length&&!draft.options.sources?.length&&")
+edit('desktop/src/new-chat-defaults.ts',"!draft.options.files.length&&", "!draft.options.files.length&&!draft.options.sources?.length&&")
+edit('desktop/src/broker.ts',"import {nativeOutputDirectory}","import {selectedChatSnapshot,selectedContextFiles} from './selected-context';\nimport {nativeOutputDirectory}")
+edit('desktop/src/broker.ts',"const options=chatOptions(args.options);delete options.goalId;await this.chatQueue.add", "const options=chatOptions(args.options);selectedContextFiles(options.sources,user.id,options.permission);delete options.goalId;await this.chatQueue.add")
+edit('desktop/src/broker.ts',"{...options,files:[],windows:undefined,goalId:undefined}","{...options,files:[],sources:undefined,windows:undefined,goalId:undefined}")
+edit('desktop/src/broker.ts',"   case 'messages.list':{", "   case 'context.chat':{\n    const id=uuid(args.conversationId),chat=must(await this.admin.from('conversation_sessions').select('title').eq('conversation_id',id).eq('user_id',user.id).single()),messages=await this.loadMessages(id);await this.attachmentOwner(user.id);\n    return selectedChatSnapshot(user.id,id,chat.title,messages);\n   }\n   case 'messages.list':{")
+edit('desktop/src/broker.ts',"const context=await this.files.context(user.id,executionOptions.files,options.permission,operation.controller.signal);", "const sources=selectedContextFiles(options.sources,user.id,options.permission);\n  const context=[...await this.files.context(user.id,executionOptions.files,options.permission,operation.controller.signal),...sources];")
+edit('desktop/src/main.ts',"import {ScheduledNotifications}","import {selectedBrowserSnapshot} from './selected-context';\nimport {ScheduledNotifications}")
+edit('desktop/src/main.ts',"return broker.tools.browser!.context(owner.id,value.id,value.url,AbortSignal.timeout(15000),async()=>{if((await broker!.identity()).id!==owner.id)throw new Error('Your Agentopia account changed.');});", "return selectedBrowserSnapshot(owner.id,await broker.tools.browser!.context(owner.id,value.id,value.url,AbortSignal.timeout(15000),async()=>{if((await broker!.identity()).id!==owner.id)throw new Error('Your Agentopia account changed.');}));")
+edit('desktop/src/codex-harness.ts',"import {nativeReportContext,waitForNativeReport}","import {importedSelectedContext} from './selected-context';\nimport {nativeReportContext,waitForNativeReport}")
+edit('desktop/src/codex-harness.ts',"   if(request.recalledMemory?.length)","   const savedSources=importedSelectedContext(imported,options.permission!=='chat');if(savedSources)inputs.push({type:'text',text:savedSources,text_elements:[]});\n   if(request.recalledMemory?.length)")
+edit('desktop/src/codex-harness.ts',"if(context&&(context.files.some", "if(context?.sources?.some(source=>!r.options.sources?.some(current=>JSON.stringify(current)===JSON.stringify(source))))throw new Error('New selected sources need their own queued turn.');\n   if(context&&(context.files.some")
+# Another chat cannot inherit a selected snapshot unique to its recipient.
+edit('desktop/src/chat-delivery.ts',"{...target,permission,files:","{...target,sources:[],permission,files:")
+edit('desktop/ui/useChatDrafts.ts',"files:[],windows:undefined", "files:[],sources:undefined,windows:undefined")
+edit('desktop/ui/DesktopApp.tsx',"!options.files.length&&!options.windows?.length", "!options.files.length&&!options.sources?.length&&!options.windows?.length")
+edit('desktop/ui/DesktopApp.tsx',"const defaults={...options,files:[],windows:","const defaults={...options,files:[],sources:undefined,windows:")
+edit('desktop/ui/DesktopApp.tsx',"(!input.trim()&&!options.files.length)","(!input.trim()&&!options.files.length&&!options.sources?.length)")
+edit('desktop/ui/DesktopApp.tsx',"if(options.permission==='chat'&&options.files.length)","if(options.permission==='chat'&&(options.files.length||options.sources?.length))")
+edit('desktop/ui/DesktopApp.tsx',"input.trim()||'Review the attached files.'", "input.trim()||'Review the attached sources.'")
+edit('desktop/ui/DesktopApp.tsx',"files:options.files.map(id=>({name:fileReferences.find(f=>f.id===id)?.name??'Attached file'}))", "files:[...options.files.map(id=>({name:fileReferences.find(f=>f.id===id)?.name??'Attached file'})),...selectedContextFiles(options.sources,authOwner.current??'',options.permission)]")
+edit('desktop/ui/DesktopApp.tsx',"import {nativeOutputDirectory}","import {nativeOutputDirectory}") if False else None
+file=ROOT/'desktop/ui/DesktopApp.tsx';text=file.read_text(encoding='utf-8');file.write_text("import {selectedContextFiles} from '../src/selected-context';\n"+text,encoding='utf-8',newline='\n')
+edit('desktop/src/portable-settings.ts',"import {chatOptions,thinkingValues}","import {selectedContextFiles} from './selected-context';\nimport {chatOptions,thinkingValues}")
+edit('desktop/src/portable-settings.ts',"'goalId','tools']", "'goalId','tools','sources']")
+edit('desktop/src/portable-settings.ts',"cleanPortableSetting(key as Key,value);}return record;", "cleanPortableSetting(key as Key,value);const settings=account.settings;if(settings.composer)selectedContextFiles((settings.composer as any).sources,account.owner,'ask');for(const draft of Object.values(settings['chat-drafts']??{}) as ChatDraft[])selectedContextFiles(draft.options.sources,account.owner,'ask');}return record;")
+print('Selected-source backend and draft changes applied.')

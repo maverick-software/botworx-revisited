@@ -1,0 +1,28 @@
+{
+  "scanned-3-pages.pdf": {
+    "sha256": "91b51ad9858e3fd136c257ad1d740027fb7fbc383997f7fc4da5f0ae35b51a77",
+    "bytes": 250123,
+    "extractedText": [
+      "",
+      "",
+      ""
+    ]
+  },
+  "mixed-4-pages.pdf": {
+    "sha256": "994dfc79f5bbe4c79df5ea639c8cfcad9dee4b76781f9bfe76c63f3b4319dc07",
+    "bytes": 167600,
+    "extractedText": [
+      "DIGITAL-63-START\n",
+      "",
+      "DIGITAL-63-END\n",
+      ""
+    ]
+  },
+  "rotated-page.pdf": {
+    "sha256": "eef65e9c6402124b940b5cbb1d1c859fe76584ec6001d5555f645a2c362f6dba",
+    "bytes": 83681,
+    "extractedText": [
+      ""
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+import {readFile,writeFile} from 'node:fs/promises';
+import {execFileSync,spawnSync} from 'node:child_process';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {desktopOperation} from './operation-lock.mjs';
+desktopOperation('verified full stopped-profile staging and native index relocation');
+const root=path.resolve(import.meta.dirname,'../..'),out=path.join(root,'.supabase/desktop-standalone/migration'),profile=path.join(out,'profile-stage'),python=path.join(root,'desktop/resources/script-runtimes/python-3.14.8/python.exe'),backup=JSON.parse(await readFile(path.join(out,'backup.json'),'utf8'));
+assert(backup.success);const source=backup.sourceProfile;
+assert.equal(execFileSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',"@(Get-Process Agentopia -ErrorAction SilentlyContinue).Count"],{encoding:'utf8',windowsHide:true}).trim(),'0','Close Agentopia normally before staging its profile.');
+const running=execFileSync('wsl.exe',['--list','--running','--quiet'],{encoding:'utf16le',windowsHide:true}).trim().split(/\r?\n/).map(value=>value.trim());assert(!running.includes('AgentopiaRuntime'),'Wait for the original runtime to stop.');
+const copied=spawnSync(python,['-B',path.join(root,'desktop/runtime/copy-desktop-profile.py'),source,profile,path.join(out,'profile-copy.json'),...(process.argv.includes('--resume')?['--resume']:[])],{cwd:root,windowsHide:true,stdio:'inherit'});assert.equal(copied.status,0,'The profile copy stopped; inspect its checkpoint before resuming.');
+await writeFile(path.join(profile,'.agentopia-native-relocation.json'),JSON.stringify({format:1,codex:'0.163.0',sourceProfile:source,destinationProfile:profile,state:'copied'},null,2),{flag:'wx'});
+const repaired=JSON.parse(execFileSync(python,['-B',path.join(root,'desktop/runtime/relocate-native-profile.py'),profile],{encoding:'utf8',windowsHide:true,timeout:60000}));assert(repaired.success);assert.equal(repaired.homes,91);
+await writeFile(path.join(out,'native-repair.json'),JSON.stringify({...repaired,at:new Date().toISOString(),sourceProfile:source,stagedProfile:profile},null,2));console.log(JSON.stringify({success:true,profile,nativeHomes:repaired.homes,nativeThreads:repaired.threads,sourceRetained:true,productionAdopted:false}));

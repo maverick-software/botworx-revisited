@@ -1,0 +1,5 @@
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import {readFile,writeFile} from 'node:fs/promises';
+const out=path.resolve(import.meta.dirname,'../../.supabase/desktop-google-editor64/contract-research'),index=JSON.parse(await readFile(path.join(out,'source-index.json'),'utf8'));
+for(const [name,url]of [['fileUtils.node.ts','https://raw.githubusercontent.com/ComposioHQ/composio/'+index.commit+'/ts/packages/core/src/utils/fileUtils.node.ts'],['googledrive.html','https://docs.composio.dev/toolkits/googledrive']]){const response=await fetch(url,{redirect:'error',signal:AbortSignal.timeout(30000)});assert(response.ok);const text=await response.text();await writeFile(path.join(out,name),text);console.log(JSON.stringify({name,source:url,bytes:Buffer.byteLength(text)}));if(name.endsWith('.html'))for(const needle of ['GOOGLEDRIVE_UPLOAD_FILE','file_to_upload','mime_type','convert']){const at=text.indexOf(needle);console.log(JSON.stringify({needle,found:at>=0,context:at<0?null:text.slice(Math.max(0,at-80),at+350)}));}}

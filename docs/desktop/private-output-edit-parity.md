@@ -1,0 +1,23 @@
+# Editable private chat outputs
+
+October 19, 2026: **0.44.47 chat-output-edits-13 is installed and accepted for ordinary saved-link editing and reopening.** Exported private/sandbox files now have independent copies for each chat, source path and source version. Reopening the original link retains edits to that copy. Equal filenames/content in other chats or folders no longer share future edits. A newer source version creates a separate copy while preserving the edited older version.
+
+Registered legacy edited copies are cloned into independent paths without changing their old files. Unregistered legacy content cannot replace the source. After migration, the independent copy can reopen without reading its old legacy file. Account, saved-chat, branch, credential-path and linked-file checks remain enforced.
+
+The staged absolute-source key failed a generated profile-relocation test. The delivered key uses the source path relative to its owned workspace. Twenty-two local workflow groups pass: ten copy/edit cases, nine existing document/permission cases and three saved-link migration cases. The source rebuilt to the same tested backend bytes. Archive comparison changes only `build/chat-files.js`; all 219 UI files are unchanged. Actual Codex/provider execution, agent memory/policy and schema code retain their previous accepted bytes.
+
+## Installed proof
+
+The ordinary app reopened the saved administrator, original chat, PDF attachment, empty draft and ChatGPT / GPT-6.1 Sol High / Full access selection. The original private Word link from that chat opened a formatted, independent exported copy. A temporary title edit changed only `word/document.xml` among 18 parts. Closing the pane and clicking that same saved link reopened the edited copy, demonstrating that the former changed-export error is resolved. The reference desktop app displayed the same edited file.
+
+The copied document was then restored byte for byte. Its private source and Downloads file remained unchanged throughout; all three restored hashes are `4243852972bda04e552d47051057c047ea6b8a37e1ef8ddc23aba6cd303e8a57`. The temporary reference tab was closed, and Agentopia returned to the original chat's latest response with its PDF and empty draft. All 126 checked tables match the fresh backup, including passwords and saved history. Totals remain two accounts, 116 chats, 400 messages and 200 requests, with no running request. No inference request was sent or replayed during this delivery.
+
+Installed archive SHA-256: `858d6fda4de23308b93e1b1b140c4fca00f14402639d1f0382ca1b112dd16ab2`. Resource manifest SHA-256 remains `ea253c329cbc7089253fc9cade58029978030efa09d3c12785e9774072d79235`. Current pointer and acceptance: `.supabase/desktop-chat-output-edits/current.json` and `reopened.json`. Frozen final candidate/source/receipts: `C:/Users/charl/AgentopiaQA/chat-output-edits/1792472868437/`. The earlier uninstalled candidate remains intact.
+
+## Recovery and remaining scope
+
+Fresh protected recovery: `C:/Users/charl/AgentopiaRecovery/chat-output-edits-13/1792472982209/`. Five logical database/key files come from one exported database snapshot. The independently verified closed-profile archive preserves 4,061 files in 43,303,545 compressed bytes. Prior app/UI archives and the rehashed retained cold database image remain available. The first publication attempt stopped at its free-space check before writing app files. Retained public build files and inactive rollback archives were compressed in place, with matching byte hashes, before retrying. No recovery or user data was deleted or moved. The general recovery chain recognizes the new accepted archive and verifies the actual profile/WSL binding.
+
+**Full relocation of both private and public output roots remains incomplete.** The passing relocation case retained the external public export directory. An additional probe used `nativeOutputDirectory` to recalculate the public directory after moving the private root. The old edited copy remained intact, but reopening the original link selected a fresh source copy under the new public root. Evidence is `public-root-relocation-probe.json` in the final candidate directory. This requires resolving the owned registered copy across that public-root change; it is not established by the 22 passing groups. The full installer/reboot/clean-machine recovery scope must also cover the public exported copies, not just the private profile and database.
+
+The complete parity/workspace-agent goal remains active. Remaining acceptance includes that combined relocation case, public-artifact recovery, full release/reboot/restoration, and further workspace-agent identity, tools/SOPs, isolated memory, coordination, cancellation and restart checks.

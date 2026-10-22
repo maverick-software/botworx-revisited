@@ -1,0 +1,6 @@
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import {writeFile} from 'node:fs/promises';
+import {json} from './phased-backup-control.mjs';
+const root=path.resolve(import.meta.dirname,'../..'),pointer=await json(path.join(root,'.supabase/desktop-chart-format-release62/current.json')),proof=await json(pointer.proof),qualification=await json(path.join(proof.out,'qualification.json')),packaged=await json(path.join(proof.out,'packaged-accepted.json'));assert(qualification.success&&packaged.success&&proof.version==='0.44.62');
+const file=path.join(root,'.supabase/desktop-recovery-bootstrap/next-acceptance.json'),ledger=await json(file);Object.assign(ledger.chartFormatting62,{candidate:pointer.proof,qualification:path.join(proof.out,'qualification.json'),packagedEvidence:packaged.evidence,packagedChecks:4,coldReopening:true,compiledBackendFilesUnchanged:1095,archiveChecksReused:955,phase:'qualified candidate; installer construction and production delivery pending',report:'docs/desktop/chart-format62.md',installed:false});ledger.fullGoalComplete=false;await writeFile(file,JSON.stringify(ledger,null,2));console.log(JSON.stringify({success:true,version:'0.44.62',candidateQualified:true,installed:false,fullGoalComplete:false}));

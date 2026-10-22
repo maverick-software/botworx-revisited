@@ -1,0 +1,3 @@
+.saved-integration-credentials{margin:20px 0;border-top:1px solid var(--border);padding-top:12px;min-width:0}
+.saved-integration-credentials>summary{cursor:pointer;padding:8px 0;color:var(--muted);font-size:13px}
+.saved-integration-credentials[open]>summary{margin-bottom:12px;color:var(--text)}

@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import path from 'node:path';
+import {desktopOperation} from './operation-lock.mjs';
+import {hash} from './phased-backup-control.mjs';
+desktopOperation('retain thin ordinary and package runtime redirects after data cleanup');
+const root=path.resolve(import.meta.dirname,'../..'),exec=promisify(execFile),json=async p=>JSON.parse(await readFile(p,'utf8'));
+assert((await json((await json(path.join(root,'.supabase/desktop-store-cleanup55/current.json'))).evidence)).success);
+const job=path.join(root,'.supabase/desktop-runtime-links55',String(Date.now()));await mkdir(job,{recursive:true});const run=async(exe,args)=>(await exec(exe,args,{cwd:root,windowsHide:true,encoding:'utf8',timeout:30000,maxBuffer:1024*1024})).stdout.trim();
+const sid=await run('powershell.exe',['-NoProfile','-NonInteractive','-Command','[Security.Principal.WindowsIdentity]::GetCurrent().User.Value']);assert(/^S-1-5-[0-9-]+$/.test(sid));await run('icacls.exe',[job,'/inheritance:r','/grant:r','*'+sid+':(OI)(CI)F','*S-1-5-18:(OI)(CI)F','/Q']);
+const shell=path.join(root,'.supabase/desktop-plugin-release55/1792598853555/program/resources/resources/code-tools/powershell-7.6.7/pwsh.exe'),script=path.join(root,'scripts/desktop/repair-runtime-links55.ps1'),shortcut=path.join(job,'links.lnk');assert.equal(await hash(shell),'fa2c8bb1e35cdd62ad15cd06a1d8f2c5961e9725a9bfa1e7cfd2c322f49e9619');await writeFile(path.join(job,'intent.json'),JSON.stringify({job,shellSha256:await hash(shell),scriptSha256:await hash(script),runtimeDataWrites:0}));
+const ps="$s=(New-Object -ComObject WScript.Shell).CreateShortcut('"+shortcut+"');$s.TargetPath='"+shell+"';$s.Arguments='-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -File \""+script+"\" -Job \""+job+"\"';$s.WorkingDirectory='F:\\Agentopia';$s.WindowStyle=7;$s.Save()";await run('powershell.exe',['-NoProfile','-NonInteractive','-Command',ps]);try{await run('explorer.exe',[shortcut]);}catch(error){if(error.code!==1)throw error;}
+let result;for(let n=0;n<120;n++){try{result=await json(path.join(job,'result.json'));break;}catch(error){if(error.code!=='ENOENT')throw error;}await new Promise(resolve=>setTimeout(resolve,500));}assert(result?.success,result?.error??'The ordinary link helper did not finish');
+const code='from pathlib import Path;import json;target=Path("/mnt/f/Agentopia-Data/runtime/legacy-AgentopiaRuntime");roots=[Path("/mnt/c/Users/charl/AppData/Roaming/Agentopia"),Path("/mnt/c/Users/charl/AppData/Local/Packages/OpenAI.Codex_2p2nqsd0c76g0/LocalCache/Roaming/Agentopia")];print(json.dumps({"success":all((p/"wsl").resolve()==target and sorted(x.name for x in p.iterdir())==["wsl"] for p in roots),"roots":[{"path":str(p),"children":sorted(x.name for x in p.iterdir()),"runtimeTarget":str((p/"wsl").resolve())} for p in roots]}))';
+const physical=JSON.parse(await run('wsl.exe',['-d','AgentopiaRuntime-a91a4800-e08f-4440-a4ec-588762d01bfd','-u','agentopia','--exec','python3','-c',code]));assert(physical.success);await writeFile(path.join(job,'evidence.json'),JSON.stringify({success:true,job,result,physical,onlyThinRedirectsRemain:true,runtimeDataWrites:0},null,2));await writeFile(path.join(root,'.supabase/desktop-runtime-links55/current.json'),JSON.stringify({job,evidence:path.join(job,'evidence.json')}));console.log(JSON.stringify({success:true,job,onlyThinRedirectsRemain:true}));

@@ -1,0 +1,25 @@
+import {cp,mkdir,readFile,writeFile,readdir} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {spawnSync} from 'node:child_process';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {build} from 'vite';
+import react from '@vitejs/plugin-react';
+import {desktopOperation} from './operation-lock.mjs';
+desktopOperation('prepare isolated continuous chat history interface');
+const root=path.resolve(import.meta.dirname,'../..'),baseline=path.join(root,'.supabase/desktop-maintenance-0437'),out=path.join(root,'.supabase/desktop-continuous-history/maintenance'),source=path.join(out,'source/desktop');
+const digest=bytes=>createHash('sha256').update(bytes).digest('hex'),json=async file=>JSON.parse(await readFile(file,'utf8'));
+async function inventory(dir){const values={};for(const file of await readdir(dir,{recursive:true,withFileTypes:true}))if(file.isFile()){const full=path.join(file.parentPath,file.name);values[path.relative(dir,full).replaceAll('\\','/')]=digest(await readFile(full));}return Object.fromEntries(Object.entries(values).sort(([a],[b])=>a.localeCompare(b)));}
+const maintenance=await json(path.join(baseline,'update.json')),frontend=await json(path.join(baseline,'frontend-proof.json'));assert(maintenance.success&&frontend.success);assert.equal(maintenance.version,'0.43.7');
+const resources=path.join(path.dirname(maintenance.installedExecutable),'resources/resources'),installed=path.join(resources,'ui');assert.deepEqual(await inventory(installed),frontend.finalFiles,'Installed UI changed; inspect before preparing an update.');
+await mkdir(out);await cp(path.join(baseline,'source/desktop'),source,{recursive:true,filter:file=>file!==path.join(baseline,'source/desktop/build')});
+const buildUI=destination=>build({configFile:false,envDir:false,root:path.join(source,'ui'),plugins:[react()],base:'/',build:{outDir:destination,emptyOutDir:true,assetsInlineLimit:0}});
+await buildUI(path.join(out,'baseline-ui'));assert.deepEqual(await inventory(path.join(out,'baseline-ui')),frontend.finalFiles,'The source must reproduce the installed interface before editing.');
+const original=await inventory(source),component=await readFile(path.join(root,'desktop/ui/ConversationTranscript.tsx'),'utf8'),renderName='agentName={message.metadata.agent?.name??agents.find(agent=>agent.id===message.sender_agent_id)?.name??agentName}';assert(component.includes(renderName));
+await writeFile(path.join(source,'ui/ConversationTranscript.tsx'),component.replace(renderName,'agentName={agentName}'));
+const desktop=path.join(source,'ui/DesktopApp.tsx'),app=await readFile(desktop,'utf8');assert.equal(app.split('onHistoryToggle').length,2);await writeFile(desktop,app.replace('onHistoryToggle','onNavigate'));
+const cssFile=path.join(source,'ui/style.css'),css=await readFile(cssFile,'utf8'),current=await readFile(path.join(root,'desktop/ui/style.css'),'utf8'),start=css.indexOf('.previous-messages-toggle{'),end=css.indexOf('@container conversation',start),newStart=current.indexOf('.conversation-timeline{'),newEnd=current.indexOf('@container conversation',newStart);assert(start>=0&&end>start&&newStart>=0&&newEnd>newStart);await writeFile(cssFile,css.slice(0,start)+current.slice(newStart,newEnd)+css.slice(end));
+const next=await inventory(source),changed=Object.keys(next).filter(file=>next[file]!==original[file]);assert.deepEqual(changed.sort(),['ui/ConversationTranscript.tsx','ui/DesktopApp.tsx','ui/style.css']);
+const checked=spawnSync(process.execPath,['node_modules/typescript/bin/tsc','-p',path.join(source,'ui/tsconfig.json')],{cwd:root,encoding:'utf8',windowsHide:true});await writeFile(path.join(out,'typecheck.log'),(checked.stdout??'')+(checked.stderr??''));assert.equal(checked.status,0,'Inspect the isolated typecheck log.');
+await buildUI(path.join(out,'ui'));const finalFiles=await inventory(path.join(out,'ui'));assert.equal(Object.keys(finalFiles).length,12);
+const proof={success:true,at:new Date().toISOString(),kind:'interface-only',installedVersion:maintenance.version,installedExecutable:maintenance.installedExecutable,installedResources:resources,source,ui:path.join(out,'ui'),baselineReproduced:true,before:frontend.finalFiles,after:finalFiles,sourceChanges:changed,sourceHashes:Object.fromEntries(changed.map(file=>[file,next[file]])),backendChanged:false,databaseChanged:false,deployed:false};await writeFile(path.join(out,'preparation.json'),JSON.stringify(proof,null,2),{flag:'wx'});console.log(JSON.stringify({success:true,sourceChanges:changed,files:Object.keys(finalFiles).length,out},null,2));

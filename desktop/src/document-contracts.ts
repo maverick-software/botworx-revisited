@@ -1,0 +1,10 @@
+export const documentTypes=new Set(['.pdf','.docx','.xlsx','.pptx']);
+export const maxDocumentBytes=20*1024*1024;
+export type DocumentKind='pdf'|'word'|'spreadsheet'|'presentation';
+export type DocumentSection={label:string;text:string;rows?:{label:string;cells:{address:string;text:string}[]}[];tableLimited?:boolean};
+export type DocumentInfo={kind:DocumentKind;totalUnits:number;unitsRead:number;truncated:boolean;hasText:boolean;notice?:string;pagesWithoutText?:number[]};
+export type WorkbookCellStyle={font?:string;size?:number;bold?:boolean;italic?:boolean;underline?:boolean;color?:string;fill?:string;align?:'left'|'center'|'right';vertical?:'top'|'middle'|'bottom';wrap?:boolean;borders?:Partial<Record<'top'|'right'|'bottom'|'left',string>>};
+export type WorkbookCell={address:string;row:number;column:number;value:string;display:string;formula?:string;style:number;numeric:boolean};
+export type WorkbookSheet={name:string;hidden:boolean;rows:number;columns:number;cells:WorkbookCell[];widths:Record<number,number>;heights:Record<number,number>;hiddenRows:number[];hiddenColumns:number[];merges:{row:number;column:number;rows:number;columns:number}[];limited:boolean};
+export type WorkbookLayout={styles:WorkbookCellStyle[];sheets:WorkbookSheet[];notice:string};
+export type DocumentPreview=DocumentInfo&{sections:DocumentSection[];text:string;pageImages?:import('./pdf-page-contracts').PdfPageImage[];workbook?:WorkbookLayout;visual?:{extension:'.pdf'|'.docx'|'.pptx';base64:string}};

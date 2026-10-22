@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import {validateRegisteredRecoveryRuntime as validate} from './active-recovery-scope.mjs';
+const home='C:\\Users\\charl',profile=path.win32.join(home,'.agentopia/desktop/profile'),id='11111111-1111-4111-8111-111111111111',binding={format:1,instanceId:id,distribution:'AgentopiaRuntime-'+id},legacy=path.win32.join(home,'AppData/Roaming/Agentopia/wsl'),found={name:binding.distribution,path:legacy,version:2};
+test('published profile and retained registered disk are separate recovery roots',()=>{const r=validate(profile,binding,found,home);assert.equal(r.profile,profile);assert.equal(r.runtimeDisk,path.win32.join(legacy,'ext4.vhdx'));assert(r.runtimeRetainedOutsideProfile);assert.equal(r.runtimeDiskLinux,'/mnt/c/Users/charl/AppData/Roaming/Agentopia/wsl/ext4.vhdx');});
+test('a future already-registered disk under the private profile uses its actual registration',()=>{const r=validate(profile,binding,{...found,path:path.win32.join(profile,'wsl')},home);assert(!r.runtimeRetainedOutsideProfile);});
+test('extended Windows namespace and path case preserve the same bound disk',()=>{assert.equal(validate(profile,binding,{...found,path:String.fromCharCode(92,92,63,92)+legacy.toUpperCase()},home).runtimeDisk,path.win32.join(legacy,'ext4.vhdx'));});
+test('wrong user and old AppData profile cannot be captured as the active profile',()=>{for(const target of [path.win32.join(home,'AppData/Roaming/Agentopia'),'C:\\Users\\another\\.agentopia\\desktop\\profile'])assert.throws(()=>validate(target,binding,found,home));});
+test('foreign runtime, WSL1 and unrelated storage cannot inherit the profile binding',()=>{for(const patch of [{name:'AgentopiaRuntime-other'},{version:1},{path:'D:\\unrelated\\wsl'}])assert.throws(()=>validate(profile,binding,{...found,...patch},home));});
+test('invalid runtime identity or distribution mismatch is refused',()=>{for(const patch of [{format:2},{instanceId:'bad'},{distribution:'AgentopiaRuntime'}])assert.throws(()=>validate(profile,{...binding,...patch},found,home));});

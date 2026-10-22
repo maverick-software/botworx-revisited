@@ -1,10 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { 
   MessageSquare, 
+  Image, 
+  DollarSign, 
+  History, 
   CheckCircle, 
   AlertTriangle,
+  Settings,
   Plus,
   Loader2,
+  ChevronDown,
   Trash2,
   Zap,
   BarChart
@@ -12,13 +17,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 // Collapsible functionality implemented with state
 import { toast } from 'react-hot-toast';
 import { supabase } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { clicksendMCPTools } from '../services/clicksend-tools';
-import { ClickSendPermissionDetails } from './clicksend-permissions/ClickSendPermissionDetails';
-import { ClickSendUsageStats } from './clicksend-permissions/ClickSendUsageStats';
 
 interface AgentClickSendPermissionsProps {
   agent: any;
@@ -356,23 +360,155 @@ export function AgentClickSendPermissions({
             />
           </div>
 
+          {/* Detailed Permissions */}
           {hasAnyPermissions && (
-            <ClickSendPermissionDetails
-              showDetails={showDetails}
-              permissions={permissions}
-              isUpdating={isUpdating}
-              onToggleDetails={() => setShowDetails(!showDetails)}
-              onPermissionChange={handlePermissionChange}
-            />
+            <div>
+              <Button 
+                variant="ghost" 
+                className="w-full justify-between p-0"
+                onClick={() => setShowDetails(!showDetails)}
+              >
+                <span className="font-medium text-gray-900">Permission Details</span>
+                <ChevronDown className={`w-4 h-4 transition-transform ${showDetails ? 'rotate-180' : ''}`} />
+              </Button>
+              
+              {showDetails && (
+                <div className="space-y-3 mt-4">
+                {/* SMS Sending Permission */}
+                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                  <div className="flex items-start space-x-3">
+                    <MessageSquare className="w-5 h-5 text-blue-600 mt-0.5" />
+                    <div>
+                      <h5 className="font-medium text-gray-900">Send SMS Messages</h5>
+                      <p className="text-sm text-gray-600">Allow agent to send text messages to phone numbers</p>
+                      <div className="mt-1 flex items-center space-x-4 text-xs text-gray-500">
+                        <span>• Standard SMS rates apply</span>
+                        <span>• 160 character limit per message</span>
+                      </div>
+                    </div>
+                  </div>
+                  <Checkbox
+                    checked={permissions.includes('sms')}
+                    onCheckedChange={(checked) => handlePermissionChange('sms', checked as boolean)}
+                    disabled={isUpdating}
+                  />
+                </div>
+
+                {/* MMS Sending Permission */}
+                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                  <div className="flex items-start space-x-3">
+                    <Image className="w-5 h-5 text-purple-600 mt-0.5" />
+                    <div>
+                      <h5 className="font-medium text-gray-900">Send MMS Messages</h5>
+                      <p className="text-sm text-gray-600">Allow agent to send multimedia messages with images and videos</p>
+                      <div className="mt-1 flex items-center space-x-4 text-xs text-gray-500">
+                        <span>• Higher rates than SMS</span>
+                        <span>• 5MB file size limit</span>
+                      </div>
+                    </div>
+                  </div>
+                  <Checkbox
+                    checked={permissions.includes('mms')}
+                    onCheckedChange={(checked) => handlePermissionChange('mms', checked as boolean)}
+                    disabled={isUpdating}
+                  />
+                </div>
+
+                {/* Balance Checking Permission */}
+                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                  <div className="flex items-start space-x-3">
+                    <DollarSign className="w-5 h-5 text-green-600 mt-0.5" />
+                    <div>
+                      <h5 className="font-medium text-gray-900">Check Account Balance</h5>
+                      <p className="text-sm text-gray-600">Allow agent to view ClickSend account balance and usage</p>
+                      <div className="mt-1 text-xs text-gray-500">
+                        <span>• Read-only access to account information</span>
+                      </div>
+                    </div>
+                  </div>
+                  <Checkbox
+                    checked={permissions.includes('balance')}
+                    onCheckedChange={(checked) => handlePermissionChange('balance', checked as boolean)}
+                    disabled={isUpdating}
+                  />
+                </div>
+
+                {/* Message History Permission */}
+                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                  <div className="flex items-start space-x-3">
+                    <History className="w-5 h-5 text-orange-600 mt-0.5" />
+                    <div>
+                      <h5 className="font-medium text-gray-900">Access Message History</h5>
+                      <p className="text-sm text-gray-600">Allow agent to view sent message history and delivery status</p>
+                      <div className="mt-1 text-xs text-gray-500">
+                        <span>• View messages sent by this agent only</span>
+                      </div>
+                    </div>
+                  </div>
+                  <Checkbox
+                    checked={permissions.includes('history')}
+                    onCheckedChange={(checked) => handlePermissionChange('history', checked as boolean)}
+                    disabled={isUpdating}
+                  />
+                </div>
+                </div>
+              )}
+            </div>
           )}
 
+          {/* Usage Statistics */}
           {hasAnyPermissions && usageStats && (
-            <ClickSendUsageStats
-              usageStats={usageStats}
-              showDetailedStats={showDetailedStats}
-              onToggleDetails={() => setShowDetailedStats(!showDetailedStats)}
-              formatRelativeTime={formatRelativeTime}
-            />
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-medium text-blue-900">Recent Usage (Last 30 Days)</h4>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setShowDetailedStats(!showDetailedStats)}
+                  className="text-blue-700 hover:text-blue-900"
+                >
+                  {showDetailedStats ? 'Hide' : 'Show'} Details
+                </Button>
+              </div>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-900">{usageStats.sms_sent}</div>
+                  <div className="text-sm text-blue-700">SMS Sent</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-900">{usageStats.mms_sent}</div>
+                  <div className="text-sm text-blue-700">MMS Sent</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-900">{usageStats.balance_checks}</div>
+                  <div className="text-sm text-blue-700">Balance Checks</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-900">{usageStats.history_queries}</div>
+                  <div className="text-sm text-blue-700">History Queries</div>
+                </div>
+              </div>
+
+              {showDetailedStats && (
+                <div className="mt-4 pt-4 border-t border-blue-200">
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-blue-700">Last SMS sent:</span>
+                      <span className="text-blue-900">{formatRelativeTime(usageStats.last_sms_sent)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-blue-700">Last MMS sent:</span>
+                      <span className="text-blue-900">{formatRelativeTime(usageStats.last_mms_sent)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-blue-700">Success rate:</span>
+                      <span className="text-blue-900">{usageStats.success_rate}%</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
           {/* Action Buttons */}

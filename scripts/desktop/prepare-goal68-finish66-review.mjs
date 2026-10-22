@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';import {readFile,writeFile} from 'node:fs/promises';import path from 'node:path';
+const dir=import.meta.dirname;let text=await readFile(path.join(dir,'review-autonomous-goal68-recovery.mjs'),'utf8');
+text=text.replaceAll("'.supabase/desktop-autonomous-goal68-recovery66'","'.supabase/desktop-autonomous-goal68-finish66'").replace('e.modelRequests<=68','e.modelRequests<=46').replace('e.network.tools.length,38','e.network.tools.length,24');
+text=text.replace("const original=await json(e.originalEvidence);", "const original=await json(e.originalEvidence),priorCase=await json(e.priorCaseFile);assert.equal(await hash(e.priorCaseFile),e.priorCaseSha256);assert.equal(priorCase.cleanup.tools.length,14);assert.equal(priorCase.modelRequests,22);assert.deepEqual(e.files.slice(0,5),e.priorFiles);");
+text=text.replace('[...original.cleanup.tools,...e.network.tools]','[...original.cleanup.tools,...priorCase.cleanup.tools,...e.network.tools]');
+text=text.replace("assert.equal(e.network.tools[0].name,'write_file');assert.equal(e.network.tools[0].stage,2);", "assert.equal(e.network.tools[0].name,'browser_open');assert.equal(e.network.tools[0].stage,6);");
+text=text.replace('successfulReads.length===9','successfulReads.length===6').replace("Number(row.path.split('/').at(-1))>=3","Number(row.path.split('/').at(-1))>=6").replace('new Set(successfulReads.map(row=>row.path)).size,9','new Set(successfulReads.map(row=>row.path)).size,6');
+text=text.replace('[...original.cleanup.events,...e.network.events]','[...original.cleanup.events,...priorCase.cleanup.events,...e.network.events]');
+text=text.replace('newHostTools:38,priorHostTools:6,originalModelRequests:12,totalActualModelRequests:12+e.modelRequests','newHostTools:24,priorHostTools:20,originalModelRequests:12,priorRecoveryModelRequests:22,totalActualModelRequests:34+e.modelRequests');
+text=text.replace('oneOriginalStartAndOneRecoveryResume:true',"threeProviderUsingGoalRequests:[e.originalRequest,e.priorRequest,e.goalRequest],additionalGuardedResumeWithoutInference:'d2ade753-012b-4484-8a9a-5745c55ab648'");
+text=text.replace('originalFirstReceiptUnchanged:true','originalFirstReceiptUnchanged:true,allFivePriorReceiptsUnchanged:true,capacityFailurePreserved:true');
+text=text.replace("'This verifies recovery of the same finite eleven-stage assignment after a code fix and resume;", "'This verifies completion of the same finite eleven-stage assignment after a code fix and recovery from a provider capacity refusal;");
+text=text.replace('review-autonomous-goal68.mjs','review-autonomous-goal68-finish66.mjs');
+assert(text.includes('priorCase.cleanup.tools'));await writeFile(path.join(dir,'review-autonomous-goal68-finish66.mjs'),text,{flag:'wx'});console.log('Independent final review preserves the two earlier provider-using requests and the zero-inference guarded resume.');

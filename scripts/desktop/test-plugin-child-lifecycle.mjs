@@ -1,0 +1,10 @@
+import {mkdir,writeFile,readFile} from 'node:fs/promises';
+import {createReadStream} from 'node:fs';
+import {createHash} from 'node:crypto';
+import {spawnSync} from 'node:child_process';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {desktopOperation} from './operation-lock.mjs';
+desktopOperation('controlled real Codex plugin child lifecycle verification');
+const root=path.resolve(import.meta.dirname,'../..'),candidate=path.join(root,'.supabase/desktop-plugin-skills/candidate-0443'),proof=JSON.parse(await readFile(path.join(candidate,'package-proof.json'),'utf8')),digest=createHash('sha256');for await(const bytes of createReadStream(proof.image))digest.update(bytes);assert.equal(digest.digest('hex'),proof.imageSha256);
+const out=path.join(root,'.supabase/desktop-plugin-children/check-'+Date.now());await mkdir(out,{recursive:true});const env={...process.env,AGENTOPIA_CHILD_BUILD:path.join(candidate,'staging/build'),AGENTOPIA_CHILD_RESOURCES:path.join(candidate,'staging/out/Agentopia-win32-x64/resources/resources'),AGENTOPIA_CHILD_OUTPUT:out};const result=spawnSync(process.execPath,['--test','--test-concurrency=1','--test-reporter=tap','desktop/tests/plugin-child-lifecycle.test.cjs'],{cwd:root,env,encoding:'utf8',windowsHide:true,maxBuffer:8*1024*1024}),log=(result.stdout??'')+(result.stderr??'');await writeFile(path.join(out,'tests.log'),log);const evidence={success:result.status===0,at:new Date().toISOString(),imageSha256:proof.imageSha256,version:'0.44.3',actualCodex:true,controlledProviderResponses:true,liveInferenceRequests:0,productionAccess:false};await writeFile(path.join(out,'evidence.json'),JSON.stringify(evidence,null,2));console.log(JSON.stringify({...evidence,out},null,2));assert.equal(result.status,0,'Inspect '+path.join(out,'tests.log'));

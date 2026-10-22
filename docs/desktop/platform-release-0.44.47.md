@@ -1,0 +1,42 @@
+# Agentopia 0.44.47 — full navigation and interface rollup
+
+Status: installed through normal Windows Explorer, with verified UI correction 1 and successful ordinary reopening. The startup reading-position issue is corrected.
+
+This release includes the attachment-first composer menu, dedicated Settings pages, compact document toolbar, matching 28-pixel Send/Stop buttons, top-left ChatGPT/Codex menu, notifications/search and bottom rail account avatar. See [the navigation behavior and installed checks](workspace-navigation-parity.md). Folder-based projects initially choose Codex; regular projects initially choose ChatGPT. Explicit project/task choices survive reopening. Mode changes preserve agent identity, drafts, providers, permissions and running work.
+
+The frozen payload is `C:/Users/charl/AgentopiaQA/navigation-rollup-release/1792451982917`. Its application archive SHA-256 is `ad01a8042bf21655c7c3cb622409419ec92dd4e4b47d4d440e830af8203db801`. Independent comparison found all 3,285 archive files other than package.json identical to 0.44.46; package.json changes only the version. All 1,052 compiled backend files remain identical. Schema 69 is retained. Every delivered UI asset matches the installed, qualified UI correction 3.
+
+The 63 backend checks retain evidence through exact code identity, and the 52 interface/agent workflows retain evidence through exact delivered asset identity. These include workspace-agent definition, memory, assignment and selection workflows. Existing live execution evidence remains tied to its original version and conditions; this rollup makes no new live-provider concurrency claim.
+
+The exact47 packaged recovery used an isolated generated Windows home, account, encrypted profile and database, with one actual pinned Codex/PowerShell turn receiving controlled local model responses. The turn completed. An initial Word assertion looked for text outside the isolated document iframe and failed; the corrected test resumed the completed turn without replay. Five recovery groups then passed: the completed response and draft survived, Word and Unicode/# code links resolved copied files after the original paths were absent, a missing-file error stayed visible, normal closure stopped only the owned runtime, and a cold Store-style launch restored the same profile, cookie and saved work. An independent audit confirmed the QA runtime was removed and ordinary processes and other runtime states were unchanged. No real provider requests occurred.
+
+Six additional groups exercised the actual copy and activation controller in another generated home. They verified the source recovery archive, copied encrypted data, rebased and read one retained native conversation with unchanged saved bytes, checked before publishing, published the sealed location record, and reopened through both ordinary and Store-style paths. Source files and all other runtime states remained unchanged. This establishes the tested controller behavior; production profile adoption and Windows reboot recovery remain pending.
+
+Evidence is retained under `.supabase/desktop-platform-release/candidate-04447`, `.supabase/desktop-profile-location/controller47-qualified.json`, `C:/Users/charl/AgentopiaQA/migration-compat-packaged/1792452232660` and `C:/Users/charl/AgentopiaQA/profile-controller/1792452502702`. The ordinary user's profile has not been moved. Installation followed the completed installer integrity check and a fresh, checked recovery. Broader Office editing, external context and desktop parity work remains open.
+
+The completed Windows installer passed seven integrity groups. All 7444 delivered resource entries matched their expected sizes and checksums; extracted application/executable bytes and the package embedded inside Setup matched the qualified payload. The installer includes all three UI corrections. A fresh in-application logical backup was independently checked at `/mnt/c/Users/charl/AppData/Roaming/Agentopia/backups/2026-10-19T23-32-07.878Z-manual`; this is separate from the stopped full profile/runtime recovery still required before installing47. That paragraph records the pre-installation checkpoint; ordinary installation is now complete, while production-profile adoption remains pending.
+
+## Ordinary installation and reopening
+
+The fresh stopped recovery is `D:\Users\charl\AgentopiaRecovery\before-04447\1792453353168`. It contains 3,718 ordinary-profile files, 3,053 Store-profile files, five checked logical database/key files and a 6,311,378,944-byte cold runtime image. Physical capacity measurements retained 1 GiB of export-growth allowance and 1.5 GiB of remaining-space reserve; the logical allowance uses actual manifest-listed database files. Existing backups remain in place. A read-only recovery check verifies accounts/passwords, completed search/vision, saved native work and both child results/reports.
+
+The ordinary comparison matches all 126 checked tables and 1,668 saved rows, including both accounts/passwords, 109 chats, 384 messages, 192 requests and 191 readable vault records. All 7,443 installed runtime resources match the full47 payload. Native inspection restores the administrator, original conversation, attached PDF, ChatGPT GPT-6.1 Sol High selection, agent chooser, mode menu and rail account avatar. Word formatting and the updated red-text PDF render in the side panel. Both saved agents remain in the library. A normal root-launcher reopening restores the account, chat, attachment and original Word/PDF tabs; core counts and all 216 UI assets match again, with no request replay.
+
+A reading-position issue was confirmed before UI correction 1: the pre-close conversation showed its latest reply, but both initial47 opening and subsequent cold reopening displayed its beginning. Returning from the agent library to Chats moves to the latest reply. Source inspection suggests testing the first chat mount after runtime readiness, which existing fast text fixtures do not establish. The correction below preserves deliberate navigation to older messages while making initial latest-follow reliable. Installation preservation/navigation acceptance does not claim this issue or broader desktop parity is complete. No model request was made during these checks.
+
+## Startup reading correction installed
+
+The previously confirmed reading-position issue is resolved by the separately qualified UI correction 1. Five delayed-startup/reading cases and 52 existing interface/agent checks pass. Normal reopening now shows the latest saved reply before manual navigation. All 126 checked tables and 216 reopened UI assets match, with no request replay. The backend archive remains unchanged; the current resource manifest is `d7e85ebc2b26236f02d2b90eee8934404da41e32da9495b567e729258061f0eb`. The baseline47 installer does not contain this last correction; the next full installer must include it. [Cause, tests and installed evidence](startup-reading-parity.md).
+
+
+## Production private-profile adoption
+
+The verified location is now active. Both ordinary Explorer and direct desktop-host cold openings preserve the account, original chat/attachment/documents, model and mode selection, and all 126 checked tables. Actual pinned Codex reads all 146 copied conversations across 114 homes without new turns or changed raw histories. The runtime disk remains registered in the retained original profile. Future backups must capture the published private profile before the next full installer. Actual Store-package identity, Windows reboot and broader parity remain separate acceptance work. [Full evidence and corrected maintenance-tool issues](production-private-profile-0.44.47.md).
+
+## Fresh execution after private-profile adoption
+
+Three actual ChatGPT-backed requests now pass native command, named-agent invocation, persistent memory separation, saved-source preview and queue/steering acceptance. All pre-existing core rows remain preserved. The next release also needs the source-qualified stable + menu and checked restore helper. [Full evidence and remaining scope](profile-agent-live-0.44.47.md).
+
+## Subsequent installed UI2 checkpoint
+
+The stable composer-menu correction and checked fresh-restore helper are now installed. Native reopening and all 126 table comparisons pass. Recovery uses fresh logical/current-profile data together with the independently rehashed retained cold base; new cold compression stopped at its budget and remains incomplete. [Current evidence and limits](menu-stability-installed-0.44.47.md).

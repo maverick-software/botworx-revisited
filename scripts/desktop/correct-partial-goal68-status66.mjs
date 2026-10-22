@@ -1,0 +1,2 @@
+import assert from 'node:assert/strict';import {readFile,writeFile} from 'node:fs/promises';import path from 'node:path';
+const file=path.join(import.meta.dirname,'accept-partial-goal68-recovery66.mjs');let text=await readFile(file,'utf8');const old="assert.equal(database.native.state.goal.status,'paused');";assert(text.includes(old));text=text.replace(old,"assert.equal(database.native.state.goal.status,'blocked');");await writeFile(file,text);console.log('Capacity leaves the native goal blocked and the saved composer goal paused; both states must survive reopening.');

@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import {mkdir,writeFile} from 'node:fs/promises';
+import {desktopOperation} from './operation-lock.mjs';
+import {json,hash} from './phased-backup-control.mjs';
+import {prepareOwnedRuntime67} from './prepare-owned-runtime67.mjs';
+desktopOperation('prepare isolated real interrupted-upgrade recovery runtime67');
+const root=path.resolve(import.meta.dirname,'../..'),pointerFile=path.join(root,'.supabase/desktop-scheduled-workspaces67-real/current.json'),pointer=await json(pointerFile),source=await json(pointer.sourceIntent),accepted=await json(path.join(source.out,'source-accepted.json')),real=await json(path.join(root,'.supabase/desktop-scheduled-workspaces67/real-recovery-qualified.json'));
+assert(real.success&&real.actualPostgresRestore&&real.wholeAppColdRecovery);assert.equal(real.candidate,pointer.candidateFile);assert.equal(await hash((await json(pointer.candidateFile)).image),real.imageSha256);assert(!pointer.reviewIntent,'Inspect the already prepared review runtime instead of creating another.');
+pointer.reviewParent=path.join(pointer.parent,'restricted-'+Date.now());pointer.reviewIntent=path.join(pointer.reviewParent,'restored/intent.json');await mkdir(pointer.reviewParent);await writeFile(pointerFile,JSON.stringify(pointer,null,2));const result=await prepareOwnedRuntime67({parent:pointer.reviewParent,role:'restored',candidateFile:pointer.candidateFile,bundle:accepted.bundle});assert.equal(result.intent,pointer.reviewIntent);console.log(JSON.stringify({success:true,reviewIntent:result.intent,actualPostgresSource:true,installed:false}));

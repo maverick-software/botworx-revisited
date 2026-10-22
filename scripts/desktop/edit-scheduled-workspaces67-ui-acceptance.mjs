@@ -1,0 +1,42 @@
+import {readFile,writeFile} from 'node:fs/promises';
+const file='scripts/desktop/qualify-scheduled-projects67-ui.mjs';let source=await readFile(file,'utf8');
+const replace=(before,after)=>{if(source.split(before).length!==2)throw Error('Scheduled UI qualification anchor changed');source=source.replace(before,after);};
+replace('async function rpc(action,args={}){',"const controls=require(path.join(root,'scripts/desktop/scheduled-workspaces67-ui-service.cjs')).create({build:compiled,owner,secrets,workspaces,files,runs,out});\nasync function rpc(action,args={}){");
+replace(" if(action==='tasks.list')", " if(action.startsWith('tasks.workspaces.'))return controls.rpc(action,args);\n if(action==='tasks.list')");
+replace('actualScheduledComponents:true,','actualScheduledComponents:true,actualMaintenanceEngine:true,actualEditorQueue:true,');
+replace(" assert.deepEqual(evidence.rendererErrors,[]);evidence.success=true;",String.raw`
+ await check('saved workspace review archives the actual owned checkout and independently restores it through rendered controls',async()=>{
+  await page.getByRole('button',{name:'Saved workspaces',exact:true}).click();const row=page.getByRole('article',{name:'Workspace Project Alpha',exact:true});await expect(row).toHaveCount(1);
+  await row.getByRole('button',{name:'Review archive',exact:true}).click();await expect(page.getByRole('dialog')).toContainText('A verified recovery has been saved.');await page.screenshot({path:path.join(out,'workspace-archive-review-dark.png'),fullPage:true});
+  assert.equal(await readFile(path.join(evidence.checkout,'retained-review.md'),'utf8'),'Generated retained edit for review');
+  await page.getByRole('button',{name:'Archive workspace',exact:true}).click();await expect(page.getByRole('dialog')).toHaveCount(0);await expect(row).toContainText('Archived');
+  await assert.rejects(readFile(path.join(evidence.checkout,'retained-review.md')),{code:'ENOENT'});assert.equal(await readFile(path.join(fixtures,'Project Alpha','readme.md'),'utf8'),'Project Alpha committed files\n'.replace('\\n','\n'));
+  await row.getByText('Recovery history (1)',{exact:true}).click();await row.getByRole('button',{name:'Restore copy',exact:true}).click();await expect(page.getByRole('status')).toContainText('Restored files to');
+  const restored=(await controls.maintenance.list(owner))[0].operation.restoredPath;assert(restored);assert.equal(await readFile(path.join(restored,'retained-review.md'),'utf8'),'Generated retained edit for review');evidence.restoredCheckout=restored;
+  await row.getByRole('button',{name:'Open in Explorer',exact:true}).click();assert(controls.reveals.includes(restored));await page.screenshot({path:path.join(out,'workspace-history-restored-dark.png'),fullPage:true});
+ });
+ await check('narrow light workspace history keeps archive and restoration controls within the viewport',async()=>{
+  await page.setViewportSize({width:560,height:900});await page.evaluate(()=>document.documentElement.dataset.theme='light');await expect(page.getByRole('heading',{name:'Saved workspaces',exact:true})).toBeVisible();
+  assert(await page.evaluate(()=>{const root=document.querySelector('.scheduled-workspaces');return root.scrollWidth<=root.clientWidth+1&&[...root.querySelectorAll('button')].filter(button=>button.getClientRects().length).every(button=>{const box=button.getBoundingClientRect();return box.left>=0&&box.right<=innerWidth+1;});}));
+  await page.screenshot({path:path.join(out,'workspace-history-light-narrow.png'),fullPage:true});await page.setViewportSize({width:1250,height:900});await page.evaluate(()=>document.documentElement.dataset.theme='dark');
+ });
+ await check('rendered cancellation retains the original workspace and requires inspection before another review',async()=>{
+  const task=tasks.get(evidence.savedTaskId),snapshot=expandScheduledProjects(task.snapshot)[0],run={id:randomUUID(),taskId:task.id,owner,taskRevision:task.revision,requestId:randomUUID(),scheduledFor:new Date().toISOString(),trigger:'manual',status:'starting',workspaceStartedAt:new Date().toISOString(),snapshot,conversationId:null,error:null,unread:false,requestCreatedAt:null};
+  const resolution=await workspaces.prepare(run,new AbortController().signal,async()=>{});run.snapshot={...snapshot,files:resolution.files,options:{...snapshot.options,files:resolution.files.map(file=>file.id)},workspace:{...snapshot.workspace,resolved:resolution.resolved}};run.status='completed';runs.push(run);evidence.cancelledCheckout=resolution.resolved.path;
+  await page.evaluate(()=>window.notifySchedule());const row=page.locator('.scheduled-workspace-row').filter({hasText:resolution.resolved.path});await expect(row).toHaveCount(1);const gate=controls.holdNextPreparation();
+  await row.getByRole('button',{name:'Review archive',exact:true}).click();await gate.started;await page.getByRole('button',{name:'Cancel review',exact:true}).click();await expect.poll(()=>calls.some(call=>call.action==='tasks.workspaces.cancel')).toBe(true);gate.release();
+  await expect(page.getByRole('alert')).toContainText('cancelled');assert.equal(await readFile(path.join(resolution.resolved.path,'readme.md'),'utf8'),'Project Alpha committed files\n'.replace('\\n','\n'));
+  await row.getByText('Recovery history (1)',{exact:true}).click();await row.getByRole('button',{name:'Inspect failed review',exact:true}).click();await expect(page.getByRole('dialog')).toContainText('removal has not started');await page.getByRole('button',{name:'Allow new review',exact:true}).click();await expect(page.getByRole('dialog')).toHaveCount(0);
+  await row.getByRole('button',{name:'Review archive',exact:true}).click();await expect(page.getByRole('dialog')).toContainText('A verified recovery has been saved.');await page.getByRole('button',{name:'Keep workspace',exact:true}).click();await expect(row).toContainText('Recovery history (2)');
+ });
+ await check('rendered interrupted restoration acknowledgement keeps the earlier partial copy and creates a separate recovery',async()=>{
+  const row=page.locator('.scheduled-workspace-row').filter({hasText:evidence.cancelledCheckout});await row.getByRole('button',{name:'Continue archive review',exact:true}).click();await page.getByRole('button',{name:'Archive workspace',exact:true}).click();await expect(page.getByRole('dialog')).toHaveCount(0);
+  if(!await row.locator('details').evaluate(element=>element.open))await row.getByText('Recovery history (2)',{exact:true}).click();controls.failRestorePublicationOnce();await row.getByRole('button',{name:'Restore copy',exact:true}).click();await expect(page.getByRole('alert')).toContainText('interrupted restore publication');
+  const retained=(await controls.maintenance.list(owner)).find(value=>value.path===evidence.cancelledCheckout),partial=retained.operation.restorations[0].path;await writeFile(path.join(partial,'partial-draft.md'),'Preserved partial restored user draft');
+  await row.getByRole('button',{name:'Inspect interrupted restore',exact:true}).click();await expect(page.getByRole('dialog')).toContainText('interrupted restored copy will be retained');await page.getByRole('button',{name:'Allow another restore',exact:true}).click();await row.getByRole('button',{name:'Restore copy',exact:true}).click();await expect(page.getByRole('status')).toContainText('Restored files to');
+  const result=(await controls.maintenance.list(owner)).find(value=>value.path===evidence.cancelledCheckout);assert.equal(result.operation.restorations.length,2);assert.notEqual(result.operation.restoredPath,partial);assert.equal(await readFile(path.join(partial,'partial-draft.md'),'utf8'),'Preserved partial restored user draft');
+  tasks.delete(evidence.savedTaskId);await page.evaluate(()=>window.notifySchedule());await expect(row).toHaveCount(1);await expect(row).toContainText('Archived');evidence.deletedTaskRecoveryRetained=true;
+ });
+ assert.deepEqual(evidence.rendererErrors,[]);evidence.success=true;`);
+replace("'desktop/ui/ScheduledTasks.tsx','desktop/ui/scheduled-tasks.css'","'desktop/ui/ScheduledTasks.tsx','desktop/ui/ScheduledWorkspaces.tsx','desktop/src/scheduled-workspace-contracts.ts','desktop/src/scheduled-workspace-maintenance.ts','desktop/src/workspace-recovery-files.ts','desktop/src/workspace-recovery-git.ts','scripts/desktop/scheduled-workspaces67-ui-service.cjs','desktop/ui/scheduled-tasks.css'");
+await writeFile(file,source);console.log('Extended rendered Scheduled qualification with actual maintenance workflows.');

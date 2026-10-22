@@ -1,0 +1,9 @@
+export type StorageChat={id:string;title:string;archived:boolean;pinned:boolean;updatedAt:string;messages:number;requests:number;children:number;bytes:number;fingerprint:string};
+export type StorageChild={id:string;requestId:string;threadId:string;conversationId:string;name:string;status:string;bytes:number};
+export type StorageCopy={id:string;name:string;conversationId:string|null;location:'outputs'|'legacy';files:number;folders:number;bytes:number;measured:boolean;blocked?:string};
+export type StorageSummary={chats:StorageChat[];children:StorageChild[];copies:StorageCopy[];busy:boolean;warnings:string[];contentBytes:number;workingBytes:number};
+export type StorageReview={id:string;kind:'chat'|'working-copy';itemId:string;title:string;bytes:number;files:number;messages:number;children:number;sample:string[];expiresAt:string};
+export type StorageItemResult={kind:'chat'|'working-copy';itemId:string;conversationId:string|null;removedBytes:number;removedFiles:number};
+export type StorageChatReview={id:string;kind:'chats';chats:Pick<StorageChat,'id'|'title'|'messages'|'children'|'bytes'>[];messages:number;children:number;bytes:number;expiresAt:string};
+export type StorageChatResult={kind:'chats';deleted:StorageItemResult[];skipped:{itemId:string;reason:'changed'|'unavailable'}[];incomplete:{itemId:string;reason:'failed'|'interrupted'|'uncertain'}[];workspaceWarnings?:string[]};
+export type StorageResult=StorageItemResult|StorageChatResult;

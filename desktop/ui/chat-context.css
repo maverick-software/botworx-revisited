@@ -1,0 +1,16 @@
+.chat-context-panel{box-sizing:border-box;flex:0 0 280px;align-self:flex-start;max-height:calc(100% - 88px);overflow:auto;padding:16px 18px;margin:64px 12px 12px 0;border-radius:20px;background:var(--surface);font-size:13px;color:var(--text)}
+.chat-context-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0;min-height:24px;color:var(--muted);font-size:13px}
+.chat-context-heading>span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-context-heading .icon-button{padding:3px;width:24px;height:24px;min-width:24px;min-height:24px;color:var(--muted)}
+.chat-context-action,.chat-context-source,.chat-context-view-all{display:flex;align-items:center;justify-content:flex-start;gap:10px;width:100%;min-width:0;min-height:30px;padding:6px 3px;background:none;color:var(--text);font-size:13px;font-weight:400;text-align:left;border-radius:7px}
+.chat-context-action:hover,.chat-context-source:hover,.chat-context-view-all:hover{background:var(--soft);opacity:1}
+.chat-context-source>span,.chat-context-action>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.chat-context-action>svg,.chat-context-source>svg,.chat-context-view-all>svg{flex-shrink:0}
+.chat-context-sources{margin-top:18px;margin-bottom:6px}
+.chat-context-source{color:var(--muted)}.chat-context-source>img{width:18px;height:18px;object-fit:cover;border-radius:3px;flex-shrink:0}
+.chat-context-view-all{color:var(--muted);margin-top:6px}.chat-context-count{margin-left:auto;font-size:11px}.chat-context-empty{color:var(--muted);font-size:12px;margin:7px 3px 10px}.chat-source-dialog{max-width:min(720px,92vw)}
+.sidebar .history-chat-icon{flex:0 0 14px;color:var(--text)}.sidebar .history-open{gap:8px}.sidebar .project-open{padding-left:10px;padding-right:52px}.project-details{position:absolute;right:28px;opacity:0;padding:3px;min-width:24px;min-height:24px}.project-row:hover .project-details,.project-row:focus-within .project-details,.project-row.details-open .project-details{opacity:1}
+@media(hover:none){.project-details{opacity:1}}
+@container chat-layout (max-width:1119px){.chat-context-panel{position:absolute;right:0;top:0;z-index:12;width:min(280px,calc(100% - 24px));box-shadow:0 8px 24px #0004}}
+
+.workspace-columns{position:relative;container-type:inline-size;container-name:chat-layout}

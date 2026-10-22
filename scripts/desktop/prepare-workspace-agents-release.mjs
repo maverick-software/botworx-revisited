@@ -1,0 +1,36 @@
+import {cp,mkdir,readFile,writeFile,readdir,access} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {build} from 'vite';
+import react from '@vitejs/plugin-react';
+import {desktopOperation} from './operation-lock.mjs';
+desktopOperation('prepare private persistent-agent candidate');
+const require=createRequire(import.meta.url),root=path.resolve(import.meta.dirname,'../..'),work=path.join(root,'.supabase/desktop-workspace-agents'),candidate=path.join(work,'candidate-0440'),baseline=path.join(root,'.supabase/desktop-maintenance-0437'),version='0.44.0';
+const json=async file=>JSON.parse(await readFile(file,'utf8')),hash=value=>createHash('sha256').update(value).digest('hex');
+const oauth=await json(path.join(root,'.supabase/desktop-oauth-recovery/source-proof.json'));assert(oauth.sourceReady);
+for(const [file,expected] of Object.entries(oauth.sources))assert.equal(hash(await readFile(path.join(root,file))),expected,'Frozen OAuth source changed: '+file);
+const qualification=await json(path.join(work,'qualification-checkpoint.json')),ui=await json(path.join(work,'ui/evidence.json')),runtime=await json(path.join(work,qualification.runtimeEvidence)),restart=await json(path.join(work,qualification.restartEvidence));
+assert(qualification.typecheck.main&&qualification.typecheck.renderer&&qualification.nodeTests.failed===0);assert(ui.success&&runtime.success&&restart.success);
+const diff=await json(path.join(work,'candidate-module-diff.json'));assert.equal(diff.baselineVersion,'0.43.7');assert.equal(diff.missing.length,0);assert.equal(diff.modules,1009);
+for(const [file,expected] of Object.entries(qualification.compiledModules))assert.equal(hash(await readFile(path.join(work,'build',file))),expected,'Qualified output changed: '+file);
+try{await access(candidate);throw Error('The candidate directory exists. Inspect its saved phase before continuing.');}catch(error){if(error.code!=='ENOENT')throw error;}
+await mkdir(candidate,{recursive:true});
+await writeFile(path.join(candidate,'preparation.json'),JSON.stringify({phase:'copying',version,productionMigrated:false,installed:false},null,2),{flag:'wx'});
+const stage=path.join(candidate,'staging'),resources=path.join(candidate,'resources'),source=path.join(candidate,'source/desktop');
+await cp(path.join(baseline,'staging'),stage,{recursive:true,filter:file=>file!==path.join(baseline,'staging/out')});
+await cp(path.join(baseline,'resources'),resources,{recursive:true});
+await mkdir(source,{recursive:true});for(const directory of ['src','ui'])await cp(path.join(root,'desktop',directory),path.join(source,directory),{recursive:true});
+await cp(path.join(work,'build'),path.join(stage,'build'),{recursive:true});
+const pkg=await json(path.join(stage,'package.json'));assert.equal(pkg.version,'0.43.7');pkg.version=version;await writeFile(path.join(stage,'package.json'),JSON.stringify(pkg,null,2));
+const originalMigrations=(await readdir(path.join(baseline,'resources/database'))).filter(name=>name.endsWith('.sql'));assert.equal(originalMigrations.length,45);
+for(const file of originalMigrations)assert.equal(hash(await readFile(path.join(root,'desktop/database',file))),hash(await readFile(path.join(baseline,'resources/database',file))),'An existing production migration changed: '+file);
+await cp(path.join(root,'desktop/database'),path.join(resources,'database'),{recursive:true});const migrations=(await readdir(path.join(resources,'database'))).filter(name=>name.endsWith('.sql'));assert.equal(migrations.length,54);
+const resourceVersion=await json(path.join(resources,'version.json'));await writeFile(path.join(resources,'version.json'),JSON.stringify({...resourceVersion,version,schema:54}));
+const rendererOutput=path.resolve(resources,'ui');assert(rendererOutput.startsWith(candidate+path.sep)&&rendererOutput!==candidate);
+await build({configFile:false,envDir:false,root:path.join(source,'ui'),plugins:[react()],base:'/',build:{outDir:rendererOutput,emptyOutDir:true,assetsInlineLimit:0}});
+// Verify the copied source remains the exact frozen OAuth integration snapshot.
+for(const [file,expected] of Object.entries(oauth.sources).filter(([file])=>file.startsWith('desktop/src/')||file.startsWith('desktop/ui/')))assert.equal(hash(await readFile(path.join(source,file.slice('desktop/'.length)))),expected);
+const result={phase:'prepared',at:new Date().toISOString(),version,stage,resources,source,migrations:54,compiledModules:1009,baselineVersion:'0.43.7',sourceVersionUnchanged:(await json(path.join(root,'package.json'))).version,sourceOAuthProofVerified:true,qualification:'../qualification-checkpoint.json',productionMigrated:false,installed:false};
+await writeFile(path.join(candidate,'preparation.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result,null,2));

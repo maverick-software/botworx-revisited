@@ -1,0 +1,119 @@
+# WBS — Account-Wide Knowledge Graph (GetZep)
+
+Phases: research → planning → design → development → testing → refinement → cleanup
+
+- [ ] 0. REQUIRED READING BEFORE STARTING
+  - README.md (root)
+  - schema_dump.sql (latest schema)
+  - supabase/functions/chat/processor/stages.ts, core/memory/*, vector_search.ts
+  - src/components/modals/ProcessModal.tsx, pages/DatastoresPage.tsx
+  - docs/plans/account_wide_knowledge_graph/research/*
+
+- [x] 1. RESEARCH
+  - [x] 1.1 Schema + RLS survey
+    - REQUIRED READING: docs/plans/account_wide_knowledge_graph/research/01_schema_and_rls.md
+    - Plan Review & Alignment: ✅ Analyzed schema_dump.sql, current user_id scoping, datastore patterns
+    - Future Intent: 5 new tables with proper indexes, RLS policies, account-level scoping
+    - Cautionary Notes: Migration must be non-blocking, use CREATE INDEX CONCURRENTLY
+    - Backups: docs/plans/account_wide_knowledge_graph/backups/
+    - Actions Taken: Comprehensive schema analysis, table design with constraints, RLS policies, integration points mapped
+  - [x] 1.2 GetZep API capabilities
+    - REQUIRED READING: docs/plans/account_wide_knowledge_graph/research/02_getzep_service_api.md  
+    - Plan Review & Alignment: ✅ Analyzed existing credential patterns, service architecture, API resolution flow
+    - Future Intent: TypeScript service with batch operations, factory pattern, error handling
+    - Cautionary Notes: Rate limits, API quotas, graceful degradation needed
+    - Backups: docs/plans/account_wide_knowledge_graph/backups/
+    - Actions Taken: Service interface design, credential resolution pattern, integration points, testing strategy
+  - [x] 1.3 Extraction & Salience
+    - REQUIRED READING: docs/plans/account_wide_knowledge_graph/research/03_extraction_and_salience.md
+    - Plan Review & Alignment: ✅ Analyzed current extraction patterns, multi-stage pipeline design, salience scoring
+    - Future Intent: Multi-factor salience model with TF-IDF, caching strategy, performance optimization
+    - Cautionary Notes: Token costs for extraction, extraction confidence calibration needed
+    - Backups: docs/plans/account_wide_knowledge_graph/backups/
+    - Actions Taken: Enhanced entity/relation extraction, canonicalization pipeline, integration with memory_manager.ts
+  - [x] 1.4 Matching & Optimal Placement
+    - REQUIRED READING: docs/plans/account_wide_knowledge_graph/research/04_matching_and_optimal_placement.md
+    - Plan Review & Alignment: ✅ Leveraged semantic_memory.ts consolidation patterns, multi-stage matching
+    - Future Intent: ML-based matching improvements, user feedback integration, quality metrics
+    - Cautionary Notes: False merge prevention, review queue management, performance caching
+    - Backups: docs/plans/account_wide_knowledge_graph/backups/
+    - Actions Taken: Multi-stage candidate generation, composite scoring, three-tier decision framework, atomic upserts
+  - [x] 1.5 Retrieval & Fusion
+    - REQUIRED READING: docs/plans/account_wide_knowledge_graph/research/05_retrieval_and_fusion.md
+    - Plan Review & Alignment: ✅ Extended EnrichmentStage, ProcessModal integration, existing memory patterns
+    - Future Intent: Adaptive fusion weights, streaming results, advanced caching
+    - Cautionary Notes: Latency impact on chat response, context window limits, graceful degradation
+    - Backups: docs/plans/account_wide_knowledge_graph/backups/
+    - Actions Taken: Graph-vector fusion pipeline, concept extraction, cross-referencing, UI metrics display
+
+ - [x] 2. PLANNING & DESIGN
+  - [x] 2.1 Finalize table designs and indexes
+    - ARTIFACT: docs/plans/account_wide_knowledge_graph/design/02.1_final_table_designs.sql
+    - REQUIRED READING: docs/plans/account_wide_knowledge_graph/research/01_schema_and_rls.md
+    - Plan Review & Alignment: finalize schema based on research
+    - Future Intent: performance indexes, archival strategy
+    - Cautionary Notes: migration impact, RLS complexity
+    - Backups: docs/plans/account_wide_knowledge_graph/backups/
+  - [x] 2.2 Draft API surface for GraphService
+    - ARTIFACT: docs/plans/account_wide_knowledge_graph/design/02.2_graph_service_api_spec.md
+    - REQUIRED READING: docs/plans/account_wide_knowledge_graph/research/02_getzep_service_api.md
+    - Plan Review & Alignment: service factory pattern, error handling
+    - Future Intent: streaming operations, bulk operations
+    - Cautionary Notes: API versioning, backward compatibility
+    - Backups: docs/plans/account_wide_knowledge_graph/backups/
+  - [x] 2.3 Define feature flags and UI components
+    - ARTIFACT: docs/plans/account_wide_knowledge_graph/design/02.3_ui_and_flags_design.md
+    - REQUIRED READING: docs/plans/account_wide_knowledge_graph/research/06_ui_and_flags.md
+    - Plan Review & Alignment: rollout strategy, user experience flow
+    - Future Intent: advanced configuration, graph visualization
+    - Cautionary Notes: feature flag complexity, rollout coordination
+    - Backups: docs/plans/account_wide_knowledge_graph/backups/
+  - [x] 2.4 Plan migration and rollout strategy  
+    - ARTIFACT: docs/plans/account_wide_knowledge_graph/design/02.4_migration_and_rollout_plan.md
+    - REQUIRED READING: docs/plans/account_wide_knowledge_graph/research/07_backfill_and_rollout.md
+    - Plan Review & Alignment: staged rollout, monitoring, rollback procedures
+    - Future Intent: automated rollbacks, cost optimization
+    - Cautionary Notes: data migration risks, performance impact
+    - Backups: docs/plans/account_wide_knowledge_graph/backups/
+
+- [x] 3. DEVELOPMENT
+  - [x] 3.1 SQL migrations (tables, indexes, RLS)
+    - ARTIFACT: supabase/migrations/20250817000001_create_account_graphs.sql
+    - Result: applied with `supabase db push --include-all`
+  - [x] 3.2 GraphService (client, upserts, queries)
+    - ARTIFACTS: src/lib/services/graph/GraphServiceFactory.ts, src/lib/services/graph/getzep_service.ts (stubs)
+    - Status: factory + GetZep client scaffolded; HTTP calls TODO
+    - Note: GetZep `project_id`/`account_id` are stored per-credential in `user_oauth_connections.connection_metadata` (not on account graph)
+  - [x] 3.3 Ingestion queue + processor
+    - ARTIFACT: supabase/functions/graph-ingestion/index.ts
+    - Status: deployed via `supabase functions deploy graph-ingestion --no-verify-jwt`
+  - [x] 3.4 Chat/doc hooks emitting IE results
+    - ARTIFACT: supabase/functions/chat/core/memory/memory_manager.ts (enqueue to `graph_ingestion_queue`)
+    - Status: messages now enqueue payloads when an account graph exists
+  - [x] 3.5 Retrieval fusion changes
+    - ARTIFACTS:
+      - supabase/functions/shared/graph/graph_query.ts (DB-backed neighborhood)
+      - supabase/functions/chat/processor/stages.ts (graph neighborhood injection)
+    - Status: graph neighborhood queried from concept seeds; results injected into context
+  - [x] 3.6 UI (account settings, agent overrides, modal)
+    - ARTIFACTS: src/pages/GraphSettingsPage.tsx (stub), sidebar link, routeConfig entry
+    - Status: page stub with metrics placeholders; link visible in sidebar; route is protected
+    - Note: `IntegrationSetupModal` updated for GetZep to capture optional Project ID / Account ID and persist to `user_oauth_connections.connection_metadata`
+
+- [ ] 4. TESTING
+  - [ ] 4.1 Unit tests: extraction, matching, upserts
+    - TODO: mock GetZepService; test queue enqueuing and ingestion status transitions
+  - [ ] 4.2 Integration: chat → graph → retrieval
+    - TODO: simulate chat request; assert graph neighborhood section present with account_graph
+  - [ ] 4.3 Backfill dry run with sampling (docs/plans/account_wide_knowledge_graph/research/07_backfill_and_rollout.md)
+    - TODO: invoke graph-ingestion with sample payloads; verify metrics reflect processing
+
+- [ ] 5. REFINEMENT
+  - [ ] 5.1 Tune thresholds/weights
+  - [ ] 5.2 Performance profiling; caching
+  - [ ] 5.3 Logging/metrics dashboards
+
+- [ ] 6. CLEANUP
+  - [ ] 6.1 Move backups to /archive
+  - [ ] 6.2 Update root README and docs/logs cleanup index
+  - [ ] 6.3 Prompt manual verification steps

@@ -1,0 +1,13 @@
+import {_electron,expect} from '@playwright/test';import {generateKeyPair,exportJWK,SignJWT} from 'jose';import {readFile,writeFile,mkdir} from 'node:fs/promises';import {randomUUID} from 'node:crypto';import path from 'node:path';import assert from 'node:assert/strict';
+const root=path.resolve(import.meta.dirname,'../..'),out=path.resolve(process.env.AGENTOPIA_OAUTH_PERSIST_OUTPUT??path.join(root,'.supabase/oauth-persistence-'+randomUUID())),modules=path.resolve(process.env.AGENTOPIA_OAUTH_MODULES??path.join(root,'desktop/build'));assert(out.startsWith(path.join(root,'.supabase')+path.sep));await mkdir(out,{recursive:true});
+const keys=await generateKeyPair('RS256'),publicKey=await exportJWK(keys.publicKey);publicKey.kid='durable-oauth-fixture';const idToken=await new SignJWT({}).setProtectedHeader({alg:'RS256',kid:publicKey.kid}).setIssuer('https://auth.openai.com').setAudience('oaiapp_fixture').setSubject('fixture-subject').setIssuedAt().setExpirationTime('1h').sign(keys.privateKey);
+await writeFile(path.join(out,'fixture.json'),JSON.stringify({publicKey,idToken}),{flag:'wx'});
+let app;const evidence={at:new Date().toISOString(),success:false,actualElectron:true,canonicalProfileAccess:false,productionDatabaseAccess:false,actualProviderRequests:0,modules,phases:[]};
+try{
+ for(const phase of ['receive','restore','terminal','reopen']){
+  app=await _electron.launch({executablePath:path.join(root,'node_modules/electron/dist/electron.exe'),args:[path.join(root,'scripts/desktop/fixtures/oauth-persistence.cjs')],cwd:root,env:{...process.env,AGENTOPIA_OAUTH_MODULES:modules,AGENTOPIA_OAUTH_PERSIST_OUTPUT:out,AGENTOPIA_OAUTH_PHASE:phase},timeout:30000});await app.firstWindow();await expect.poll(()=>app.evaluate(()=>globalThis.done),{timeout:15000}).toBe(true);
+  const result=JSON.parse(await readFile(path.join(out,'phase-'+phase+'.json'),'utf8'));assert(result.success,result.error);const child=app.process(),exited=child.exitCode!==null?Promise.resolve():new Promise(resolve=>child.once('exit',resolve));await app.evaluate(({app})=>app.quit()).catch(()=>{});let timer;try{await Promise.race([exited,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('Controlled OAuth process did not exit normally.')),15000);})]);}finally{clearTimeout(timer);}assert.equal(child.exitCode,0);await app.close().catch(()=>{});app=undefined;result.normalProcessExit=true;evidence.phases.push(result);console.log('PASS durable OAuth phase: '+phase);
+ }
+ evidence.success=true;
+}catch(error){evidence.error=error.message;throw error;}
+finally{if(app)await app.close().catch(()=>{});await writeFile(path.join(out,'evidence.json'),JSON.stringify(evidence,null,2),{flag:'wx'});}

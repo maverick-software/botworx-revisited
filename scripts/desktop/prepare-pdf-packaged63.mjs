@@ -1,0 +1,12 @@
+import {readFile,writeFile} from 'node:fs/promises';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+const root=path.resolve(import.meta.dirname,'../..');
+let text=await readFile(path.join(root,'scripts/desktop/test-chart-format-packaged62.mjs'),'utf8');
+text=text.replace("import {launchDurableProfileProbe} from './launch-durable-profile-probe.mjs';","import {launchDurableProfileProbe} from './launch-durable-profile-probe.mjs';\nimport {verifyPdfPages63} from './pdf-pages-packaged63-workflow.mjs';");
+text=text.replaceAll('exact62','exact63').replaceAll('Exact62','Exact63').replaceAll('0.44.62','0.44.63').replaceAll('desktop-chart-format-release62','desktop-pdf-pages-release63').replaceAll('cold-chart62','cold-pdf63').replaceAll('warm-chart62','warm-pdf63');
+text=text.replace('assert.deepEqual(proof.compiled,base.compiled);assert.deepEqual(proof.backendChanges,[]);assert.deepEqual(proof.uiChanges,[]);','assert(proof.backendChanges.includes("src/pdf-pages.ts"));');
+text=text.replace("runReady:args=>verify(args,cold)","runReady:async args=>{await verifyPdfPages63({...args,cfg,out,cold,evidence:e,save});return verify(args,cold);}");
+text=text.replace('correctedChart:true,realProviderRequests:0','correctedChart:true,scannedPdfPersistence:true,laterPdfPageImages:true,realProviderRequests:0');
+assert(text.includes('verifyPdfPages63({...args'));assert(!text.includes('proof.compiled,base.compiled'));
+await writeFile(path.join(root,'scripts/desktop/test-pdf-pages-packaged63.mjs'),text,{flag:'wx'});

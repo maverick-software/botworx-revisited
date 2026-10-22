@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import {readFile,writeFile} from 'node:fs/promises';
+import path from 'node:path';
+import {desktopOperation} from './operation-lock.mjs';
+import {hash} from './phased-backup-control.mjs';
+
+desktopOperation('record verified Composio installer without claiming live acceptance');
+const root=path.resolve(import.meta.dirname,'../..'),json=async file=>JSON.parse(await readFile(file,'utf8'));
+const pointer=await json(path.join(root,'.supabase/desktop-composio-candidate52/current.json')),proof=await json(pointer.proof);
+const qualified=await json(path.join(proof.out,'qualification.json')),made=await json(path.join(proof.out,'installer-proof.json')),verified=await json(path.join(proof.out,'installer-verified.json')),evidence=await json(verified.evidence);
+assert(proof.success&&qualified.success&&made.success&&verified.success&&evidence.success);
+assert.equal(proof.version,'0.44.52');assert.equal(made.version,proof.version);assert.equal(verified.version,proof.version);
+assert.equal(await hash(pointer.proof),qualified.proofSha256);assert.equal(await hash(proof.image),proof.imageSha256);
+assert.equal(await hash(made.installer),made.installerSha256);assert.equal(verified.installerSha256,made.installerSha256);
+assert.equal(await hash(made.fullPackage),made.fullPackageSha256);assert.equal(evidence.imageSha256,proof.imageSha256);
+assert.equal(verified.resourceFiles,Object.keys(proof.resourceFiles).length);assert.equal(evidence.checks.length,4);
+const supportHashes={};for(const name of ['make-composio-installer52.mjs','make-composio-installer52-worker.mjs','verify-composio-installer52.mjs','squirrel-stub-integrity52.mjs','record-composio-installer52.mjs'])supportHashes['scripts/desktop/'+name]=await hash(path.join(root,'scripts/desktop',name));
+const result={success:true,at:new Date().toISOString(),version:proof.version,imageSha256:proof.imageSha256,installer:made.installer,installerSha256:made.installerSha256,fullPackage:made.fullPackage,fullPackageSha256:made.fullPackageSha256,verification:verified.evidence,verificationSha256:await hash(verified.evidence),supportHashes,applicationFilesVerified:verified.applicationFiles,resourceFilesVerified:verified.resourceFiles,constructionAndVerificationComplete:true,allNewBuildStorage:'F:',projectManagementDesignPending:true,liveComposioAcceptancePending:true,freshProductionRecoveryPending:true,ordinaryInstalledAcceptancePending:true,eligibleForProductionInstallation:false,installed:false,productionProfileChanged:false,providerRequests:0,fullGoalComplete:false};
+const file=path.join(proof.out,'installer-readiness.json');await writeFile(file,JSON.stringify(result,null,2),{flag:'wx'});
+const ledgerFile=path.join(root,'.supabase/desktop-recovery-bootstrap/next-acceptance.json'),ledger=await json(ledgerFile);assert.equal(ledger.installed,'0.44.51');
+Object.assign(ledger.composioIntegration,{status:'installer-verified-awaiting-real-project-and-final-acceptance',installerConstructed:true,installerVerified:true,installerReadiness:file,installerSha256:made.installerSha256,candidateEligibleForProductionInstallation:false,remaining:['Administrator-managed versus per-account project design','Real Composio project, OAuth/API-key sign-ins and harmless external read','Fresh production recovery, installation and ordinary-profile acceptance','Broader desktop parity and persistent workspace-agent goal']});ledger.fullGoalComplete=false;
+await writeFile(ledgerFile,JSON.stringify(ledger,null,2));console.log(JSON.stringify({success:true,readiness:file,applicationFiles:verified.applicationFiles,installed:false,fullGoalComplete:false}));

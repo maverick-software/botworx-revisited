@@ -1,0 +1,21 @@
+import {mkdir,readFile,writeFile,copyFile,access} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {desktopOperation} from './operation-lock.mjs';
+desktopOperation('prepare sealed47 production profile migration workflow');
+const root=path.resolve(import.meta.dirname,'../..'),records=path.join(root,'.supabase/desktop-profile-location'),release=path.join(root,'.supabase/desktop-platform-release/candidate-04447'),json=async file=>JSON.parse(await readFile(file,'utf8')),sha=b=>createHash('sha256').update(b).digest('hex'),exec=promisify(execFile);
+const packaged=await json(path.join(release,'package-proof.json')),installed=await json(path.join(release,'ordinary-installed.json')),compatFile=path.join(release,'private-backend-acceptance.json'),compat=await json(compatFile),controller=await json(path.join(records,'controller47-qualified.json')),storage=await json(path.join(records,'storage47-qualified.json'));
+for(const row of [packaged,installed,compat,controller,storage])assert(row.success&&row.version==='0.44.47');
+for(const row of [installed,compat,controller,storage])assert.equal(row.imageSha256,packaged.imageSha256);
+for(const [name,digest]of Object.entries(storage.sourceHashes))assert.equal(sha(await readFile(path.join(root,'scripts/desktop',name))),digest);
+const prior=await json(controller.evidence);for(const name of ['stage_durable_profile.py','profile_location_activation.py'])assert.equal(sha(await readFile(path.join(root,'scripts/desktop',name))),sha(await readFile(path.join(prior.out,name))));
+await assert.rejects(access(path.join(records,'production47-current.json')),error=>error.code==='ENOENT');
+const out=path.resolve('C:/Users/charl/AgentopiaQA/production-profile47',String(Date.now()));await mkdir(out,{recursive:true});
+const sid=(await exec('powershell.exe',['-NoProfile','-NonInteractive','-Command','[Security.Principal.WindowsIdentity]::GetCurrent().User.Value'],{windowsHide:true,encoding:'utf8'})).stdout.trim();assert(/^S-1-5-[0-9-]+$/.test(sid));await exec('icacls.exe',[out,'/inheritance:r','/grant:r','*'+sid+':(OI)(CI)F','*S-1-5-18:(OI)(CI)F','/Q'],{windowsHide:true});
+const scripts={};for(const name of ['stage_durable_profile.py','profile_location_activation.py','profile-storage-authority.mjs','launch-storage-preflight.mjs']){await copyFile(path.join(root,'scripts/desktop',name),path.join(out,name));scripts[name]=sha(await readFile(path.join(out,name)));}
+const cfg={format:1,at:new Date().toISOString(),out,version:'0.44.47',source:'C:\\Users\\charl\\AppData\\Roaming\\Agentopia',target:'C:\\Users\\charl\\.agentopia\\desktop\\profile',windowsHome:'C:\\Users\\charl',runtimeInstanceId:'a91a4800-e08f-4440-a4ec-588762d01bfd',distribution:'AgentopiaRuntime-a91a4800-e08f-4440-a4ec-588762d01bfd',installedArchive:'C:\\Users\\charl\\AppData\\Local\\AgentopiaDesktop\\app-0.44.47\\resources\\app.asar',installedArchiveSha256:packaged.imageSha256,selectorSha256:packaged.selectorSha256,compatibilityEvidence:compatFile,compatibilityEvidenceSha256:sha(await readFile(compatFile)),storageProgram:path.join(path.dirname(storage.integration.file),'program'),storageQualification:path.join(records,'storage47-qualified.json'),currentUiProof:path.join(release,'startup-reading-proof.json'),scripts,productionProfileMoved:false,activated:false,providerRequests:0};
+assert.equal(sha(await readFile(path.join(cfg.storageProgram,'resources/app.asar'))),cfg.installedArchiveSha256);
+await writeFile(path.join(out,'intent.json'),JSON.stringify(cfg,null,2),{flag:'wx'});await writeFile(path.join(records,'production47-current.json'),JSON.stringify({out,intent:path.join(out,'intent.json'),intentSha256:sha(await readFile(path.join(out,'intent.json'))),phase:'prepared-before-current-recovery',activated:false},null,2),{flag:'wx'});console.log(JSON.stringify({success:true,out,target:cfg.target,profileMoved:false,providerRequests:0}));

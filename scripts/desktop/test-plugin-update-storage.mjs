@@ -1,0 +1,13 @@
+import {spawn,execFileSync} from 'node:child_process';
+import {mkdir,readFile,copyFile} from 'node:fs/promises';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {desktopOperation} from './operation-lock.mjs';
+desktopOperation('isolated plugin update migration qualification');
+const root=path.resolve(import.meta.dirname,'../..'),parent=path.join(root,'.supabase/desktop-plugin-updates');await mkdir(parent,{recursive:true});
+const sid=execFileSync('powershell.exe',['-NoProfile','-NonInteractive','-Command','[Security.Principal.WindowsIdentity]::GetCurrent().User.Value'],{encoding:'utf8',windowsHide:true}).trim();assert(/^S-1-5-[0-9-]+$/.test(sid));
+execFileSync('icacls.exe',[parent,'/inheritance:r','/grant:r','*'+sid+':(OI)(CI)F','*S-1-5-18:(OI)(CI)F','/Q'],{windowsHide:true,stdio:'ignore'});
+const out=path.join(parent,'storage-'+Date.now()),script=path.join(parent,'storage-fixture-'+Date.now()+'.py');await copyFile(path.join(root,'scripts/desktop/test-plugin-update-storage.py'),script);
+const linux=value=>'/mnt/'+value[0].toLowerCase()+value.slice(2).replaceAll('\\','/');
+const code=await new Promise((resolve,reject)=>{const child=spawn('wsl.exe',['-d','AgentopiaRuntime-a91a4800-e08f-4440-a4ec-588762d01bfd','-u','agentopia','--exec','python3',linux(script),linux(out)],{cwd:root,windowsHide:true,stdio:'inherit'});child.once('error',reject);child.once('exit',resolve);});
+const result=JSON.parse(await readFile(path.join(out,'evidence.json'),'utf8'));assert.equal(code,0);assert(result.success);console.log('Storage evidence: '+out);

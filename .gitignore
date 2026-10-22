@@ -102,42 +102,30 @@ docs/setup/configure_google_oauth_credentials.md
 *.key
 *.cert
 *.crt
-# Build/PWA artifacts
-dev-dist/
+# Generated desktop runtime and packages
+desktop/build/
+desktop/resources/
+desktop/staging/
+desktop/out/
 
-# Chat & local-only summaries
-.chats/
+desktop/.build-lock
 
-# Local backups (use git history instead)
-backups/
+# Local desktop verification, recovery and compiler output
+/.desktop-qa/
+/.chats/
+/.cursor/
+/.bolt/
+/backups/
+/archive/
+/dev-dist/
+desktop/.operation-lock
+desktop/native/**/bin/
+desktop/native/**/obj/
+**/__pycache__/
+*.tsbuildinfo
 
-# Root-level scratch SQL/MD/scripts
-/EXECUTE_*.sql
-/FIX_*_NOW.sql
-/FINAL_MAILGUN_*.sql
-/fix_migration_history.sql
-/fix_integration_permissions.sql
-/add_mailgun_to_catalog.sql
-/complete_mailgun_integration.sql
-/debug_agent_*.sql
-/debug_agent_*.js
-/deploy_debug_*.ps1
-/temp_*.sql
-/temp_*.txt
-/schema_dump.sql
-/*_FIXED.md
-/DOCUMENT_KNOWLEDGE_IMPLEMENTATION.md
-/MULTI_STEP_DATASTORE_MODAL.md
-/TEST_DATASTORE_SELECTION.md
-/test_document_knowledge.txt
-/DEPLOY_THIS_TO_SERVER.js
-/README_INTEGRATION_DEPLOYMENT.md
-/DEPLOYMENT_SUMMARY_*.md
+# Keep local conversation context out of source publication
+/docs/context/
 
-# Bolt size optimization
-package-lock.json
-
-# Backup/scratch artifacts
-*.bak
-*.backup
-*.backup_*
+# Generated live tool demonstration workspaces
+/docs/desktop/workspace-demo/

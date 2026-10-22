@@ -1,0 +1,26 @@
+import {readFile,writeFile,mkdir,copyFile,statfs,readdir} from 'node:fs/promises';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import path from 'node:path';
+import os from 'node:os';
+import assert from 'node:assert/strict';
+import {desktopOperation} from './operation-lock.mjs';
+import {closed,hash} from './phased-backup-control.mjs';
+import {discoverActiveRecoveryScope} from './active-recovery-scope.mjs';
+import {captureCompressedProfile} from './compressed-private-profile.mjs';
+desktopOperation('recoverable chat details UI publication');
+const root=path.resolve(import.meta.dirname,'../..'),json=async p=>JSON.parse(await readFile(p,'utf8')),pointer=await json(path.join(root,'.supabase/desktop-chat-details/current.json')),proof=await json(pointer.proof),q=await json(pointer.qualification),base=await json(proof.baseReopened);
+assert(proof.success&&q.success&&q.totalChecks===47&&proof.backendUnchanged&&base.success);await closed();assert.equal(await hash(proof.image),proof.imageSha256);
+const prior=await json('C:/Users/charl/AgentopiaQA/composer-mentions/1792467505313/recovery.json'),comparisons=(await readdir(prior.out)).filter(n=>/^data-after-ui-.*\.json$/.test(n)).sort(),comparison=path.join(prior.out,comparisons.at(-1)),data=await json(comparison);
+assert(data.success&&data.tableCount===126&&!data.mismatches.length&&Date.now()-Date.parse(data.at)<15*60*1000);
+const out=path.resolve('D:/Users/charl/AgentopiaRecovery/chat-context-9',String(Date.now()));await mkdir(out,{recursive:true});
+const exec=promisify(execFile),sid=(await exec('powershell.exe',['-NoProfile','-NonInteractive','-Command','[Security.Principal.WindowsIdentity]::GetCurrent().User.Value'],{encoding:'utf8',windowsHide:true})).stdout.trim();assert(/^S-1-5-[0-9-]+$/.test(sid));await exec('icacls.exe',[out,'/inheritance:r','/grant:r','*'+sid+':(OI)(CI)F','*S-1-5-18:(OI)(CI)F','/Q'],{windowsHide:true});
+const scope=await discoverActiveRecoveryScope({archive:proof.image,expectedArchiveSha256:proof.imageSha256,home:os.homedir(),work:path.join(out,'scope')});await writeFile(path.join(out,'scope.json'),JSON.stringify(scope,null,2));
+const manifest=await json(path.join(prior.out,'current-database-backup/manifest.json'));assert.equal(manifest.files.length,5);await mkdir(path.join(out,'current-database-backup'));
+for(const file of manifest.files){assert.equal(await hash(path.join(prior.out,'current-database-backup',file.name)),file.sha256);await copyFile(path.join(prior.out,'current-database-backup',file.name),path.join(out,'current-database-backup',file.name));assert.equal(await hash(path.join(out,'current-database-backup',file.name)),file.sha256);}
+await copyFile(path.join(prior.out,'current-database-backup/manifest.json'),path.join(out,'current-database-backup/manifest.json'));await copyFile(comparison,path.join(out,'data-before-ui.json'));
+const profile=await captureCompressedProfile(scope.profile,path.join(out,'active-profile.tar.gz'),{headroomBytes:512*1024**2,maxCompressedBytes:80*1024**2});await writeFile(path.join(out,'private-profile.json'),JSON.stringify(profile,null,2),{flag:'wx'});
+assert.equal(await hash(prior.retainedColdBase.file),prior.retainedColdBase.sha256);await closed();
+const baseline=await json(proof.baseProof);for(const [name,digest]of Object.entries(base.resourceFiles).filter(([name])=>name.startsWith('ui/')))assert.equal(await hash(path.join(baseline.ui,name.slice(3))),digest);
+const result={success:true,at:new Date().toISOString(),out,scope,profileArchive:profile.destination,profileArchiveSha256:profile.archiveSha256,profileFiles:profile.fileCount,profileArchiveBytes:profile.archiveBytes,logicalBackupVerified:true,logicalDatabaseEqualityVerified:true,logicalBackupSource:prior.out,dataComparison:comparison,tablesCompared:126,beforeUi:baseline.ui,beforeArchive:baseline.image,beforeArchiveSha256:proof.imageSha256,retainedColdBase:prior.retainedColdBase,currentColdImageCaptured:false,cleanMachineRestorationTested:false,providerRequests:0,fullGoalComplete:false};assert.equal(await hash(baseline.image),proof.imageSha256);await writeFile(path.join(out,'ui-recovery.json'),JSON.stringify(result,null,2),{flag:'wx'});await writeFile(path.join(proof.work,'recovery.json'),JSON.stringify(result,null,2),{flag:'wx'});
+const space=await statfs('C:/');assert(space.bavail*space.bsize>1024**3);console.log(JSON.stringify({...result,scope:'Installed selector and registered owned runtime',retainedColdBase:'rehashed',logicalBackupSource:'Retained fresh logical archives match all 126 current tables'}));

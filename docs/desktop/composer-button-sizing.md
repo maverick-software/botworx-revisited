@@ -1,0 +1,11 @@
+# Composer Send and Stop sizing
+
+The October 19 reference screenshots show 28-pixel circular Send and Stop controls. Agentopia previously used 35 pixels in the ordinary composer and 30 pixels in a narrow conversation panel. Both layouts now use 28 pixels, with a centered 18-pixel arrow and a 12-pixel square SVG whose filled shape occupies 9 pixels. The controls retain their accessible names, keyboard behavior and callbacks.
+
+Only `desktop/ui/Composer.tsx` and `desktop/ui/style.css` change relative to the installed 0.44.46 UI correction 1. A frozen source copy and UI build are under `C:/Users/charl/AgentopiaQA/composer-buttons-ui/1792450014362`. The resource manifest SHA-256 is `688484e75c8555362526d2e8e6dfab0a43bfcd34f8a23cc62fb755a412052889`.
+
+Eight controlled full-application workflows pass against those built assets. They measure both circles and icon centering at 1362- and 800-pixel window widths, exercise Send and Stop through a simulated application bridge, and preserve the conversation-reading checks. Seventeen existing component workflows also pass, covering the composer menu, settings and document viewer. These checks make no paid AI requests and do not access production accounts.
+
+The qualification receipts are `composer-buttons-proof.json` and `composer-buttons-qualification.json` in `.supabase/desktop-platform-release/candidate-04446`. Deployment uses a checked database archive, a closed-profile backup and a rollback copy of the preceding UI. The separately distributed baseline 0.44.46 installer does not contain UI corrections 1 or 2; the next full installer must include both.
+
+Installed and reopened through the ordinary Windows launcher. All 7,443 installed resource hashes matched the final manifest; all 216 UI assets matched again after reopening. The saved account, conversation, ChatGPT model selection and native Send control were inspected. A read-only before/after comparison preserved 126 tables, including 2 accounts, 109 chats, 382 messages and 191 saved requests. The new PDF-edit response remains saved. The focused closed-profile recovery verifies 22 account/session/UI-state files; the separate database archive covers application records. Generated profiles and runtime images are outside that focused backup scope and are unchanged by deployment. The old UI is retained for rollback.

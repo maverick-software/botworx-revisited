@@ -1,0 +1,277 @@
+# GetZep Integration Documentation
+
+## Overview
+
+GetZep is integrated into Agentopia as the **semantic memory** system, providing a centralized knowledge graph for each account. This system works in parallel with Pinecone (episodic memory) to provide comprehensive memory capabilities for AI agents.
+
+## Current Implementation Status
+
+✅ **Working Features:**
+- API key storage and retrieval via Supabase Vault
+- Thread-based message ingestion using GetZep SDK v3
+- Context retrieval for user queries
+- Automatic thread creation when needed
+- Complete separation from episodic memory (Pinecone)
+- UI integration for enabling/disabling knowledge graph per agent
+- Process modal displays retrieved semantic memories
+
+## Architecture
+
+### 1. API Key Management
+
+**Storage Flow:**
+1. User adds GetZep API key via Integrations page (`/integrations`)
+2. API key is stored **unencrypted** in `user_oauth_connections.vault_access_token_id` (temporary workaround for vault decryption issues)
+3. Additional metadata stored in `connection_metadata`:
+   - `project_id`: GetZep project ID
+   - `account_id`: GetZep account ID  
+   - `project_name`: GetZep project name
+
+**Retrieval Flow:**
+1. Edge functions query `user_oauth_connections` for active GetZep connection
+2. API key retrieved directly from `vault_access_token_id` field
+3. Metadata parsed from `connection_metadata` JSONB field
+4. GetZep client initialized with retrieved credentials
+
+### 2. Memory System Architecture
+
+**Separation of Concerns:**
+- **Episodic Memory (Pinecone)**: Time-stamped events, conversations, vector-based retrieval
+- **Semantic Memory (GetZep)**: Knowledge graph, entities, relationships, context understanding
+
+**Key Components:**
+- `MemoryManager`: Orchestrates both memory systems in parallel
+- `GetZepSemanticManager`: Handles all GetZep operations
+- `EpisodicMemoryManager`: Handles Pinecone/database operations
+
+### 3. GetZep SDK Integration
+
+**Version:** GetZep Cloud SDK v3.4.1
+
+**Import Method:**
+```typescript
+import { ZepClient } from 'https://esm.sh/@getzep/zep-cloud@latest';
+```
+
+**Client Initialization:**
+```typescript
+const client = new ZepClient({ 
+  apiKey: config.apiKey 
+});
+```
+
+**Thread Management:**
+- Thread ID format: `user_${userId}_graph`
+- One thread per user across all agents
+- Threads auto-created on first message
+
+### 4. Data Flow
+
+#### Ingestion Flow
+1. User sends message in chat
+2. `MessageProcessor.processMessage()` handles the request
+3. After response generation, `MemoryManager.createFromConversation()` is called
+4. Parallel operations:
+   - Episodic memory stored to database and Pinecone
+   - Semantic memory ingested directly to GetZep via SDK
+5. GetZep ingestion process:
+   ```typescript
+   // Parse messages
+   const messages = parseContentToMessages(content);
+   
+   // Try to add messages to thread
+   try {
+     await client.thread.addMessages(threadId, { messages });
+   } catch (error) {
+     // If thread doesn't exist, create it
+     if (error.message.includes('thread not found')) {
+       await client.thread.create({ threadId, userId });
+       await client.thread.addMessages(threadId, { messages });
+     }
+   }
+   ```
+
+#### Retrieval Flow
+1. Query received in `EnrichmentStage`
+2. `MemoryManager.contextualSearch()` called with query
+3. Parallel retrieval:
+   - Episodic: Pinecone vector search + database fallback
+   - Semantic: GetZep context retrieval
+4. GetZep retrieval process:
+   ```typescript
+   try {
+     const context = await client.thread.getUserContext(threadId);
+     return parseContextToMemories(context);
+   } catch (error) {
+     // Return empty if thread doesn't exist
+     if (error.message.includes('not found')) {
+       return [];
+     }
+   }
+   ```
+
+### 5. Edge Functions
+
+**Primary Edge Function:** `chat`
+- Location: `supabase/functions/chat/`
+- Handles both ingestion and retrieval
+- No separate graph-ingestion function needed (direct SDK usage)
+
+**Key Files:**
+- `supabase/functions/chat/core/memory/memory_manager.ts` - Orchestration
+- `supabase/functions/chat/core/memory/getzep_semantic_manager.ts` - GetZep operations
+- `supabase/functions/chat/processor/stages.ts` - Integration point
+- `supabase/functions/chat/processor/handlers.ts` - Message handling
+
+### 6. Database Schema
+
+**Tables:**
+- `user_oauth_connections`: Stores API keys and metadata
+- `oauth_providers`: Defines GetZep as a provider
+- `integrations`: GetZep integration configuration
+- `agents.metadata.settings.use_account_graph`: Per-agent toggle
+
+**Key Fields:**
+```sql
+-- user_oauth_connections
+vault_access_token_id: TEXT -- Stores API key directly (temporary)
+connection_metadata: JSONB -- {project_id, account_id, project_name}
+scopes_granted: TEXT[] -- ['graph_read', 'graph_write', 'memory_read', 'memory_write']
+```
+
+### 7. UI Components
+
+**Integration Setup:**
+- Page: `/integrations`
+- Modal: `IntegrationSetupModal`
+- Fields: API Key, Project ID, Account ID, Project Name
+
+**Agent Configuration:**
+- Page: `/agents/:id`
+- Section: Knowledge Base
+- Toggle: Enable/disable centralized knowledge graph
+
+**Process Modal:**
+- Shows semantic memory search status
+- Displays retrieved context in expandable dropdown
+- Shows relevance scores and content preview
+
+### 8. Feature Flags
+
+```typescript
+// Default enabled
+enable_memory_system: true
+rollout_percentage: 100
+
+// Agent-specific toggle
+agent.metadata.settings.use_account_graph: boolean
+```
+
+### 9. Error Handling
+
+**Common Issues and Solutions:**
+
+1. **Thread Not Found (404)**
+   - Automatically creates thread on first message
+   - Returns empty results for retrieval
+
+2. **Authentication (401)**
+   - Uses `Api-Key` header (not Bearer)
+   - Validates API key format
+
+3. **Invalid API Key**
+   - Stored directly in database (bypass vault temporarily)
+   - Validated on connection setup
+
+### 10. Testing
+
+**Test Scripts:**
+- `scripts/tests/test_chat_getzep.ts` - End-to-end chat test
+- `scripts/tests/send_to_getzep.ts` - Direct ingestion test
+
+**PowerShell Commands:**
+```powershell
+# Test ingestion
+node scripts/tests/send_to_getzep.ts
+
+# Test chat integration
+node scripts/tests/test_chat_getzep.ts
+```
+
+### 11. Monitoring
+
+**Log Patterns:**
+```
+[GetZepSemantic] ✅ Successfully ingested X messages
+[GetZepSemantic] Retrieved X memories for query
+[MemoryManager] ✅ Successfully queued graph ingestion
+```
+
+**Metrics in Process Modal:**
+- Semantic memory search status
+- Results count
+- Search time
+- Retrieved memories with content
+
+## API Reference
+
+### GetZep Cloud v3 Endpoints (via SDK)
+
+**Thread Operations:**
+- `client.thread.create({ threadId, userId })` - Create new thread
+- `client.thread.addMessages(threadId, { messages })` - Add messages
+- `client.thread.getUserContext(threadId)` - Retrieve context
+
+**Message Format:**
+```typescript
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+  name?: string;
+}
+```
+
+## Troubleshooting
+
+### API Key Issues
+1. Ensure API key is saved in Integrations page
+2. Check `user_oauth_connections` table for active connection
+3. Verify API key format (starts with `z_`)
+
+### No Memories Retrieved
+1. Check if thread exists for user
+2. Verify messages were ingested successfully
+3. Check agent has `use_account_graph` enabled
+
+### Ingestion Not Working
+1. Check Edge Function logs for errors
+2. Verify GetZep client initialization
+3. Ensure proper message format
+
+## Future Improvements
+
+1. **Vault Integration**: Properly encrypt API keys once vault decryption is fixed
+2. **Batch Processing**: Queue messages for batch ingestion
+3. **Graph Visualization**: Add visual knowledge graph display
+4. **Advanced Queries**: Implement graph traversal queries
+5. **Memory Pruning**: Add automatic cleanup of old/irrelevant memories
+
+## Migration Notes
+
+**From Legacy System:**
+- Removed REST API fallbacks (SDK only)
+- Removed `graph_ingestion_queue` table (direct ingestion)
+- Removed separate `graph-ingestion` Edge Function
+- Simplified to single thread per user model
+
+**Breaking Changes:**
+- GetZep v2 API no longer supported
+- REST endpoints deprecated in favor of SDK
+- Thread ID format standardized
+
+## Contact
+
+For issues or questions about GetZep integration:
+- Check Edge Function logs in Supabase Dashboard
+- Review Process Modal for memory operation details
+- Verify API key and credentials in Integrations page

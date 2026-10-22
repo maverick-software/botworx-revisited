@@ -1,0 +1,12 @@
+import {readFile,writeFile} from 'node:fs/promises';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+const root=path.resolve(import.meta.dirname,'../..'),work=path.join(root,'.supabase/desktop-platform-release/candidate-04430');
+const json=async file=>JSON.parse(await readFile(file,'utf8'));
+const p=await json(path.join(work,'package-proof.json')),q=await json(path.join(work,'qualification.json')),m=await json(path.join(work,'installer-proof.json')),v=await json(path.join(work,'installer-verification/evidence.json')),f=await json(path.join(work,'full-packaged-acceptance.json'));
+assert([p,q,m,v,f].every(x=>x.success&&x.version==='0.44.30'));
+assert([q,m,v,f].every(x=>x.imageSha256===p.imageSha256));
+assert(f.schema===69&&f.firstAudit.success&&f.secondAudit.success&&f.providerRequests===0);
+const e=await json(f.evidence);assert(e.success&&e.disposableRuntimeRemoved);
+const result={success:true,at:new Date().toISOString(),phase:'verified-awaiting-physical-backup-and-installation',version:p.version,baseVersion:'0.44.24',image:p.image,imageSha256:p.imageSha256,migrations:69,packageEvidence:path.join(work,'package-proof.json'),qualificationEvidence:path.join(work,'qualification.json'),installer:m.installer,installerSha256:m.installerSha256,installerBytes:m.installerBytes,installerVerified:true,installerVerification:path.join(work,'installer-verification/evidence.json'),fullPackagedEvidence:path.join(work,'full-packaged-acceptance.json'),liveEvidence:f.evidence,liveAcceptancePending:false,providerResponses:'controlled locally',providerRequests:0,installed:false,productionMigrated:false};
+await writeFile(path.join(work,'release-proof.json'),JSON.stringify(result,null,2),{flag:'wx'});console.log(JSON.stringify(result,null,2));

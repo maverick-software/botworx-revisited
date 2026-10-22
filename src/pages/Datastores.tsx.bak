@@ -1,0 +1,664 @@
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Plus, Trash2, Edit2, Database, RefreshCw } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
+import type { Datastore as DatastoreType } from '../types';
+
+type ExtendedDatastore = DatastoreType & {
+  agent_datastores?: Array<{ agent_id: string }>;
+};
+
+export function Datastores() {
+  const { user } = useAuth();
+  const [datastores, setDatastores] = useState<ExtendedDatastore[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingDatastore, setEditingDatastore] = useState<ExtendedDatastore | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const totalFetchAttempts = useRef(0);
+  const MAX_TOTAL_FETCH_ATTEMPTS = 5;
+
+  const fetchDatastores = useCallback(async (isInitialCall = true) => {
+    if (!user) return;
+
+    let currentAttempt = totalFetchAttempts.current + 1;
+    if (isInitialCall) {
+      currentAttempt = 1;
+      totalFetchAttempts.current = 0;
+    }
+    totalFetchAttempts.current = currentAttempt;
+
+    if (currentAttempt > MAX_TOTAL_FETCH_ATTEMPTS) {
+      console.warn(`Max fetch attempts (${MAX_TOTAL_FETCH_ATTEMPTS}) reached for datastores. Aborting.`);
+      setError(`Failed to load datastores after ${MAX_TOTAL_FETCH_ATTEMPTS} attempts.`);
+      setLoading(false);
+      return;
+    }
+    console.log(`Fetching datastores... Attempt ${currentAttempt}`);
+
+    try {
+      setError(null);
+      setLoading(true);
+
+      const { data, error: fetchError } = await supabase
+        .from('datastores')
+        .select('*, agent_datastores(agent_id)')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (fetchError) { throw fetchError; }
+
+      await new Promise(resolve => setTimeout(resolve, 300));
+      setDatastores(data || []);
+      setLoading(false);
+      if (isInitialCall) totalFetchAttempts.current = 0;
+
+    } catch (err: any) {
+      console.error('Error fetching datastores:', err);
+      if (currentAttempt < MAX_TOTAL_FETCH_ATTEMPTS) {
+        const delay = 2000;
+        console.log(`Datastore fetch failed, retrying in ${delay}ms (Attempt ${currentAttempt + 1})`);
+        setTimeout(() => fetchDatastores(false), delay);
+        const message = err instanceof Error ? err.message : 'An unknown error occurred';
+        setError(`Failed to load datastores. Retrying... (${currentAttempt}/${MAX_TOTAL_FETCH_ATTEMPTS}): ${message}`);
+      } else {
+        const message = err instanceof Error ? err.message : 'An unknown error occurred';
+        setError(`Failed to load datastores after ${MAX_TOTAL_FETCH_ATTEMPTS} attempts: ${message}`);
+        console.error('Max fetch attempts reached after error.');
+        setLoading(false);
+      }
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      totalFetchAttempts.current = 0;
+      fetchDatastores(true);
+    } else {
+      setDatastores([]);
+      setLoading(false);
+      setError(null);
+    }
+  }, [user, fetchDatastores]);
+
+  const handleDelete = async (id: string) => {
+    if (!id || isDeleting) return;
+
+    try {
+      setIsDeleting(true);
+      setError(null);
+
+      const { error: deleteError } = await supabase
+        .from('datastores')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user?.id);
+
+      if (deleteError) {
+        console.error('Delete error:', {
+          message: deleteError.message,
+          code: deleteError.code,
+          details: deleteError.details
+        });
+        throw deleteError;
+      }
+
+      setDatastores(prev => prev.filter(ds => ds.id !== id));
+      setShowDeleteConfirm(null);
+    } catch (err) {
+      console.error('Error deleting datastore:', err);
+      setError('Failed to delete datastore. Please try again.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleCreateOrUpdate = async (formData: Partial<ExtendedDatastore>) => {
+    if (!user?.id) {
+      setError('You must be logged in to perform this action.');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      setError(null);
+
+      if (!formData.name?.trim()) throw new Error('Name is required');
+      if (!formData.description?.trim()) throw new Error('Description is required');
+      if (!formData.type) throw new Error('Type is required');
+      
+      if (formData.type === 'pinecone') {
+        if (!formData.config?.apiKey) throw new Error('API Key is required');
+        if (!formData.config?.region) throw new Error('Region is required');
+        if (!formData.config?.host) throw new Error('Host is required');
+        if (!formData.config?.indexName) throw new Error('Index Name is required');
+        if (!formData.config?.dimensions) throw new Error('Dimensions is required');
+      } else if (formData.type === 'getzep') {
+        if (!formData.config?.apiKey) throw new Error('API Key is required');
+        if (!formData.config?.projectId) throw new Error('Project ID is required');
+        if (!formData.config?.collectionName) throw new Error('Collection Name is required');
+      }
+
+      const datastoreData = {
+        ...formData,
+        user_id: user.id,
+      };
+
+      let result;
+      if (editingDatastore) {
+        result = await supabase
+          .from('datastores')
+          .update(datastoreData)
+          .eq('id', editingDatastore.id)
+          .eq('user_id', user.id)
+          .select()
+          .single();
+      } else {
+        result = await supabase
+          .from('datastores')
+          .insert([datastoreData])
+          .select()
+          .single();
+      }
+
+      if (result.error) {
+        console.error('Save error:', {
+          message: result.error.message,
+          code: result.error.code,
+          details: result.error.details
+        });
+        throw result.error;
+      }
+
+      if (editingDatastore) {
+        setDatastores(prev => 
+          prev.map(ds => ds.id === editingDatastore.id ? result.data : ds)
+        );
+      } else {
+        setDatastores(prev => [result.data, ...prev]);
+      }
+
+      setShowCreateModal(false);
+      setEditingDatastore(null);
+    } catch (err) {
+      console.error('Error saving datastore:', {
+        error: err,
+        message: err.message,
+        stack: err.stack
+      });
+      throw err;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-gray-400">Please sign in to manage datastores.</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold">Datastores</h1>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={loading}
+        >
+          <Plus className="w-5 h-5 mr-2" />
+          Create Datastore
+        </button>
+      </div>
+
+      {error && (
+        <div className="bg-red-500/10 border border-red-500 text-red-400 p-4 rounded-md flex items-center justify-between">
+          <span>{error}</span>
+          <button
+            onClick={() => fetchDatastores(true)}
+            disabled={loading}
+            className="flex items-center px-4 py-2 bg-red-500/20 hover:bg-red-500/30 rounded-md transition-colors"
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${loading && error?.includes('Retrying') ? 'animate-spin' : ''}`} />
+            {loading && error?.includes('Retrying') ? 'Retrying...' : 'Try Again'}
+          </button>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {loading ? (
+          Array.from({ length: 3 }).map((_, index) => (
+            <div
+              key={`skeleton-${index}`}
+              className="bg-gray-800 rounded-lg p-6 space-y-4"
+            >
+              <div className="animate-pulse space-y-4">
+                <div className="flex justify-between">
+                  <div className="h-6 bg-gray-700 rounded w-1/2"></div>
+                  <div className="space-x-2 flex">
+                    <div className="w-8 h-8 bg-gray-700 rounded"></div>
+                    <div className="w-8 h-8 bg-gray-700 rounded"></div>
+                  </div>
+                </div>
+                <div className="h-4 bg-gray-700 rounded w-3/4"></div>
+                <div className="pt-4 border-t border-gray-700 space-y-2">
+                  <div className="flex justify-between">
+                    <div className="h-4 bg-gray-700 rounded w-1/4"></div>
+                    <div className="h-4 bg-gray-700 rounded w-1/3"></div>
+                  </div>
+                  <div className="flex justify-between">
+                    <div className="h-4 bg-gray-700 rounded w-1/4"></div>
+                    <div className="h-4 bg-gray-700 rounded w-1/3"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))
+        ) : datastores.length === 0 ? (
+          <div className="col-span-full bg-gray-800 rounded-lg p-8 text-center">
+            <Database className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+            <p className="text-gray-400">No datastores found. Create your first datastore to get started!</p>
+          </div>
+        ) : (
+          datastores.map((datastore) => (
+            <div
+              key={datastore.id}
+              className="bg-gray-800 rounded-lg p-6 space-y-4"
+            >
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-xl font-semibold">{datastore.name}</h3>
+                  <p className="text-gray-400 text-sm mt-1">
+                    {datastore.description}
+                  </p>
+                </div>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => setEditingDatastore(datastore)}
+                    className="p-2 text-gray-400 hover:text-blue-400 rounded-md transition-colors"
+                    title="Edit datastore"
+                  >
+                    <Edit2 className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => setShowDeleteConfirm(datastore.id)}
+                    className="p-2 text-gray-400 hover:text-red-400 rounded-md transition-colors"
+                    title="Delete datastore"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-gray-700">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Type:</span>
+                  <span className="text-gray-300 capitalize">{datastore.type}</span>
+                </div>
+                {datastore.type === 'pinecone' && (
+                  <>
+                    <div className="flex justify-between text-sm mt-2">
+                      <span className="text-gray-400">Index:</span>
+                      <span className="text-gray-300">
+                        {datastore.config.indexName}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm mt-2">
+                      <span className="text-gray-400">Region:</span>
+                      <span className="text-gray-300">
+                        {datastore.config.region}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm mt-2">
+                      <span className="text-gray-400">Dimensions:</span>
+                      <span className="text-gray-300">
+                        {datastore.config.dimensions}
+                      </span>
+                    </div>
+                  </>
+                )}
+                {datastore.type === 'getzep' && (
+                  <>
+                    <div className="flex justify-between text-sm mt-2">
+                      <span className="text-gray-400">Collection:</span>
+                      <span className="text-gray-300">
+                        {datastore.config.collectionName}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm mt-2">
+                      <span className="text-gray-400">Project:</span>
+                      <span className="text-gray-300">
+                        {datastore.config.projectId}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {datastore.agent_datastores && datastore.agent_datastores.length > 0 && (
+                <div className="pt-4 border-t border-gray-700">
+                  <div className="text-sm text-gray-400">
+                    Connected to {datastore.agent_datastores.length} agent{datastore.agent_datastores.length !== 1 ? 's' : ''}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md">
+            <h2 className="text-2xl font-bold mb-4">Delete Datastore</h2>
+            <p className="text-gray-300 mb-6">
+              Are you sure you want to delete this datastore? This action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowDeleteConfirm(null)}
+                className="px-4 py-2 text-gray-300 hover:text-white transition-colors"
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDelete(showDeleteConfirm)}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                disabled={isDeleting}
+              >
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {(showCreateModal || editingDatastore) && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <DatastoreForm
+            datastore={editingDatastore}
+            onSubmit={handleCreateOrUpdate}
+            onCancel={() => {
+              setShowCreateModal(false);
+              setEditingDatastore(null);
+            }}
+            isSaving={isSaving}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface DatastoreFormProps {
+  datastore?: ExtendedDatastore | null;
+  onSubmit: (data: Partial<ExtendedDatastore>) => Promise<void>;
+  onCancel: () => void;
+  isSaving: boolean;
+}
+
+function DatastoreForm({ datastore, onSubmit, onCancel, isSaving }: DatastoreFormProps) {
+  const [formData, setFormData] = useState<Partial<ExtendedDatastore>>({
+    name: datastore?.name || '',
+    description: datastore?.description || '',
+    type: datastore?.type || 'pinecone',
+    config: datastore?.config || {},
+  });
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    try {
+      setFormError(null);
+      await onSubmit(formData);
+    } catch (err) {
+      console.error('Form submission error:', err);
+      setFormError(err.message || 'Failed to save datastore. Please try again.');
+    }
+  };
+
+  return (
+    <div className="bg-gray-800 rounded-lg p-6 w-full max-w-2xl">
+      <h2 className="text-2xl font-bold mb-6">
+        {datastore ? 'Edit Datastore' : 'Create Datastore'}
+      </h2>
+
+      {formError && (
+        <div className="mb-6 bg-red-500/10 border border-red-500 text-red-400 p-4 rounded-md">
+          {formError}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-1">
+            Name
+          </label>
+          <input
+            type="text"
+            required
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            placeholder="Enter datastore name"
+            disabled={isSaving}
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-1">
+            Description
+          </label>
+          <textarea
+            required
+            value={formData.description}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            placeholder="Enter datastore description"
+            rows={3}
+            disabled={isSaving}
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-1">
+            Type
+          </label>
+          <select
+            required
+            value={formData.type}
+            onChange={(e) => setFormData({
+              ...formData,
+              type: e.target.value as 'pinecone' | 'getzep',
+              config: {}
+            })}
+            className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            disabled={isSaving}
+          >
+            <option value="pinecone">Pinecone</option>
+            <option value="getzep">GetZep</option>
+          </select>
+        </div>
+
+        {formData.type === 'pinecone' && (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                API Key
+              </label>
+              <input
+                type="password"
+                required
+                value={formData.config?.apiKey || ''}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  config: { ...formData.config, apiKey: e.target.value }
+                })}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Enter Pinecone API key"
+                disabled={isSaving}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                Region
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.config?.region || ''}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  config: { ...formData.config, region: e.target.value }
+                })}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Enter Pinecone region (e.g., us-west-2)"
+                disabled={isSaving}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                Host
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.config?.host || ''}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  config: { ...formData.config, host: e.target.value }
+                })}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Enter Pinecone host URL"
+                disabled={isSaving}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                Index Name
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.config?.indexName || ''}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  config: { ...formData.config, indexName: e.target.value }
+                })}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Enter index name"
+                disabled={isSaving}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                Dimensions
+              </label>
+              <input
+                type="number"
+                required
+                min="1"
+                value={formData.config?.dimensions || ''}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  config: { ...formData.config, dimensions: parseInt(e.target.value, 10) }
+                })}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Enter vector dimensions (e.g., 1536)"
+                disabled={isSaving}
+              />
+            </div>
+          </div>
+        )}
+
+        {formData.type === 'getzep' && (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                API Key
+              </label>
+              <input
+                type="password"
+                required
+                value={formData.config?.apiKey || ''}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  config: { ...formData.config, apiKey: e.target.value }
+                })}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Enter Zep API key"
+                disabled={isSaving}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                Project ID
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.config?.projectId || ''}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  config: { ...formData.config, projectId: e.target.value }
+                })}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Enter project ID"
+                disabled={isSaving}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                Collection Name
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.config?.collectionName || ''}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  config: { ...formData.config, collectionName: e.target.value }
+                })}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Enter collection name"
+                disabled={isSaving}
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="flex justify-end space-x-3 pt-6">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-4 py-2 text-gray-300 hover:text-white transition-colors"
+            disabled={isSaving}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={isSaving}
+          >
+            {isSaving ? 'Saving...' : (datastore ? 'Update' : 'Create')}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}

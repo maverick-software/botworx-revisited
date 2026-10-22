@@ -1,0 +1,16 @@
+import {spawnSync} from 'node:child_process';
+import {mkdir,readFile,writeFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import path from 'node:path';
+import {desktopOperation} from './operation-lock.mjs';
+desktopOperation('goal and queued-message ordering qualification');
+const root=path.resolve(import.meta.dirname,'../..'),out=path.join(root,'.supabase/desktop-goal-queue-ordering','check-'+Date.now()),build=path.join(out,'build');await mkdir(out,{recursive:true});await writeFile(path.join(out,'package.json'),'{"type":"commonjs"}');
+const tests=['goal-queue','goal-queue-native','native-goal-broker','native-goals','chat-queue','chat-delivery-broker','chat-delivery-queue','native-inference-routing'],files=['desktop/src/broker.ts','desktop/src/goal-queue.ts','desktop/src/codex-harness.ts','desktop/src/native-contracts.ts','desktop/src/chat-queue.ts',...tests.map(name=>'desktop/tests/'+name+'.test.cjs')],hashes=async()=>Object.fromEntries(await Promise.all(files.map(async name=>[name,createHash('sha256').update(await readFile(path.join(root,name))).digest('hex')])));
+files.push('desktop/ui/NativeTurn.tsx','desktop/ui/NativeGoal.tsx','desktop/ui/Composer.tsx','desktop/ui/GoalPane.tsx');
+const env={...process.env,AGENTOPIA_GOAL_BUILD:build,AGENTOPIA_DELIVERY_BUILD:build,AGENTOPIA_GOAL_OUTPUT:out,AGENTOPIA_DELIVERY_OUTPUT:out,AGENTOPIA_GOAL_RESOURCES:'C:/Users/charl/AppData/Local/AgentopiaDesktop/app-0.44.17/resources/resources',AGENTOPIA_DELIVERY_RESOURCES:'C:/Users/charl/AppData/Local/AgentopiaDesktop/app-0.44.17/resources/resources'};
+const evidence={success:false,at:new Date().toISOString(),installed:false,productionMigrations:0,liveProviderRequests:0};
+async function run(name,args){const result=spawnSync(process.execPath,args,{cwd:root,env,encoding:'utf8',windowsHide:true,maxBuffer:8*1024*1024});await writeFile(path.join(out,name+'.log'),(result.stdout??'')+(result.stderr??''));if(result.status!==0)throw Error(name+' failed. Inspect '+path.join(out,name+'.log'));return result.stdout;}
+try{evidence.sourceSha256=await hashes();await run('backend',['node_modules/typescript/bin/tsc','-p','desktop/tsconfig.json','--outDir',build,'--noEmitOnError']);await run('renderer',['node_modules/typescript/bin/tsc','-p','desktop/ui/tsconfig.json']);
+ const loader=path.join(out,'network-guard.cjs');await writeFile(loader,`const original=global.fetch;global.fetch=(url,args)=>{const parsed=new URL(String(url));if(parsed.protocol!=='http:'||parsed.hostname!=='127.0.0.1')throw Error('Unplanned network in goal/queue qualification');return original(url,args);};`);
+ const log=await run('tests',['--require',loader,'--test','--test-concurrency=1','--test-reporter=tap',...tests.map(name=>'desktop/tests/'+name+'.test.cjs')]);evidence.passed=Number(log.match(/^# pass (\d+)/m)?.[1]);if(JSON.stringify(await hashes())!==JSON.stringify(evidence.sourceSha256))throw Error('Sources changed during qualification');evidence.success=true;
+}catch(error){evidence.error=error.message;process.exitCode=1;}finally{await writeFile(path.join(out,'evidence.json'),JSON.stringify(evidence,null,2));console.log(JSON.stringify({success:evidence.success,passed:evidence.passed,error:evidence.error,out},null,2));}

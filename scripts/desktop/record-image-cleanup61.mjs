@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import {readFile,writeFile} from 'node:fs/promises';
+const root=path.resolve(import.meta.dirname,'../..'),json=async p=>JSON.parse((await readFile(p,'utf8')).replace(/^\uFEFF/,'')),pointer=await json(path.join(root,'.supabase/desktop-image-attachment-release61/current.json')),receipt=await json(path.join(pointer.out,'delivery-accepted.json')),file=path.join(pointer.out,'finished-build-cleanup.json'),cleanup=await json(file);assert(receipt.success&&receipt.installed&&cleanup.success&&cleanup.currentInstalledAndQualifiedProgramsPreserved&&cleanup.privateProfilesAndRuntimesUntouched&&cleanup.targets.length===3);
+const ledgerFile=path.join(root,'.supabase/desktop-recovery-bootstrap/next-acceptance.json'),ledger=await json(ledgerFile);assert(ledger.installed==='0.44.61');ledger.imageAttachments61.finishedBuildCleanup=file;await writeFile(ledgerFile,JSON.stringify(ledger,null,2));
+async function edit(name,apply){const file=path.join(root,name);await writeFile(file,apply(await readFile(file,'utf8')));}
+await edit('docs/desktop/image-attachments61.md',text=>text+'\nFinished-program cleanup removed the failed first61 program, the completed packaged-test program and the redundant installer input tree. Their source diagnostics, test results, private test profile/runtime, qualified current program, installer and production recovery remain. These trees shared hardlinks; their logical byte totals are not a claim of equivalent physical space reclaimed. Receipt: `'+file+'`.\n');
+await edit('docs/desktop/composio-tab.md',text=>text.replace('Installed Agentopia 0.44.60 retains','Installed Agentopia 0.44.61 retains'));
+await edit('docs/desktop/using-persistent-agents.md',text=>text.replace('Available in installed Agentopia 0.44.60.','Available in installed Agentopia 0.44.61.'));
+console.log(JSON.stringify({success:true,finishedProgramTreesRemoved:cleanup.targets.length,installed:'0.44.61',fullGoalComplete:false}));

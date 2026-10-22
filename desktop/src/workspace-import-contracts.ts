@@ -1,0 +1,3 @@
+export type WorkspaceImportStatus={owner:string;email:string;id:string;phase:string;at?:string;problem?:string;staging?:string;publicPath:string;privatePath:string;attempts?:{id:string;root:string;phase:string}[]};
+export type UpgradeRecoveryState={account:{id:string;email:string}|null;recovery?:WorkspaceImportStatus;canContinue:boolean;otherAccountPending:boolean};
+export type WorkspaceImportInspection={id:string;receiptId:string;owner:string;expiresAt:string;summary:string;files:number;bytes:number;canFinish:boolean;canRestart:boolean;problems:string[];paths:{label:string;path:string;exists:boolean;files:number;bytes:number;location?:string}[]};

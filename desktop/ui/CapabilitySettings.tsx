@@ -1,0 +1,20 @@
+import React,{useEffect,useRef,useState} from 'react';
+import type {Agent,ChatOptions} from '../src/contracts';
+import {commandDisclosure,type CommandPermissions} from '../src/terminal-contracts';
+import {NativeSkills} from './NativeSkills';
+import {AgentTools} from './AgentTools';
+import {ComputerControls} from './ComputerControls';
+import {call} from './ui';
+
+export type ChatSettingsContext={agent:Agent|null;options:ChatOptions;change:(next:Partial<ChatOptions>)=>void;disabled:boolean;terminal:()=>void;configure:()=>void};
+export function ChatCapabilitySettings({kind,context}:{kind:'skills'|'chat-tools'|'computer';context?:ChatSettingsContext}){
+ if(!context?.agent)return <p>Select an agent in the sidebar to configure its chat capabilities.</p>;
+ const {agent,options,change,disabled,configure}=context;
+ return <><p className="settings-chat-scope">For {agent.name} · Current chat</p>{kind==='skills'?<NativeSkills inline agent={agent} options={options} change={change} close={()=>{}}/>:kind==='chat-tools'?<AgentTools inline agent={agent} options={options} change={change} open close={()=>{}} show={()=>{}} configure={configure} disabled={disabled}/>:<ComputerControls inline options={options} change={change} open close={()=>{}} disabled={disabled}/>}</>;
+}
+export function TerminalSettings({owner,open}:{owner:string;open?:()=>void}){
+ const [permissions,setPermissions]=useState<CommandPermissions|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),generation=useRef(0);
+ useEffect(()=>{const token=++generation.current;void call<CommandPermissions>('terminal.permissions',{owner}).then(value=>{if(token===generation.current)setPermissions(value);}).catch(e=>{if(token===generation.current)setError(e.message);});return()=>{generation.current++;};},[owner]);
+ async function update(action:string){const token=generation.current;setBusy(true);setError('');try{const value=await call<CommandPermissions>(action,{owner});if(token===generation.current)setPermissions(value);}catch(e){if(token===generation.current)setError((e as Error).message);}finally{if(token===generation.current)setBusy(false);}}
+ return <><p className="pane-intro">Configure command execution and open the terminal workspace.</p><p>{commandDisclosure}</p>{permissions&&<div className="setting-row"><div><strong>Windows commands</strong><p>{permissions.enabled?'Enabled for selected workspace folders. '+(permissions.full?'Full access is available.':'Agent commands require review.'):'Disabled'}</p></div>{permissions.administrator?<button className="secondary" disabled={busy} onClick={()=>void update(permissions.enabled?'terminal.revoke':'permissions.commands')}>{permissions.enabled?'Disable commands':'Enable commands'}</button>:<span>Administrator required</span>}</div>}<div className="setting-row"><div><strong>Terminal workspace</strong><p>View command history or use an interactive PowerShell session.</p></div><button className="secondary" disabled={!open} onClick={open}>Open terminal</button></div>{error&&<p role="alert">{error}</p>}</>;
+}

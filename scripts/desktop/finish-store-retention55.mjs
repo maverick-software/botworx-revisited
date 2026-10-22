@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict';
+import {readFile,writeFile,mkdir,access} from 'node:fs/promises';
+import {execFile,spawn} from 'node:child_process';
+import {promisify} from 'node:util';
+import path from 'node:path';
+import {desktopOperation} from './operation-lock.mjs';
+import {hash} from './phased-backup-control.mjs';
+desktopOperation('retain and remove only inactive Store data while the F app remains available');
+const root=path.resolve(import.meta.dirname,'../..'),exec=promisify(execFile),json=async p=>JSON.parse(await readFile(p,'utf8'));
+assert((await json((await json(path.join(root,'.supabase/desktop-cleanup55/current.json'))).evidence)).success);
+const proof=await json((await json(path.join(root,'.supabase/desktop-plugin-release55/current.json'))).proof),job=path.join(root,'.supabase/desktop-store-cleanup55',String(Date.now()));await mkdir(job,{recursive:true});
+const run=async(exe,args,timeout=120000)=>(await exec(exe,args,{cwd:root,windowsHide:true,encoding:'utf8',timeout,maxBuffer:2*1024*1024})).stdout.trim(),shell=path.join(proof.assets,'code-tools/powershell-7.6.7/pwsh.exe');assert.equal(await hash(shell),proof.resourceFiles['code-tools/powershell-7.6.7/pwsh.exe']);
+const sid=await run(shell,['-NoLogo','-NoProfile','-NonInteractive','-Command','[Security.Principal.WindowsIdentity]::GetCurrent().User.Value']);assert(/^S-1-5-[0-9-]+$/.test(sid));const protect=async dir=>run('icacls.exe',[dir,'/inheritance:r','/grant:r','*'+sid+':(OI)(CI)F','*S-1-5-18:(OI)(CI)F','/Q']);await protect(job);
+const e={success:false,job,at:new Date().toISOString(),inactiveProfileOnly:true,ordinaryAppClosureNeeded:false,providerRequests:0},save=()=>writeFile(path.join(job,'evidence.json'),JSON.stringify(e,null,2));await save();await writeFile(path.join(root,'.supabase/desktop-store-cleanup55/current.json'),JSON.stringify({job,evidence:path.join(job,'evidence.json')}));
+try{
+ const parent='F:/Agentopia-Data/profiles/retained-store-20261021';await assert.rejects(access(parent),{code:'ENOENT'});await mkdir(parent);await protect(parent);await mkdir(path.join(parent,'profile'));
+ console.log('Retaining the inactive Store file map; identical bytes are already in the verified F archive. Agentopia remains open.');
+ const streaming=async(exe,args,log)=>new Promise((resolve,reject)=>{const child=spawn(exe,args,{cwd:root,windowsHide:true,stdio:['ignore','pipe','pipe']});let output='';for(const stream of [child.stdout,child.stderr])stream.on('data',b=>{output+=b;process.stdout.write(b);});child.once('error',reject);child.once('close',async code=>{await writeFile(path.join(job,log),output);code===0?resolve():reject(Error('Inspect '+path.join(job,log)));});});
+ await streaming(path.join(proof.assets,'script-runtimes/python-3.14.8/python.exe'),['-I','-B',path.join(root,'scripts/desktop/retain-store-profile55.py'),job],'retention-console.txt');e.retention=await json(path.join(job,'eligible.json'));assert(e.retention.success);await save();
+ const script=path.join(root,'scripts/desktop/remove-retired-native55.ps1');e.removalSourceSha256=await hash(script);await save();await streaming(shell,['-NoLogo','-NoProfile','-NonInteractive','-File',script,'-Job',job,'-Store'],'cleanup-console.txt');e.cleanup=await json(path.join(job,'bulk-cleanup.json'));assert(e.cleanup.success);e.success=true;e.finishedAt=new Date().toISOString();
+}catch(error){e.error=error.message;process.exitCode=1;}await save();console.log(JSON.stringify({success:e.success,job,retainedFiles:e.retention?.sourceFiles,reusedFiles:e.retention?.reusedVerifiedFiles,newDataCopies:e.retention?.copiedAdditionalFiles,deletedBytes:e.cleanup?.deletedBytes,error:e.error}));

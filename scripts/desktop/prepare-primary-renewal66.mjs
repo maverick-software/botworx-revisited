@@ -1,0 +1,8 @@
+import assert from 'node:assert/strict';import {readFile,writeFile} from 'node:fs/promises';import path from 'node:path';
+const dir=import.meta.dirname;
+for(const name of ['renew-primary-chatgpt65.mjs','test-primary-renewal65.mjs']){
+ let text=await readFile(path.join(dir,name),'utf8');for(const [from,to]of [['renew-primary-chatgpt65.mjs','renew-primary-chatgpt66.mjs'],['normal-current65-process.mjs','normal-current66-process.mjs'],['test-primary-renewal65.mjs','test-primary-renewal66.mjs'],['desktop-delivery-repair-release65','desktop-workspace-paths-release66'],['desktop-primary-renewal65','desktop-primary-renewal66'],['desktop-live-readiness64','desktop-live-readiness66'],['app-0.44.65/Agentopia.exe','app-0.44.66/Agentopia.exe']])text=text.replaceAll(from,to);
+ if(name.startsWith('test-')){const first=text.indexOf("assert.equal(await readFile(path.join(import.meta.dirname,'normal-current66-process.mjs')"),last=text.indexOf('\nconst sourceHashes=',first);assert(first>=0&&last>first);text=text.slice(0,first)+"assert.equal(await readFile(path.join(import.meta.dirname,'normal-current66-process.mjs'),'utf8'),(await readFile(path.join(import.meta.dirname,'normal-current65-process.mjs'),'utf8')).replaceAll('65','66'));"+text.slice(last);}
+ await writeFile(path.join(dir,name.replace('65','66')),text,{flag:'wx'});
+}
+const normal=await readFile(path.join(dir,'normal-current65-process.mjs'),'utf8');await writeFile(path.join(dir,'normal-current66-process.mjs'),normal.replaceAll('65','66'),{flag:'wx'});console.log('Current-version renewal preserves the original-store guard and existing protected token workflow.');

@@ -1,0 +1,7 @@
+import React from 'react';
+import type {PluginPackage} from '../src/plugin-contracts';
+export type ReviewedPluginSkill={name:string;description:string;path:string;files:number;bytes:number};
+export function PluginSkillsPreview({pkg,validated=[]}:{pkg:PluginPackage;validated?:ReviewedPluginSkill[]}){
+ const paths=Object.keys(pkg.files??{}),folders=[...new Set(paths.map(file=>file.split('/')[1]))];if(!folders.length)return null;
+ return <section className="plugin-skill-preview" aria-label="Packaged skills"><strong>{folders.length} {folders.length===1?'skill':'skills'} · {paths.length} {paths.length===1?'file':'files'}</strong><p>Available to assigned agents through Codex. Scripts use the chat’s existing permissions.</p>{folders.map(folder=>{const skillPath='skills/'+folder+'/SKILL.md',review=validated.find(skill=>skill.path===skillPath),files=paths.filter(file=>file.startsWith('skills/'+folder+'/'));const text=()=>{try{return new TextDecoder().decode(Uint8Array.from(atob(pkg.files![skillPath]),character=>character.charCodeAt(0)));}catch{return 'The instruction preview is unavailable.';}};return <details key={folder}><summary>{review?.name??folder}<small>{files.length} {files.length===1?'file':'files'}</small></summary>{review&&<p>{review.description}</p>}<pre aria-label={'Instructions for '+(review?.name??folder)}>{text()}</pre><ul aria-label={'Files for '+folder}>{files.map(file=><li key={file}>{file.slice(('skills/'+folder+'/').length)}</li>)}</ul></details>;})}</section>;
+}

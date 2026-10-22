@@ -1,29 +1,43 @@
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import type { Database, Json } from '../../types/database.types.ts'; // Changed to relative path
-import { callDtmaApi } from './dtmaApi.ts';
-import {
-    AccountToolEnvironmentRecord,
-    AccountToolInstallationStatusEnum,
-    AccountToolInstanceInsert,
-    AccountToolInstanceRecord,
-    AccountToolInstanceUpdate,
-    CreateToolInstanceOptions,
-    DeployToolOptions,
-    ManageToolInstanceOptions,
-    UpdateToolInstanceOptions
-} from './manager.types.ts';
-import { mapDtmaStatusToInstallationStatus } from './statusMapper.ts';
-export type {
-    AccountToolEnvironmentRecord,
-    AccountToolInstallationStatusEnum,
-    AccountToolInstanceInsert,
-    AccountToolInstanceRecord,
-    AccountToolInstanceUpdate,
-    CreateToolInstanceOptions,
-    DeployToolOptions,
-    ManageToolInstanceOptions,
-    UpdateToolInstanceOptions
-} from './manager.types.ts';
+
+// Correctly typed definitions based on the expected schema
+export type AccountToolInstanceRecord = Database['public']['Tables']['account_tool_instances']['Row'];
+export type AccountToolInstanceInsert = Database['public']['Tables']['account_tool_instances']['Insert'];
+export type AccountToolInstanceUpdate = Database['public']['Tables']['account_tool_instances']['Update'];
+export type AccountToolInstallationStatusEnum = Database['public']['Enums']['account_tool_installation_status_enum'];
+export type AccountToolEnvironmentRecord = Database['public']['Tables']['account_tool_environments']['Row'];
+export type ToolCatalogRecord = Database['public']['Tables']['tool_catalog']['Row'];
+
+
+export interface CreateToolInstanceOptions {
+    account_tool_environment_id: string;
+    tool_catalog_id: string;
+    instance_name_on_toolbox: string;
+    base_config_override_json?: Json;
+    // As per WBS 1.2.3, the status column in account_tool_instances is 'status_on_toolbox'
+    // The initial_status for CreateToolInstanceOptions should map to this.
+    status_on_toolbox: AccountToolInstallationStatusEnum;
+}
+
+// UpdateToolInstanceOptions should allow updating relevant fields of AccountToolInstanceRecord
+// We can use AccountToolInstanceUpdate and pick relevant fields or make it more specific.
+// For now, let's make it flexible but exclude IDs and immutable fields.
+export type UpdateToolInstanceOptions = Omit<Partial<AccountToolInstanceUpdate>, 'id' | 'created_at' | 'account_tool_environment_id' | 'tool_catalog_id'>;
+
+export interface DeployToolOptions {
+    userId: string; // For authorization
+    accountToolEnvironmentId: string;
+    toolCatalogId: string;
+    instanceNameOnToolbox: string;
+    baseConfigOverrideJson?: Json;
+}
+
+export interface ManageToolInstanceOptions {
+    userId: string; // For authorization
+    accountToolInstanceId: string;
+    accountToolEnvironmentId: string; // Added for context and consistency checks
+}
 
 export class ToolInstanceService {
     private supabase: SupabaseClient;
@@ -302,6 +316,48 @@ export class ToolInstanceService {
         return { instance, toolbox: toolbox as AccountToolEnvironmentRecord & { public_ip_address: string } };
     }
 
+    private async _callDtmaApi(
+        toolboxIp: string, 
+        method: 'POST' | 'DELETE',
+        path: string,
+        payload?: object
+    ): Promise<any> {
+        const dtmaPort = Deno.env.get('DTMA_PORT') || '30000';
+        const backendToDtmaApiKey = Deno.env.get('BACKEND_TO_DTMA_API_KEY');
+        if (!backendToDtmaApiKey) {
+            throw new Error('BACKEND_TO_DTMA_API_KEY is not configured for DTMA API calls.');
+        }
+
+        const dtmaApiUrl = `http://${toolboxIp}:${dtmaPort}${path}`;
+        console.log(`Calling DTMA API: ${method} ${dtmaApiUrl}`, payload || '');
+
+        const response = await fetch(dtmaApiUrl, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${backendToDtmaApiKey}`,
+            },
+            body: payload ? JSON.stringify(payload) : undefined,
+        });
+
+        if (!response.ok) {
+            const errorBody = await response.text();
+            console.error(`DTMA API request failed to ${dtmaApiUrl} with status ${response.status}: ${errorBody}`);
+            throw new Error(`DTMA API request failed: ${response.status} ${errorBody}`);
+        }
+
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.indexOf("application/json") !== -1) {
+            try {
+                return await response.json();
+            } catch (e) {
+                console.error('Failed to parse JSON response from DTMA:', e);
+                return { success: true, message: 'DTMA request successful, but response was not valid JSON.', error: (e as Error).message };
+            }
+        }
+        return { success: true, message: await response.text() || 'DTMA request successful' };
+    }
+
     /**
      * Removes a tool instance from a Toolbox by commanding the DTMA.
      * WBS 2A.1.3
@@ -314,7 +370,7 @@ export class ToolInstanceService {
         });
 
         try {
-            await callDtmaApi(
+            await this._callDtmaApi(
                 toolbox.public_ip_address, 
                 'DELETE',
                 `/tools/${instance.instance_name_on_toolbox}`
@@ -349,7 +405,7 @@ export class ToolInstanceService {
         });
 
         try {
-            await callDtmaApi(
+            await this._callDtmaApi(
                 toolbox.public_ip_address, 
                 'POST',
                 `/tools/${instance.instance_name_on_toolbox}/start`
@@ -384,7 +440,7 @@ export class ToolInstanceService {
         });
 
         try {
-            await callDtmaApi(
+            await this._callDtmaApi(
                 toolbox.public_ip_address, 
                 'POST',
                 `/tools/${instance.instance_name_on_toolbox}/stop`
@@ -495,3 +551,37 @@ export class ToolInstanceService {
         }
     }
 }
+
+function mapDtmaStatusToInstallationStatus(dtmaStatus: string): AccountToolInstallationStatusEnum {
+    // Based on DTMA status strings (e.g., from dtma/src/index.ts ManagedToolInstanceStatus)
+    // and target ENUM account_tool_installation_status_enum
+    // (pending_deploy, deploying, running, stopped, error, pending_delete, deleting)
+    // DTMA states: PENDING, STARTING, RUNNING, STOPPING, STOPPED, ERROR, UNKNOWN
+    switch (dtmaStatus?.toUpperCase()) {
+        case 'PENDING':
+        case 'STARTING': // Or map to 'deploying' if that's more fitting for initial start
+            return 'deploying'; 
+        case 'RUNNING':
+            return 'running';
+        case 'STOPPING':
+            return 'deploying'; // Using 'deploying' as a generic transition state, consider 'pending_delete' if it implies removal
+        case 'STOPPED':
+            return 'stopped';
+        case 'ERROR':
+            return 'error';
+        case 'UNKNOWN':
+        default:
+            console.warn(`Unknown DTMA status: ${dtmaStatus}. Mapping to 'error'.`);
+            return 'error'; // Default to error or a specific 'unknown' state if added to ENUM
+    }
+}
+
+// Example of how this service might be instantiated and used:
+// import { createClient } from '@supabase/supabase-js';
+// const supabaseUrl = process.env.SUPABASE_URL;
+// const supabaseKey = process.env.SUPABASE_KEY;
+// if (!supabaseUrl || !supabaseKey) {
+//     throw new Error("Supabase URL or Key is not defined in environment variables.");
+// }
+// const supabase = createClient<Database>(supabaseUrl, supabaseKey); // Generic for Database
+// const toolInstanceService = new ToolInstanceService(supabase); 

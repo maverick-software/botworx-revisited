@@ -1,0 +1,9 @@
+export type ComputerBox={left:number;top:number;width:number;height:number};
+export type NativeComputerWindow={handle:string;pid:number;started:string;app:string;title:string;className:string;client:ComputerBox;frame:ComputerBox;outer:ComputerBox;captures:ComputerBox[];rootOwner:string;owner:string;popup:string;enabled:boolean;minimized:boolean;foreground:boolean;blocked:string|null};
+export type ComputerWindowChoice={id:string;app:string;title:string;available:boolean;reason?:string};
+export type ComputerReference={id:string;app:string;title:string;available:boolean};
+export type ComputerNode={ref:string;role:string;name:string;automationId:string;bounds:ComputerBox;enabled:boolean;focused:boolean};
+export type NativeComputerSnapshot={id:string;window:NativeComputerWindow;nodes:ComputerNode[];focused:string|null;truncated:boolean};
+export type ComputerStatus={available:boolean;active:boolean;selected:number;shortcut:boolean;error?:string};
+export const computerToolNames=['computer_windows','computer_snapshot','computer_click','computer_type','computer_key','computer_scroll','computer_drag'] as const;
+export const computerDisclosure='Computer use is in preview. Selected windows and their visible contents can be shared with the chosen AI provider. Computer actions run as your Windows account and can change files or send data from the selected application. This is not a filesystem or network sandbox. Inputs require review. Password, security, terminal and Agentopia controls must be completed manually or through their dedicated tools. Stop computer use to revoke the selected windows.';

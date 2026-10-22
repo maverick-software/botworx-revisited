@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {readFile,writeFile} from 'node:fs/promises';
+import path from 'node:path';
+const root=path.resolve(import.meta.dirname,'../..');
+let source=await readFile(path.join(root,'scripts/desktop/test-report-copy-packaged59.mjs'),'utf8');
+source="import {verifyChromeContext60} from './chrome-context-packaged60-workflow.mjs';\n"+source.replaceAll('desktop-report-copy-release59','desktop-chrome-context-release60').replaceAll('0.44.59','0.44.60').replaceAll('exact59','exact60').replaceAll('Exact59','Exact60').replaceAll('PRESERVED-59-','PRESERVED-60-').replaceAll("label:'first59'","label:'first60'").replaceAll("label:'cold59'","label:'cold60'");
+const old='liveBase=await json(base.acceptedBase),live=';assert(source.includes(old));
+source=source.replace(old,'liveBase=await json((await json(base.acceptedBase)).acceptedBase),live=');
+source="import {verifyChromeReceipts60} from './chrome-receipts-current60-workflow.mjs';\n"+source;
+source=source.replace('async function verifySaved({application,page},cold=false){','async function verifySaved({application,page},cold=false){\n if(!cold)e.chromeReceipts=await verifyChromeReceipts60({application,cfg,proof,out,check});');
+const marker='return {visibleRealLiveResult:true';assert(source.includes(marker));
+source=source.replace(marker,'await verifyChromeContext60({application,page,call:h.call,cfg,out,cold,check,evidence:e,save});'+marker);
+source=source.replace('copiedAutomaticReply:true,clipboardBoundaryControlled:true,actualLiveResultReused:true','chromeContext:true,chromeSnapshotColdPersistence:true,chromeReceipts:true,copiedAutomaticReply:true,clipboardBoundaryControlled:true,actualLiveResultReused:true');
+await writeFile(path.join(root,'scripts/desktop/test-chrome-context-packaged60.mjs'),source,{flag:'wx'});
+console.log('Prepared complete packaged60 main/Chrome/Add workflow and normal cold snapshot continuity.');

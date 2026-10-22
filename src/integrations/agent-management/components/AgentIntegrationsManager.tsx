@@ -2,24 +2,27 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   Plus, 
   Settings, 
   Mail, 
   ChevronRight, 
+  ArrowLeft,
+  Shield,
+  CheckCircle,
+  AlertCircle,
   Search
 } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGmailConnection } from '@/integrations/gmail';
 import { useConnections, useIntegrationsByClassification, getAgentIntegrationPermissions } from '@/integrations/_shared';
 import { useSupabaseClient } from '@/hooks/useSupabaseClient';
 import { toast } from 'react-hot-toast';
-import {
-  AddIntegrationModal,
-  CredentialsDetailModal,
-  PermissionsModal,
-  SelectCredentialsModal,
-} from './AgentIntegrationsManagerModals';
 
 interface AgentPermission {
   id: string;
@@ -475,61 +478,394 @@ export function AgentIntegrationsManager({
         </CardContent>
       </Card>
 
-      <AddIntegrationModal
-        open={showAddModal}
-        onOpenChange={setShowAddModal}
-        category={category}
-        availableIntegrations={availableIntegrations}
-        capabilities={capabilities}
-        onSelectIntegration={handleSelectIntegration}
-      />
+      {/* Step 1: Add Integration Modal */}
+      <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
+        <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Add {category === 'channel' ? 'Channel' : category === 'tool' ? 'Tool' : 'Integration'}</DialogTitle>
+            <DialogDescription>
+              Choose {category === 'channel' ? 'a channel' : category === 'tool' ? 'a tool' : 'an integration'} to connect to this agent
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex-1 overflow-y-auto min-h-0 max-h-[calc(85vh-10rem)]">
+            <div className="space-y-4 p-1">
+              {availableIntegrations.length > 0 ? (
+                availableIntegrations.map((integration: { id: string; name: string; description?: string }) => (
+                  <div
+                    key={integration.id}
+                    className="flex items-center justify-between p-4 border rounded-lg cursor-pointer hover:bg-muted"
+                    onClick={() => handleSelectIntegration(integration)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Mail className="h-8 w-8 text-blue-500" />
+                      <div>
+                        <div className="font-medium">{integration.name}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {integration.description}
+                        </div>
+                        {capabilities[integration.id] && capabilities[integration.id].length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {capabilities[integration.id].map(c => (
+                              <Badge key={c.capability_key} variant="secondary" className="text-xs">{c.display_label}</Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <ChevronRight className="h-5 w-5" />
+                  </div>
+                ))
+              ) : (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    No new integrations available. Gmail is currently the only supported integration.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          </div>
+          
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setShowAddModal(false)}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      <SelectCredentialsModal
-        open={showCredentialsModal && workflowMode === 'add'}
-        onOpenChange={setShowCredentialsModal}
-        selectedIntegration={selectedIntegration}
-        availableCredentials={availableCredentials}
-        onSelectCredential={handleSelectCredential}
-        getIntegrationIcon={getIntegrationIcon}
-        onBack={() => {
-          setShowCredentialsModal(false);
-          setShowAddModal(true);
-        }}
-      />
+      {/* Step 2: Select Credentials Modal */}
+      <Dialog open={showCredentialsModal && workflowMode === 'add'} onOpenChange={setShowCredentialsModal}>
+        <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowCredentialsModal(false);
+                  setShowAddModal(true);
+                }}
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              Select Credentials
+            </DialogTitle>
+            <DialogDescription>
+              Choose which {selectedIntegration?.name} account to use
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex-1 overflow-y-auto min-h-0 max-h-[calc(85vh-10rem)]">
+            <div className="space-y-4 p-1">
+              {availableCredentials.length > 0 ? (
+                availableCredentials.map(credential => (
+                  <div
+                    key={credential.id}
+                    className="flex items-center justify-between p-4 border rounded-lg cursor-pointer hover:bg-muted"
+                    onClick={() => handleSelectCredential(credential)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-background rounded">
+                        {getIntegrationIcon(selectedIntegration?.name)}
+                      </div>
+                      <div>
+                        <div className="font-medium">{credential.external_username}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {credential.connection_metadata?.user_name || credential.provider_display_name || selectedIntegration?.name || 'API Account'}
+                        </div>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-5 w-5" />
+                  </div>
+                ))
+              ) : (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    No available credentials. Please connect {selectedIntegration?.name || 'this integration'} first in the{' '}
+                    <a href="/integrations" className="text-primary hover:underline">
+                      Integrations page
+                    </a>
+                    .
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          </div>
+          
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setShowCredentialsModal(false)}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      <PermissionsModal
-        open={showPermissionsModal}
-        onOpenChange={setShowPermissionsModal}
-        workflowMode={workflowMode}
-        selectedIntegration={selectedIntegration}
-        selectedCredential={selectedCredential}
-        selectedScopes={selectedScopes}
-        setSelectedScopes={setSelectedScopes}
-        saving={saving}
-        category={category}
-        onBackFromAdd={() => {
-          setShowPermissionsModal(false);
-          setShowCredentialsModal(true);
-        }}
-        onBackFromEdit={() => {
-          setShowPermissionsModal(false);
-          setShowViewModal(true);
-          setWorkflowMode('view');
-        }}
-        onSubmit={workflowMode === 'edit' ? handleUpdatePermission : handleGrantPermission}
-      />
+      {/* Step 3: Select Permissions Modal */}
+      <Dialog open={showPermissionsModal} onOpenChange={setShowPermissionsModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {workflowMode === 'add' && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowPermissionsModal(false);
+                    setShowCredentialsModal(true);
+                  }}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+              )}
+              {workflowMode === 'edit' && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowPermissionsModal(false);
+                    setShowViewModal(true);
+                    setWorkflowMode('view');
+                  }}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+              )}
+              {workflowMode === 'edit' ? 'Modify Permissions' : 'Set Permissions'}
+            </DialogTitle>
+            <DialogDescription>
+              Choose what this agent can do with {selectedCredential?.external_username}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Allowed Actions</Label>
+              <div className="space-y-2">
+                {(() => {
+                  const integrationId = selectedIntegration?.id || selectedIntegration?.name?.toLowerCase() || '';
+                  const isSearchAPI = integrationId.includes('serper') || integrationId.includes('serpapi') || integrationId.includes('brave') || integrationId.includes('search');
+                  
+                  if (isSearchAPI) {
+                    return (
+                      <>
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={selectedScopes.includes('web_search')}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedScopes([...selectedScopes, 'web_search']);
+                              } else {
+                                setSelectedScopes(selectedScopes.filter(s => s !== 'web_search'));
+                              }
+                            }}
+                            className="rounded border-border"
+                          />
+                          <Search className="h-4 w-4" />
+                          Web search
+                        </label>
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={selectedScopes.includes('news_search')}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedScopes([...selectedScopes, 'news_search']);
+                              } else {
+                                setSelectedScopes(selectedScopes.filter(s => s !== 'news_search'));
+                              }
+                            }}
+                            className="rounded border-border"
+                          />
+                          <Search className="h-4 w-4" />
+                          News search
+                        </label>
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={selectedScopes.includes('image_search')}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedScopes([...selectedScopes, 'image_search']);
+                              } else {
+                                setSelectedScopes(selectedScopes.filter(s => s !== 'image_search'));
+                              }
+                            }}
+                            className="rounded border-border"
+                          />
+                          <Search className="h-4 w-4" />
+                          Image search
+                        </label>
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={selectedScopes.includes('local_search')}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedScopes([...selectedScopes, 'local_search']);
+                              } else {
+                                setSelectedScopes(selectedScopes.filter(s => s !== 'local_search'));
+                              }
+                            }}
+                            className="rounded border-border"
+                          />
+                          <Search className="h-4 w-4" />
+                          Local search
+                        </label>
+                      </>
+                    );
+                  } else {
+                    // Gmail scopes
+                    return (
+                      <>
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={selectedScopes.includes('https://www.googleapis.com/auth/gmail.readonly')}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedScopes([...selectedScopes, 'https://www.googleapis.com/auth/gmail.readonly']);
+                              } else {
+                                setSelectedScopes(selectedScopes.filter(s => s !== 'https://www.googleapis.com/auth/gmail.readonly'));
+                              }
+                            }}
+                            className="rounded border-border"
+                          />
+                          <Mail className="h-4 w-4" />
+                          Read emails
+                        </label>
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={selectedScopes.includes('https://www.googleapis.com/auth/gmail.send')}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedScopes([...selectedScopes, 'https://www.googleapis.com/auth/gmail.send']);
+                              } else {
+                                setSelectedScopes(selectedScopes.filter(s => s !== 'https://www.googleapis.com/auth/gmail.send'));
+                              }
+                            }}
+                            className="rounded border-border"
+                          />
+                          <Mail className="h-4 w-4" />
+                          Send emails
+                        </label>
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={selectedScopes.includes('https://www.googleapis.com/auth/gmail.modify')}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedScopes([...selectedScopes, 'https://www.googleapis.com/auth/gmail.modify']);
+                              } else {
+                                setSelectedScopes(selectedScopes.filter(s => s !== 'https://www.googleapis.com/auth/gmail.modify'));
+                              }
+                            }}
+                            className="rounded border-border"
+                          />
+                          <Settings className="h-4 w-4" />
+                          Modify emails (archive, labels, etc.)
+                        </label>
+                      </>
+                    );
+                  }
+                })()}
+              </div>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPermissionsModal(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={workflowMode === 'edit' ? handleUpdatePermission : handleGrantPermission} 
+              disabled={selectedScopes.length === 0 || saving}
+            >
+              {saving ? (workflowMode === 'edit' ? 'Updating...' : 'Adding...') : (workflowMode === 'edit' ? 'Update Permissions' : `Add ${category === 'channel' ? 'Channel' : category === 'tool' ? 'Tool' : 'Integration'}`)}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      <CredentialsDetailModal
-        open={showViewModal}
-        onOpenChange={setShowViewModal}
-        category={category}
-        selectedIntegration={selectedIntegration}
-        selectedCredential={selectedCredential}
-        permissions={permissions}
-        getIntegrationIcon={getIntegrationIcon}
-        onRevokePermission={handleRevokePermission}
-        onModifyPermissions={handleModifyPermissions}
-      />
+      {/* Credentials Detail Modal (for existing integrations) */}
+      <Dialog open={showViewModal} onOpenChange={setShowViewModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {getIntegrationIcon(selectedIntegration?.name)}
+              {selectedIntegration?.name || 'Integration'}
+            </DialogTitle>
+            <DialogDescription>
+              Account: {selectedCredential?.external_username}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="p-4 bg-muted rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <Shield className="h-4 w-4" />
+                <span className="text-sm font-medium">Current Permissions</span>
+              </div>
+              <div className="space-y-1 text-sm text-muted-foreground">
+                {(() => {
+                  const permission = permissions.find(p => p.connection?.external_username === selectedCredential?.external_username);
+                  const scopes = permission?.allowed_scopes || [];
+                  
+                  return (
+                    <>
+                      {scopes.includes('https://www.googleapis.com/auth/gmail.readonly') && (
+                        <div>• Read emails</div>
+                      )}
+                      {scopes.includes('https://www.googleapis.com/auth/gmail.send') && (
+                        <div>• Send emails</div>
+                      )}
+                      {scopes.includes('https://www.googleapis.com/auth/gmail.modify') && (
+                        <div>• Modify emails (archive, labels, etc.)</div>
+                      )}
+                      {scopes.length === 0 && (
+                        <div>• No permissions granted</div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                const permission = permissions.find(p => p.connection?.external_username === selectedCredential?.external_username);
+                if (permission) {
+                  handleRevokePermission(permission.id);
+                  setShowViewModal(false);
+                }
+              }}
+            >
+              Remove {category === 'channel' ? 'Channel' : category === 'tool' ? 'Tool' : 'Integration'}
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={() => {
+                const permission = permissions.find(p => p.connection?.external_username === selectedCredential?.external_username);
+                if (permission) {
+                  handleModifyPermissions(permission);
+                }
+              }}
+            >
+              Modify Permissions
+            </Button>
+            <Button onClick={() => setShowViewModal(false)}>
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 } 

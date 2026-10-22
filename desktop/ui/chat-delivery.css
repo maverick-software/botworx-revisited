@@ -1,0 +1,24 @@
+.chat-delivery-review{font-size:13px;line-height:1.5;min-width:0}
+.chat-delivery-destination{display:flex;align-items:center;gap:7px;min-width:0}
+.chat-delivery-destination>span,.chat-delivery-destination>strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.chat-delivery-destination>svg{flex:none;color:var(--muted)}
+.chat-delivery-review>p{color:var(--muted);margin:10px 0}
+.chat-delivery-review dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 18px;margin:12px 0}
+.chat-delivery-review dt{font-size:11px;color:var(--muted)}
+.chat-delivery-review dd{margin:0;overflow-wrap:anywhere}
+.chat-delivery-message{white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:10px}
+.tool-actions.chat-delivery-actions{flex-wrap:wrap}
+.chat-delivery-actions button{white-space:normal}
+.chat-origin{display:inline-flex;align-items:center;gap:5px;max-width:100%;font-size:11px;color:var(--muted);padding:0;border:0;background:none;font-weight:400;text-align:left}
+.chat-origin>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.chat-origin>svg{flex:none}
+.queued-message>.chat-origin{flex-basis:100%;justify-content:flex-start}
+.queue-incoming-review{width:100%;padding:7px 0}
+.queue-incoming-review>summary{font-size:11px;color:var(--muted);cursor:pointer}
+.queue-incoming-review[open]>.chat-delivery-review{margin-top:10px}
+.queued-messages:has(.queue-incoming-review[open]){max-height:min(60vh,560px)}
+.chat-coordination-settings{margin-top:28px;padding-top:22px;border-top:1px solid var(--border)}
+.chat-coordination-settings .settings-list-row>div{min-width:0}
+.chat-coordination-settings strong,.chat-coordination-settings small>span{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.chat-coordination-settings small{display:flex;align-items:center;gap:5px}
+@media(max-width:580px){.chat-delivery-review dl{grid-template-columns:minmax(0,1fr)}.chat-delivery-actions button{flex:1 1 auto}}

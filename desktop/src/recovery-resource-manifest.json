@@ -1,0 +1,7 @@
+{
+  "format": 12,
+  "files": {
+    "runtime/prepare-desktop-recovery.py": "82f8a64cc2bd20a9405a34ece964d81f920088c2c0fd9bc57cdaa43469c9bd72",
+    "runtime/relocate-native-profile.py": "f32f1be790589796d0e7b6560d4ce1657ea2a50a7669f88a6b1118324abf0281"
+  }
+}

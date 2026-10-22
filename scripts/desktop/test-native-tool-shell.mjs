@@ -1,0 +1,49 @@
+import {_electron,expect} from '@playwright/test';
+import {build} from 'esbuild';
+import {createServer} from 'node:http';
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {createRequire} from 'node:module';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import ts from 'typescript';
+
+const require=createRequire(import.meta.url),root=path.resolve(import.meta.dirname,'../..'),out=path.join(root,'.supabase/desktop-native-activity','delivered-'+Date.now()),delivered=process.env.AGENTOPIA_NATIVE_TOOL_UI_RESOURCES;
+assert(delivered,'Pass the exact candidate renderer resources.');await mkdir(out,{recursive:true});
+if(!delivered)await build({stdin:{contents:`import React from 'react';import {createRoot} from 'react-dom/client';import {DesktopApp} from './desktop/ui/DesktopApp';import './desktop/ui/style.css';createRoot(document.getElementById('root')).render(<DesktopApp/>);`,loader:'tsx',resolveDir:root},bundle:true,platform:'browser',format:'iife',outfile:path.join(out,'app.js'),define:{'process.env.NODE_ENV':'"production"'},plugins:[{name:'worklet-url',setup(b){b.onResolve({filter:/\?url$/},args=>({path:path.resolve(args.resolveDir,args.path.slice(0,-4)),namespace:'url'}));b.onLoad({filter:/.*/,namespace:'url'},async args=>({contents:'export default '+JSON.stringify('data:text/javascript,'+encodeURIComponent(await readFile(args.path,'utf8'))),loader:'js'}));}}]});
+const fixture=await readFile(path.join(root,'scripts/desktop/workspace-agent-ui-fixture.tsx'),'utf8'),{defaultAgentPolicy}=require(path.join(root,'.supabase/desktop-goal-queue/build/agent-contracts.js'));
+const actualFolder=path.join(root,'.supabase/desktop-native-search/ordinary-1792377323235'),actualPointer=JSON.parse(await readFile(path.join(actualFolder,'latest-capture.json'),'utf8')),actualCapture=JSON.parse(await readFile(path.join(actualFolder,actualPointer.file),'utf8')),savedRequest=actualCapture.requests[0];assert.equal(savedRequest.id,'10e6c0e2-d79e-404f-8a3c-9ff0ea5034d2');
+const actualMessage={id:'saved-search',role:'assistant',content:{text:savedRequest.reply},metadata:{status:'completed',options:savedRequest.options,timing:{requestId:savedRequest.id,startedAt:savedRequest.createdAt,finishedAt:savedRequest.updatedAt},native:{...savedRequest.state,items:savedRequest.state.items.filter(e=>['mcpToolCall','agentMessage'].includes(e.item.type))},tools:actualCapture.tools.map(t=>({...t,request_id:t.requestId,native_thread_id:t.nativeThreadId}))}};
+const injection=ts.transpileModule('const defaultAgentPolicy='+JSON.stringify(defaultAgentPolicy)+';\n'+fixture.slice(fixture.indexOf('const mira='),fixture.indexOf('function Fixture(){'))+String.raw`
+appFixture=true;appDrafts.clear();appOptions.permission='ask';appOptions.provider='openai-oauth';appOptions.harness='codex';
+appMessages=[__ACTUAL__];appChat.title='Saved native search';window.toolPresentationCalls=[];const original=window.agentopia.call;
+window.agentopia.call=async(action,args={})=>{
+ if(action==='preferences.get')return {theme:'dark',textSize:'standard',sendWith:'enter',sidebarCollapsed:false};
+ if(action==='conversations.list')return [structuredClone(appChat)];
+ if(action==='messages.list')return structuredClone(appMessages);
+ if(action==='native.active'||action==='native.children'||action==='chat.queue.list'||action==='native.changes.status')return [];
+ if(action==='tools.decide'||action==='chat.send'){window.toolPresentationCalls.push({action,args});throw Error('Unexpected operation in saved presentation check');}
+ return original(action,args);
+};history.replaceState(null,'','/conversations/'+chatId);
+`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None}}).outputText.replace('__ACTUAL__',JSON.stringify(actualMessage));
+const server=createServer((req,res)=>{void(async()=>{const name=new URL(req.url,'http://localhost').pathname;const file=delivered?path.resolve(delivered,name.startsWith('/assets/')?name.slice(1):'index.html'):path.join(out,['/app.js','/app.css'].includes(name)?name.slice(1):'index.html');if(delivered)assert(file.startsWith(path.resolve(delivered)+path.sep));res.setHeader('Content-Type',file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':'text/html');res.end(await readFile(file));})().catch(()=>{res.statusCode=404;res.end();});});
+if(!delivered)await writeFile(path.join(out,'index.html'),'<html><head><link rel="stylesheet" href="/app.css"></head><body><div id="root"></div><script src="/app.js"></script></body></html>');
+await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+const contentWidth=Number(process.env.AGENTOPIA_READING_UI_WIDTH??1362),contentHeight=Number(process.env.AGENTOPIA_READING_UI_HEIGHT??900);assert(Number.isInteger(contentWidth)&&contentWidth>=800&&contentWidth<=2560&&Number.isInteger(contentHeight)&&contentHeight>=600&&contentHeight<=1600);
+await writeFile(path.join(out,'main.cjs'),`const {app,BrowserWindow}=require('electron');app.setPath('userData',${JSON.stringify(path.join(out,'profile'))});app.whenReady().then(()=>new BrowserWindow({show:false,width:${contentWidth},height:${contentHeight},useContentSize:true,webPreferences:{contextIsolation:true,sandbox:true,backgroundThrottling:false}}).loadURL('about:blank'));app.on('window-all-closed',()=>app.quit());`);
+const evidence={at:new Date().toISOString(),contentWidth,contentHeight,delivered,controlledBridge:true,actualDesktopApp:true,rendererFromPackagedResources:true,savedRequestId:savedRequest.id,sourceCapture:actualPointer.file,productionAccess:false,inferenceRequests:0,checks:[],failures:[]},env={...process.env};delete env.ELECTRON_RUN_AS_NODE;let app,page;
+async function check(name,fn){try{await fn();evidence.checks.push(name);console.log('PASS '+name);}catch(error){evidence.failures.push({name,error:error.message});console.log('FAIL '+name+': '+error.message);}}
+try{
+ app=await _electron.launch({executablePath:require('electron'),args:[path.join(out,'main.cjs')],env});page=await app.firstWindow();page.setDefaultTimeout(5000);await page.addInitScript(injection);await page.goto('http://127.0.0.1:'+server.address().port);await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].showInactive());await expect(page.locator('article.message')).toHaveCount(1);
+ const message=page.locator('article.message').last(),history=message.getByLabel('Native Codex activity'),toggle=message.locator('.turn-work-toggle');
+ await check('Saved native response starts with collapsed activity and its official citation',async()=>{await expect(toggle).toHaveAttribute('aria-expanded','false');await expect(history).toHaveCount(0);await expect(message.getByRole('link',{name:/custom provider documentation/})).toBeVisible();});
+ await check('Expanded delivered chat presents four readable host cards and keeps both distinct discoveries',async()=>{await toggle.click();await expect(history.locator('.tool-activity')).toHaveCount(4);await expect(history.locator('.tool-activity>summary small')).toHaveText(['Completed','Completed','Completed','Completed']);await expect(history.locator('.tool-activity>summary').filter({hasText:'Discover agent tools'})).toHaveCount(2);});
+ await check('Raw Codex records occupy one closed technical disclosure',async()=>{await expect(history.locator('>.native-item:not(.native-host-details)')).toHaveCount(0);await expect(history.locator('.native-host-details')).not.toHaveAttribute('open','');await expect(history.locator('.native-host-details>.native-item')).toHaveCount(4);await page.screenshot({path:path.join(out,'delivered-search-dark.png'),timeout:20000,animations:'disabled'});});
+ await check('Search approval arguments and its saved result remain readable without another operation',async()=>{const search=history.locator('.tool-activity').filter({has:page.locator('summary').filter({hasText:'web_search_exa'})});await search.locator('>summary').click();await expect(search.getByLabel('External tool arguments')).toContainText('numResults');await expect(search).toContainText('Configuration Reference');await search.locator('>summary').click();});
+ await check('Opening technical details retains all native calls and their completed outcomes',async()=>{await history.locator('.native-host-details>summary').click();await expect(history.locator('.native-host-details>.native-item>summary small')).toHaveText(['Completed','Completed','Completed','Completed']);await history.locator('.native-host-details>summary').click();});
+ await check('Narrow light delivered layout preserves readable cards within the chat width',async()=>{await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setContentSize(880,900));await page.evaluate(()=>document.documentElement.setAttribute('data-theme','light'));assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await expect(history.locator('.tool-activity')).toHaveCount(4);await page.screenshot({path:path.join(out,'delivered-search-light-narrow.png'),timeout:20000,animations:'disabled'});});
+ await check('Collapsing activity keeps the saved answer and performs no tool or chat operation',async()=>{await toggle.click();await expect(history).toHaveCount(0);await expect(message).toContainText('Selecting a custom provider alone');assert.deepEqual(await page.evaluate(()=>window.toolPresentationCalls),[]);});
+
+ evidence.success=evidence.failures.length===0;
+}catch(error){evidence.success=false;evidence.error=error.stack;}
+finally{await writeFile(path.join(out,'evidence.json'),JSON.stringify(evidence,null,2));if(app)await app.close();await new Promise(resolve=>server.close(resolve));}
+console.log(JSON.stringify({success:evidence.success,checks:evidence.checks.length,failures:evidence.failures,out},null,2));if(!evidence.success)process.exitCode=1;

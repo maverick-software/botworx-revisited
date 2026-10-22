@@ -1,0 +1,25 @@
+import assert from 'node:assert/strict';
+import {mkdir,readFile,writeFile,copyFile} from 'node:fs/promises';
+import {createRequire} from 'node:module';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import path from 'node:path';
+import {desktopOperation} from './operation-lock.mjs';
+import {json,hash} from './phased-backup-control.mjs';
+desktopOperation('read-only semantic comparison of directory update protected store');
+const require=createRequire(import.meta.url),root=path.resolve(import.meta.dirname,'../..'),proof=await json((await json(path.join(root,'.supabase/desktop-agent-directory66/current.json'))).proof),job=path.resolve(process.argv[2]??''),profile='F:/Agentopia-Data/profiles/a91a4800-e08f-4440-a4ec-588762d01bfd/profile';
+assert.equal(path.dirname(job),proof.out);assert(path.basename(job).startsWith('installation-'));const evidence=await json(path.join(job,'evidence.json'));assert(evidence.installed&&evidence.after&&evidence.coreServicesHealthy===6);
+const before=path.join(job,'profile'),out=path.join(job,'store-comparison'),isolated=path.join(out,'isolated-profile'),currentHash=await hash(path.join(profile,'credentials.bin'));await mkdir(isolated,{recursive:true});
+assert.equal(await hash(path.join(profile,'Local State')),await hash(path.join(before,'Local State')));await copyFile(path.join(profile,'Local State'),path.join(isolated,'Local State'));
+const script=path.join(out,'compare.cjs'),result=path.join(out,'result.json');
+await writeFile(script,`const {app,safeStorage}=require('electron'),fs=require('node:fs'),crypto=require('node:crypto');app.setPath('userData',${JSON.stringify(isolated)});app.whenReady().then(()=>{try{
+const previous=JSON.parse(safeStorage.decryptString(fs.readFileSync(${JSON.stringify(path.join(before,'credentials.bin'))}))),current=JSON.parse(safeStorage.decryptString(fs.readFileSync(${JSON.stringify(path.join(profile,'credentials.bin'))})));
+const changed=[...new Set([...Object.keys(previous),...Object.keys(current)])].filter(key=>JSON.stringify(previous[key])!==JSON.stringify(current[key]));
+const paths=(a,b,p='')=>{if(JSON.stringify(a)===JSON.stringify(b))return [];if(a&&b&&typeof a==='object'&&typeof b==='object'&&!Array.isArray(a)&&!Array.isArray(b))return [...new Set([...Object.keys(a),...Object.keys(b)])].flatMap(key=>paths(a[key],b[key],p+'/'+key));return [p||'/'];};
+const allowed=changed.every(key=>key.startsWith('desktop-location:'));
+const report={success:true,changedEntryCount:changed.length,changedEntries:changed.map(key=>({namespace:key.split(':')[0],keySha256:crypto.createHash('sha256').update(key).digest('hex'),fields:paths(previous[key],current[key])})),allNonNavigationValuesEqual:allowed,encryptedKeyAvailable:safeStorage.isEncryptionAvailable(),sourceWrites:0,networkRequests:0,plaintextCredentialValuesReturned:false};
+fs.writeFileSync(${JSON.stringify(result)},JSON.stringify(report,null,2),{flag:'wx'});app.exit(0);
+}catch(error){console.error('Protected store comparison failed: '+error.name);app.exit(1);}});`);
+const env={...process.env};delete env.ELECTRON_RUN_AS_NODE;await promisify(execFile)(require('electron'),[script],{cwd:root,env,windowsHide:true,timeout:30000,maxBuffer:20000});
+const compared=await json(result);assert(compared.success&&compared.encryptedKeyAvailable);assert.equal(await hash(path.join(profile,'credentials.bin')),currentHash,'The live store changed during the read-only comparison; inspect before repeating.');
+console.log(JSON.stringify({...compared,result}));

@@ -1,0 +1,549 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { Bot, Check, Loader2, X, Edit, Plus, Trash2, Copy, ExternalLink } from 'lucide-react';
+import type { AgentDiscordConnection } from '../types'; // Assuming AgentDiscordConnection is defined in types
+
+// Define the structure for a single Discord connection - must match AgentEdit.tsx
+// Consider moving this to a shared types file later
+interface DiscordConnection {
+  guildId: string;
+  channelId: string;
+  guildName?: string; 
+  channelName?: string; 
+}
+
+interface DiscordGuild {
+  id: string;
+  name: string;
+  channels: {
+    id: string;
+    name: string;
+  }[];
+}
+
+interface DiscordConnectProps {
+  agentId: string;
+  isConnected: boolean; // Signifies if bot token is likely configured
+  connections: DiscordConnection[]; // Array of current connections
+  onAddChannel: (connection: DiscordConnection) => void; // Handler to add a channel
+  onRemoveChannel: (channelId: string) => void; // Handler to remove a channel
+  onRemoveGuild: (guildId: string) => void; // Handler to remove a guild
+  onDisconnect: () => void; // Handler to disconnect the bot entirely
+  onConnect: (token: string) => Promise<void>; // Keep onConnect
+  className?: string;
+  // New props for Edge Function integration
+  guilds?: any[]; // Discord guilds fetched from API
+  loading?: boolean; // Loading state for connecting
+  disconnecting?: boolean; // Disconnecting state
+  fetchingGuilds?: boolean; // Loading state for fetching guilds
+  onFetchGuilds?: () => void; // Handler to fetch guilds
+  botToken?: string; // Bot token input value
+  onBotTokenChange?: (token: string) => void; // Handler for bot token input
+  connection: Partial<AgentDiscordConnection>;
+  onConnectionChange: (field: keyof AgentDiscordConnection, value: any) => void;
+  interactionEndpointUrl: string;
+}
+
+/**
+ * DiscordConnect component handles the integration with Discord.
+ * Allows connecting a bot token and managing multiple channel connections.
+ * 
+ * @param {string} agentId - The ID of the agent.
+ * @param {boolean} isConnected - Indicates if a bot token is configured.
+ * @param {DiscordConnection[]} connections - Current channel connections.
+ * @param {function} onAddChannel - Callback to add a channel connection.
+ * @param {function} onRemoveChannel - Callback to remove a channel connection.
+ * @param {function} onRemoveGuild - Callback to remove a guild connection.
+ * @param {function} onDisconnect - Callback to disconnect the bot.
+ * @param {string} [className] - Optional additional class names.
+ * @returns {JSX.Element} The rendered component.
+ */
+export function DiscordConnect({ 
+  agentId, 
+  isConnected,
+  connections, 
+  onAddChannel, 
+  onRemoveChannel, 
+  onRemoveGuild,
+  onDisconnect,
+  onConnect,
+  className = '',
+  guilds: externalGuilds,
+  loading: externalLoading,
+  disconnecting: externalDisconnecting,
+  fetchingGuilds: externalFetchingGuilds,
+  onFetchGuilds: externalOnFetchGuilds,
+  botToken: externalBotToken,
+  onBotTokenChange: externalOnBotTokenChange,
+  connection,
+  onConnectionChange,
+  interactionEndpointUrl
+}: DiscordConnectProps) {
+  
+  // --- State Variables --- 
+  const [botToken, setBotToken] = useState(externalBotToken || ''); // For initial connection
+  const [guilds, setGuilds] = useState<DiscordGuild[]>(externalGuilds || []); // All guilds bot can access
+  const [selectedGuild, setSelectedGuild] = useState<string>(''); // For Add Server dropdown / Modal context
+  const [selectedChannel, setSelectedChannel] = useState<string>(''); // For Add Channel dropdown in Modal
+  
+  const [loading, setLoading] = useState(externalLoading || false); // For initial bot connection
+  const [disconnecting, setDisconnecting] = useState(externalDisconnecting || false); // For disconnecting bot
+  const [loadingGuilds, setLoadingGuilds] = useState(externalFetchingGuilds || false); // For fetching guilds after connect or for adding
+  const [error, setError] = useState<string | null>(null);
+
+  // Checklist Step 2.2: Adjust state
+  // const [isAdding, setIsAdding] = useState(false); // Removed
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalGuildId, setModalGuildId] = useState<string | null>(null);
+  const [modalGuildName, setModalGuildName] = useState<string | null>(null);
+
+  const [isAddingServer, setIsAddingServer] = useState(false); // Step 2.4.1: Add state
+
+  // --- Local State for Config Inputs ---
+  const [localAppId, setLocalAppId] = useState('');
+  const [localPublicKey, setLocalPublicKey] = useState('');
+  const [localTimeout, setLocalTimeout] = useState(10);
+
+  // --- Hooks --- 
+  // Keep useEffect to fetch guilds when connected
+  useEffect(() => {
+    // Use external guilds if provided
+    if (externalGuilds?.length) {
+      setGuilds(externalGuilds);
+    }
+    
+    // Update local state based on external props
+    if (externalLoading !== undefined) setLoading(externalLoading);
+    if (externalDisconnecting !== undefined) setDisconnecting(externalDisconnecting);
+    if (externalFetchingGuilds !== undefined) setLoadingGuilds(externalFetchingGuilds);
+    if (externalBotToken !== undefined && externalBotToken !== botToken) setBotToken(externalBotToken);
+    
+    // Fetch guilds when connected but none loaded yet
+    if (isConnected && (!guilds.length || !externalGuilds?.length) && !loadingGuilds && !externalFetchingGuilds) {
+      if (externalOnFetchGuilds) {
+        externalOnFetchGuilds();
+      } else {
+        fetchBotGuilds(); 
+      }
+    }
+    
+    if (!isConnected) {
+      setIsModalOpen(false); // Ensure modal is closed if disconnected
+      if (!externalGuilds?.length) setGuilds([]); 
+    }
+  }, [isConnected, externalGuilds, externalLoading, externalDisconnecting, externalFetchingGuilds, externalBotToken]); 
+
+  useEffect(() => {
+    // Sync local state when parent prop changes
+    setLocalAppId(connection?.discord_app_id || '');
+    setLocalPublicKey(connection?.discord_public_key || '');
+    setLocalTimeout(connection?.inactivity_timeout_minutes || 10);
+  }, [connection]); // Re-sync if the connection object from parent changes
+
+  useEffect(() => {
+    // ... (Sync loading states) ...
+     if (externalLoading !== undefined) setLoading(externalLoading);
+     if (externalDisconnecting !== undefined) setDisconnecting(externalDisconnecting);
+  }, [externalLoading, externalDisconnecting]);
+
+  // --- Functions (will be refactored) ---
+
+  /**
+   * Fetches the guild list for the connected bot token.
+   * Needed for the "Add Channel" dropdowns.
+   */
+  const fetchBotGuilds = async () => { // Renamed from fetchGuildsAndCurrentSelection
+    console.log(`Fetching bot guilds...`);
+    if (!agentId) return; // Need agentId to get token on backend
+    
+    // If external fetch handler is provided, use it
+    if (externalOnFetchGuilds) {
+      externalOnFetchGuilds();
+      return;
+    }
+    
+    setLoadingGuilds(true);
+    setError(null);
+    try {
+      // Placeholder for backend call to get guilds for the *connected bot*
+      // This endpoint likely needs agentId to find the token
+      // const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/discord-get-bot-guilds?agentId=${agentId}`, { ... });
+      // const data = await response.json();
+
+      // --- MOCK DATA (REMOVE WHEN BACKEND IS READY) ---
+      await new Promise(resolve => setTimeout(resolve, 500)); // Simulate delay
+      const mockGuilds = [
+        { id: 'guild1', name: 'Mock Server Alpha', channels: [{id: 'chan1-a', name: 'general'}, {id: 'chan1-b', name: 'random'}] },
+        { id: 'guild2', name: 'Mock Server Beta', channels: [{id: 'chan2-a', name: 'support'}, {id: 'chan2-b', name: 'dev-talk'}] },
+        { id: 'guild3', name: 'Mock Server Gamma', channels: [{id: 'chan3-a', name: 'announcements'}] },
+      ];
+      const data = { guilds: mockGuilds };
+      // --- END MOCK DATA ---
+
+      setGuilds(data.guilds || []);
+      // Reset selections whenever guilds are fetched
+      setSelectedGuild('');
+      setSelectedChannel('');
+
+    } catch (err: any) {
+      console.error('Error fetching bot guilds:', err);
+      setError('Failed to load available servers/channels for adding.');
+      setGuilds([]); // Clear guilds on error
+    } finally {
+      setLoadingGuilds(false);
+    }
+  };
+
+  // --- handleConnect --- 
+  // Needs update: On success, should trigger parent state update to set bot_key/isConnected
+  // and call fetchBotGuilds 
+  const handleConnect = async () => {
+    if (!botToken.trim()) {
+      setError('Please enter a bot token');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      // Pass the token to the parent component handler
+      await onConnect(botToken);
+      
+      // Clear the token input for security
+      setBotToken('');
+    } catch (err: any) {
+      console.error('Discord connection error:', err);
+      setError(err.message || 'Failed to connect to Discord');
+      setLoading(false); // Only set loading to false here on error, parent handles success case
+    }
+  };
+
+  // --- handleGuildSelect --- 
+  // (Logic is mostly ok, selects guild for the 'add' dropdown)
+  const handleGuildSelect = (guildId: string) => {
+    setSelectedGuild(guildId);
+    setSelectedChannel(''); // Reset channel when guild changes
+  };
+
+  // --- handleDisconnectBot --- 
+  // Rename from handleDisconnect, update logic slightly
+  const handleDisconnectBot = async () => {
+    // Simply call parent's disconnect handler using the correct prop name
+    onDisconnect();
+  };
+
+  // --- NEW: Handler for Add Channel button --- 
+  const handleAddChannelClick = () => {
+    setIsModalOpen(true);
+    // Fetch guilds if they haven't been loaded yet
+    if (guilds.length === 0 && !loadingGuilds) {
+      fetchBotGuilds();
+    }
+    // Reset selections
+    setSelectedGuild('');
+    setSelectedChannel('');
+  };
+  
+  // --- NEW: Handler for Cancel Add --- 
+  const handleCancelAdd = () => {
+    setIsModalOpen(false);
+    setError(null);
+    setSelectedGuild('');
+    setSelectedChannel('');
+  };
+
+  // Checklist Step 2.6.3: Create handler to open modal
+  const handleOpenChannelModal = (guildId: string, guildName: string | undefined) => {
+    setModalGuildId(guildId);
+    setModalGuildName(guildName || guildId); // Use ID as fallback name
+    setIsModalOpen(true);
+    // Reset channel selection for the modal's add dropdown
+    setSelectedChannel(''); 
+  };
+
+  const handleCloseChannelModal = () => {
+    setIsModalOpen(false);
+    setModalGuildId(null);
+    setModalGuildName(null);
+  };
+
+  // Helper to group connections by guild
+  const groupedConnections = useMemo(() => {
+    // Ensure guilds data is available for name lookup
+    const guildMap = new Map(guilds.map(g => [g.id, { name: g.name, channels: new Map(g.channels.map(c => [c.id, c.name])) }]));
+
+    return connections.reduce((acc, conn) => {
+      const guildId = conn.guildId;
+      if (!acc[guildId]) {
+        // Lookup guild name from the fetched guilds data
+        const guildInfo = guildMap.get(guildId);
+        const name = guildInfo?.name || guildId; // Use ID as fallback
+        acc[guildId] = { guildId: guildId, name: name, channels: [] };
+      }
+      // Enrich the connection object with looked-up names before pushing
+      const guildInfo = guildMap.get(guildId);
+      const channelName = guildInfo?.channels.get(conn.channelId) || conn.channelId; // Use ID as fallback
+      
+      acc[guildId].channels.push({
+          ...conn, // Keep original guildId, channelId
+          guildName: guildInfo?.name || guildId, // Add looked-up guild name
+          channelName: channelName // Add looked-up channel name
+      });
+      return acc;
+    }, {} as Record<string, { guildId: string; name: string; channels: DiscordConnection[] }>);
+  }, [connections, guilds]); // Depend on both connections from DB and guilds from API
+
+  // Step 2.4.2 / 2.4.3: Update Add Server handler & implement selection logic
+  const handleAddServerClick = () => {
+      // Toggle dropdown visibility
+      setIsAddingServer(prev => !prev);
+      // Fetch guilds if needed when opening dropdown
+      if (!isAddingServer && guilds.length === 0 && !loadingGuilds) {
+          fetchBotGuilds();
+      }
+      // Reset guild selection for the dropdown
+      setSelectedGuild(''); 
+  };
+
+  const handleAddServerSelect = (selectedGuildId: string) => {
+      if (!selectedGuildId) {
+          setIsAddingServer(false); // Close dropdown if placeholder selected
+          return;
+      }
+      
+      const guild = guilds.find(g => g.id === selectedGuildId);
+      if (!guild) return;
+
+      // Find the first available channel in this guild that isn't already connected
+      const firstAvailableChannel = guild.channels.find(
+          ch => !connections.some(conn => conn.channelId === ch.id)
+      );
+
+      if (firstAvailableChannel) {
+          onAddChannel({
+              guildId: guild.id,
+              channelId: firstAvailableChannel.id,
+              guildName: guild.name,
+              channelName: firstAvailableChannel.name
+          });
+      } else {
+          // Optional: Handle case where a server exists but has NO available channels (all already added)
+          // Maybe show a small notification? Or just do nothing.
+          console.warn(`No available channels to automatically add for server: ${guild.name}`);
+          // Alternatively, open the modal? 
+          // handleOpenChannelModal(guild.id, guild.name);
+      }
+
+      setIsAddingServer(false); // Hide dropdown after selection
+      setSelectedGuild(''); // Reset dropdown selection
+  };
+
+  const handleConnectClick = async () => {
+    if (!botToken.trim()) {
+      setError('Bot token is required.');
+      return;
+    }
+    setError(null);
+    try {
+      await onConnect(botToken);
+      setBotToken('');
+    } catch (err: any) {
+      setError(err.message || 'Failed to connect using token.');
+      console.error("Connect error:", err);
+    }
+  };
+
+  const handleInputChange = (field: keyof AgentDiscordConnection, value: any) => {
+    console.log(`[DiscordConnect] InputChange: field=${String(field)}, value=${value}`);
+    
+    // Update local state immediately
+    if (field === 'discord_app_id') setLocalAppId(value);
+    if (field === 'discord_public_key') setLocalPublicKey(value);
+    if (field === 'inactivity_timeout_minutes') setLocalTimeout(parseInt(value, 10));
+
+    // Also call the prop function to update parent state
+    if (onConnectionChange) {
+      console.log(`[DiscordConnect] Calling onConnectionChange for ${String(field)}`); 
+      onConnectionChange(field, value);
+    } else {
+      console.warn("[DiscordConnect] onConnectionChange prop is missing!"); 
+    }
+  };
+
+  const handleCopyUrl = () => {
+    navigator.clipboard.writeText(interactionEndpointUrl)
+      .then(() => {
+        console.log('Interaction URL copied!');
+      })
+      .catch(err => {
+        console.error('Failed to copy URL:', err);
+      });
+  };
+
+  const renderWorkerStatus = () => {
+    // Use optional chaining and provide default
+    const status = connection?.worker_status || 'inactive'; 
+    let color = 'text-gray-400';
+    let text = 'Inactive';
+    switch (status) {
+      case 'active': color = 'text-green-400'; text = 'Active'; break;
+      case 'activating': color = 'text-yellow-400'; text = 'Activating...'; break;
+      case 'stopping': color = 'text-yellow-400'; text = 'Stopping...'; break;
+      case 'error': color = 'text-red-400'; text = 'Error'; break;
+    }
+    return <span className={`font-medium ${color}`}>{text}</span>;
+  };
+
+  // Provide default empty object for connection if it's undefined during render
+  const safeConnection = connection || {}; 
+
+  // Checklist Step 2.3 / 2.5 / 2.4: Refactor UI Rendering & Add Modal Structure
+  return (
+    <div className={`space-y-4 ${className}`}>
+      {/* --- Connection Status & Controls --- */} 
+      {isConnected ? (
+        <div className="flex justify-between items-center bg-gray-700 p-3 rounded-md">
+          <div className="flex items-center space-x-2">
+            <Bot className="text-green-400" size={20} />
+            <span className="text-white font-medium">Bot Token Connected</span>
+            <Check className="text-green-400" size={16} />
+          </div>
+          <button
+            type="button"
+            onClick={handleDisconnectBot}
+            disabled={disconnecting}
+            className="flex items-center px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {disconnecting ? <Loader2 className="animate-spin mr-1" size={16} /> : <X size={16} className="mr-1"/>}
+            Disconnect
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-end space-x-2">
+          <div className="flex-grow">
+            <label htmlFor="botToken" className="block text-sm font-medium text-gray-300 mb-1">Discord Bot Token</label>
+            <input
+              type="password"
+              id="botToken"
+              value={botToken}
+              onChange={(e) => setBotToken(e.target.value)}
+              placeholder="Enter your bot token"
+              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleConnectClick}
+            disabled={loading || !botToken.trim()}
+            className="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded text-white disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? <Loader2 className="animate-spin mr-2" size={18} /> : <Bot size={18} className="mr-2" />}
+            Connect
+          </button>
+        </div>
+      )}
+
+      {/* --- Configuration (Shown only if connected) --- */} 
+      {isConnected && (
+        <div className="space-y-4 pt-4 border-t border-gray-600">
+          {/* --- Add Refresh Button --- */}
+           {/* <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={onFetchGuilds} // Call the passed handler
+                disabled={fetchingGuilds} // Disable while fetching
+                className="flex items-center px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {fetchingGuilds ? <Loader2 className="animate-spin mr-1" size={16} /> : null}
+                Refresh Server List
+              </button>
+           </div> */}
+        
+          {/* --- Application Details --- */} 
+          <div>
+            <label htmlFor="discordAppId" className="block text-sm font-medium text-gray-300 mb-1">Discord Application ID *</label>
+            <input
+              type="text"
+              id="discordAppId"
+              required
+              value={localAppId}
+              onChange={(e) => handleInputChange('discord_app_id', e.target.value)}
+              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Paste Application ID here"
+            />
+          </div>
+          <div>
+            <label htmlFor="discordPublicKey" className="block text-sm font-medium text-gray-300 mb-1">Discord Public Key *</label>
+            <input
+              type="text"
+              id="discordPublicKey"
+              required
+              value={localPublicKey}
+              onChange={(e) => handleInputChange('discord_public_key', e.target.value)}
+              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Paste Public Key here"
+            />
+            <p className="mt-1 text-xs text-gray-400">
+              Find these in the 
+              <a href="https://discord.com/developers/applications" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:underline mx-1">
+                Discord Developer Portal
+                <ExternalLink size={12} className="inline ml-1"/>
+              </a> 
+              under General Information.
+            </p>
+          </div>
+
+          {/* --- Interaction Endpoint Instructions --- */} 
+          <div className="bg-gray-900 p-3 rounded">
+             <p className="text-sm text-gray-300 mb-2">
+                For the <code className="bg-gray-700 px-1 py-0.5 rounded text-xs">/activate</code> command to work, you **must** set this URL in your Discord Application's 'Interaction Endpoint URL' setting:
+             </p>
+             <div className="flex items-center space-x-2 bg-gray-700 p-2 rounded">
+                <input 
+                    type="text" 
+                    readOnly 
+                    value={interactionEndpointUrl} 
+                    className="flex-grow px-2 py-1 bg-gray-600 border border-gray-500 rounded text-gray-200 text-sm truncate"
+                />
+                <button 
+                    type="button" 
+                    onClick={handleCopyUrl}
+                    className="p-1 text-gray-400 hover:text-white"
+                    title="Copy URL"
+                 >
+                    <Copy size={16}/>
+                 </button>
+             </div>
+          </div>
+
+          {/* --- Inactivity Timeout --- */}
+          <div>
+            <label htmlFor="inactivityTimeout" className="block text-sm font-medium text-gray-300 mb-1">Inactivity Timeout</label>
+            <select
+              id="inactivityTimeout"
+              value={localTimeout}
+              onChange={(e) => handleInputChange('inactivity_timeout_minutes', e.target.value)}
+              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value={10}>10 minutes</option>
+              <option value={20}>20 minutes</option>
+              <option value={30}>30 minutes</option>
+            </select>
+            <p className="mt-1 text-xs text-gray-400">Automatically disconnect the bot after this period of inactivity to save resources.</p>
+          </div>
+          
+          {/* --- Worker Status Display --- */} 
+          <div>
+            <p className="text-sm text-gray-300">Connection Status: {renderWorkerStatus()}</p>
+          </div>
+          
+        </div>
+      )}
+
+      {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+
+      {/* --- TODO: Add/Remove Channel/Guild UI (if needed) --- */}
+      {/* This section might be removed or simplified if activation is per-agent/guild */} 
+
+    </div>
+  );
+}

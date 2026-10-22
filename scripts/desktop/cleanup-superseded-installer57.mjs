@@ -1,0 +1,12 @@
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import path from 'node:path';
+import {desktopOperation} from './operation-lock.mjs';
+import {json,hash} from './phased-backup-control.mjs';
+import assert from 'node:assert/strict';
+desktopOperation('delete superseded uninstalled57 installer staging on F');
+const root=path.resolve(import.meta.dirname,'../..');
+const pointer=await json(path.join(root,'.supabase/desktop-agent-report-release57/current.json')),proof=await json(pointer.proof);
+const shell=path.join(proof.assets,'code-tools/powershell-7.6.7/pwsh.exe');assert.equal(await hash(shell),proof.resourceFiles['code-tools/powershell-7.6.7/pwsh.exe']);
+const result=await promisify(execFile)(shell,['-NoProfile','-NonInteractive','-File',path.join(root,'scripts/desktop/remove-superseded-installer57.ps1')],{cwd:root,windowsHide:true,encoding:'utf8',timeout:120000,maxBuffer:1024*1024});
+console.log(result.stdout.trim());

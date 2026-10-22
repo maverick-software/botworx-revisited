@@ -1,0 +1,27 @@
+# Scheduled project workspaces and recoverable installation — 0.44.67
+
+The frozen 0.44.67 application now passes actual PostgreSQL and Codex scheduling checks. A clock-dispatched task creates separate chats for a Git worktree and a local project folder. Actual file tools write the requested marker in each selected workspace, while the original Git checkout remains unchanged. Cancellation persists, and removing a saved file grant holds the affected occurrence with the specific permission-change explanation before any model request is created. Normal cold reopening retains the completed, cancelled and held occurrences without running them again.
+
+The same package also passes an actual PostgreSQL claim/identity interleaving. A temporary same-account identity check defers the claimed occurrence safely; releasing that check resumes the same durable occurrence once. Earlier packages incorrectly treated that temporary check as an account change. The current fix is in the Broker and task scheduler.
+
+The exact archived modules pass 1,034 checks, with no failed, skipped or cancelled cases. These checks use controlled transports where appropriate. The packaged scheduling cases use actual local PostgreSQL, the actual Codex runtime and controlled model responses; they make no external provider requests. This establishes dispatch, workspace placement, permission handling and persistence for the bounded cases. Windows reboot and longer unattended operation remain unverified.
+
+Evidence:
+
+- Archive modules: `F:/Agentopia/.supabase/desktop-agent-controls67/1792700233319/evidence.json`.
+- Same-account deferral: `F:/Agentopia/.supabase/desktop-scheduled-workspaces67-real/1792696871496/restored/identity-fixed-1792700026812/evidence.json`.
+- Clock dispatch, both workspaces, cancellation, permission revocation and cold reopening: `F:/Agentopia/.supabase/desktop-scheduled-workspaces67-real/1792696871496/restored/project-schedules-1792700095350/evidence.json`.
+- Frozen release: `F:/Agentopia/.supabase/desktop-scheduled-workspaces67-release/1792700642843/package-proof.json`.
+- Complete installer verification: `F:/Agentopia/.supabase/desktop-scheduled-workspaces67-release/1792700642843/installer-verification/evidence.json`.
+
+The installer has been built and every decompressed application file has been checked against the frozen payload. The embedded full package, release entry, updater and generated Windows launcher also match their qualified hashes. The first verification incorrectly expected an additional capitalized updater filename; the archive already contained the qualified lowercase `squirrel.exe`. Correcting that expectation left the application and installer unchanged, and all four verification stages passed.
+
+Recovery qualification combines earlier actual PostgreSQL restoration, original-password sign-in, interrupted-import review and closed-profile Windows backup workflows with the current package's scheduling and cold-reopening checks. All recovery, authentication, renderer, runtime and migration modules are byte-identical between those candidates; only the separately exercised Broker and scheduler changed. This is explicitly recorded as inherited evidence for unchanged modules. A complete fresh-profile restore was not repeated on the final candidate. Different-Windows-user recovery and physical reboot remain open.
+
+The ordinary upgrade completed under the user's standing update/restart authorization. Before installation, its controller must normally close the idle app, capture a fresh consistent database and raw profile, verify the capability12 recovery, retain the exact active program and latest renderer on F:, and recheck the physical Windows installation path. Installation and ordinary account acceptance must be recorded before this release is described as delivered. The ordinary maintenance job is `F:/Agentopia/.supabase/desktop-normal-maintenance/1792701455543`.
+
+The broader parity goal remains active. Full-page agent/plugin editing, remaining document/settings comparisons, agent-specific starters and avatars, dictation, organization discovery/sharing, external agent channels, live Composio authentication and longer unattended acceptance remain unfinished. Image generation remains disabled under the user's preference.
+
+Ordinary delivery accepted: schema70 and recovery capability12 are active. All 1,800 saved rows across126 tables match recovery, including two accounts,119 chats,408 messages and191 readable vault records. All four saved agent profiles and both private memories pass ownership/revision checks. All7,538 physical installed-file checks passed. The current ChatGPT token was renewed once through its original encrypted store; no model or OpenRouter requests were made. Image generation stays disabled with its existing credential retained. The retired C66 build was deleted, reclaiming2,566,450,658 bytes, while verified rollback stays on F:. Native Activity/Apps/Memory and unsaved Daily automation navigation passed; the live Chrome reference was inspected alongside them. Their layouts remain different in the ways recorded by `ordinary-visual-observations.json`, including the extra background automation dialog, verbose app connection text and modal agent editor. Full-page editing and the broader goal remain unfinished.
+
+Delivery receipt: `F:/Agentopia/.supabase/desktop-scheduled-workspaces67-release/1792700642843/delivery-accepted.json`.

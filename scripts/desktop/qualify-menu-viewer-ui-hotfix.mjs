@@ -1,0 +1,11 @@
+import {readFile,writeFile} from 'node:fs/promises';
+import {spawn} from 'node:child_process';
+import {createHash} from 'node:crypto';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {desktopOperation} from './operation-lock.mjs';
+desktopOperation('qualify final menu dismissal recovery against frozen UI');
+const root=path.resolve(import.meta.dirname,'../..'),candidate=path.join(root,'.supabase/desktop-platform-release/candidate-04446'),proof=JSON.parse(await readFile(path.join(candidate,'ui-hotfix-proof.json'),'utf8')),sha=bytes=>createHash('sha256').update(bytes).digest('hex');
+async function run(label,script,environment){return new Promise((resolve,reject)=>{const child=spawn(process.execPath,[script],{cwd:root,windowsHide:true,env:{...process.env,...environment}});let output='';for(const stream of [child.stdout,child.stderr])stream.on('data',bytes=>output+=bytes);child.once('error',reject);child.once('exit',async code=>{await writeFile(path.join(proof.work,label+'.log'),output);if(code!==0)return reject(Error(label+' failed: '+path.join(proof.work,label+'.log')));resolve(JSON.parse(output.slice(output.lastIndexOf('\n{')+1)));});});}
+const evidence={at:new Date().toISOString(),version:'0.44.46',uiHotfixRevision:1,resourceManifestSha256:proof.resourceManifestSha256,providerRequests:0,productionAccess:false};
+try{const [ui,reading]=await Promise.all([run('ui','scripts/desktop/test-menu-viewer-ui.mjs',{AGENTOPIA_PARITY_SOURCE:proof.source,AGENTOPIA_PARITY_UI:proof.ui,AGENTOPIA_PARITY_WORD:'D:/Users/charl/Downloads/Sample_Document.docx'}),run('reading','scripts/desktop/test-chat-reading-ui.mjs',{AGENTOPIA_READING_UI_RESOURCES:proof.ui})]);assert(ui.success&&ui.checks===17&&reading.success&&reading.checks===5);evidence.uiChecks=17;evidence.readingChecks=5;evidence.uiEvidence=path.join(ui.out,'evidence.json');evidence.uiEvidenceSha256=sha(await readFile(evidence.uiEvidence));evidence.readingEvidence=path.join(reading.out,'evidence.json');evidence.readingEvidenceSha256=sha(await readFile(evidence.readingEvidence));evidence.success=true;}catch(error){evidence.success=false;evidence.error=error.stack;process.exitCode=1;}await writeFile(path.join(candidate,'ui-hotfix-qualification.json'),JSON.stringify(evidence,null,2),{flag:'wx'});console.log(JSON.stringify(evidence,null,2));

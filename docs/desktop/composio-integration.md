@@ -1,0 +1,52 @@
+# Composio integration — goal addition
+
+October 21, current UI revision: **Composio is installed as a Plugins → App connections card and dedicated connection subpage, with a private project API-key setting for every user, including standard accounts.** Two real standard test accounts passed private setup, controlled app authentication, tool assignment and normal reopening. The finished document bundle is also restored and the installed Word/PDF previews pass. The installed app reopened normally and the database/account/chat/agent comparisons passed. Real Composio sign-in and a harmless external action remain pending a key entered in protected setup. [Current evidence and limits](composio-user-connections52.md).
+
+Requested October 20, 2026. This requirement extends the active desktop parity and persistent workspace-agent goal. The Plugins subpage, broker and agent-tool service are now wired in source and passed the expanded 241-check source, encryption and recovery checkpoint, followed by two actual Codex-process tests plus both TypeScript checks; see [current progress and limits](composio-source-integration.md). The isolated package has also passed full-application/database recovery and PostgreSQL-backed scheduled/delegate acceptance. The same package is now installed and ordinarily accepted as 0.44.52 with Composio unconfigured. Real project/connector verification remains open; a shared administrator-managed service is an optional future architecture, while private per-user setup is the selected requirement; see [installed evidence](installed-0.44.52.md). It follows the installed and accepted 0.44.51 release; see installed-0.44.51.md for the preserved-state and agent evidence.
+
+## Intended experience
+
+Plugins contains a dedicated **Composio** subpage. Users browse the complete catalog available to the configured Composio project, search by name or description, filter by category, and distinguish available, connected and setup-required connectors. Use the live paginated catalog rather than a fixed list or a claimed permanent connector count. Show the connector name, icon, description, available actions, authentication methods and current connection status. Preserve a clearly labelled cached view during temporary outages.
+
+Each connector offers its actual supported authentication methods: OAuth, API key, bearer token, basic authentication, custom fields or no authentication, as applicable. Prefer a Composio-hosted Connect Link when supported. Show additional setup requirements when a connector needs a custom auth configuration or OAuth application. Cancellation, expiration, invalid credentials, reconnect and disconnect have explicit outcomes; starting a connection does not mark it connected.
+
+Once connected, its tools become available to the user's permitted agents through the existing tool discovery, chat selection and agent assignment controls. Show the selected account when a connector has several accounts. A workspace agent can discover a relevant action, inspect its schema and execute it through Agentopia, with activity and results saved in the chat. Both ChatGPT OAuth through the actual Codex harness and OpenRouter retain support. Connected tools must also work in named delegates and scheduled work under the originating owner's permitted assignments.
+
+Full access follows the existing autonomous execution policy within the granted tools and account permissions. Default permissions retain the applicable inline reviews; Chat only and other restricted modes retain their existing limits. Connecting an account establishes access to that service; it does not change agent memory ownership, authorize another Agentopia account or silently expand a restricted delegate's tools.
+
+## Integration design
+
+The current host already has owner-protected plugins, per-agent assignments, protected connection credentials, schema validation, tool discovery and execution checks. Extend those paths instead of introducing a separate agent runtime. The Plugins subpage is the primary setup surface; the composer can select connected apps as context without becoming another settings dashboard.
+
+Keep the Composio project API key in protected backend storage. Never embed it in the renderer or shipped application. For a locally configured project, use the existing encrypted credential facilities. A shared production project requires a trusted service holding the project key and enforcing Agentopia identities; its project-level credential must never be distributed to desktop clients. Product setup must explain that managed service credentials are held by Composio and service actions pass through Composio.
+
+Derive a stable, namespaced Composio user identifier from the authenticated Agentopia owner and installation/project identity. Resolve that identifier on the backend, never from model-supplied arguments. Persist only the needed project binding, connected-account IDs, toolkit metadata, aliases, assignments and operational receipts locally. Verify a completed connection against its stored initiation and owner using the service response; callback query parameters alone are insufficient.
+
+Use an explicit intersection of active owner connections, agent assignments, chat selections, permission mode and delegate restrictions to construct tool access. Pin the intended account when multiple accounts exist. Recheck those permissions and current connection state immediately before execution. Disconnection and revocation invalidate active discovery/session state and pending reviews. No fallback to another person's account or another account of the same toolkit after a pinned account fails.
+
+Evaluate Composio sessions and direct tool execution against the host's existing execution checks before selecting the adapter. Session meta-tools must execute through their session; direct tool execution does not carry session restrictions. Any multi-action executor must enforce Agentopia permission checks on each inner operation, including nested tool names and arguments. Withhold generic remote execution, sandbox, account management and other broader meta-tools unless their authority can be enforced. Session defaults must not expose every catalog connector or enable instant/paid usage implicitly. Catalog visibility and execution access are separate states.
+
+Preserve tool identity, validated schemas and known toolkit versions across discovery and execution. Record remote operation IDs and uncertain outcomes. Never automatically replay an operation that might have completed after cancellation or a network timeout. Credentials and connection URLs containing secrets must remain absent from model context, logs and exported evidence.
+
+## Delivery and acceptance
+
+1. Completed: 0.44.51 fresh production recovery, installation and ordinary-profile acceptance. Keep its frozen package unchanged.
+2. Add protected project configuration and owner-bound persistence, including migration, recovery and credential reconnection rules. Select SDK/API versions against the official reference at implementation time.
+3. Build Plugins → Composio with catalog pagination, search/categories, toolkit details, correct authentication, account aliases, connect/reconnect/disconnect and truthful connection status. Preserve existing plugins and drafts while navigating.
+4. Integrate connected tool discovery and schema-validated execution through both provider adapters, persistent agents, scoped delegation and scheduled runs. Keep existing permission behavior and activity receipts.
+5. Verify locally with controlled service responses: all catalog pages, varied auth methods, successful/pending/failed/cancelled auth, stale responses, account isolation, revoked access during a run, malformed schemas, nested-operation permissions, provider switching, restart and recovery without duplicate execution. Test the actual rendered UI at wide and narrow widths.
+6. Once protected project setup is available, complete an explicitly bounded real OAuth connection, API-key connection and harmless tool read through the installed application. Show a saved result after reopening. Broader catalog visibility does not establish that every external provider's auth and actions have been individually tested.
+
+Required setup for real service acceptance: a Composio project/API key, the user's selected external accounts and any connector-specific custom auth configuration. Enter real credentials only in the protected project setup or Composio-hosted connection page. No real key has been used in the controlled qualification. Subscription entitlements, service availability, scopes and provider-specific setup may affect individual connectors; report actual requirements and failures.
+
+The isolated 0.44.52 package has also passed real PostgreSQL account isolation, encrypted reopening, capability-10 backup/fresh application restore, independent specialist status/result reporting and scheduled connection use/revocation. External model and Composio responses were controlled. Real OAuth/API-key connections and the administrator-managed project option remain outstanding; the protected setup is installed and accepted in 0.44.52; the detailed evidence is in the progress report linked above.
+
+## Official references checked
+
+- [Toolkit catalog API](https://docs.composio.dev/reference/v3/api-reference/toolkits/getToolkits): searchable, categorized, cursor-paginated catalog available to the authenticated project, with auth methods and metadata.
+- [Toolkit details](https://docs.composio.dev/reference/v3/api-reference/toolkits/getToolkitsBySlug): authentication configuration and connected-account initiation fields.
+- [Manual authentication](https://docs.composio.dev/docs/authentication/manually-authenticating): custom connection UI, hosted Connect Links, completion and ownership verification.
+- [Authentication](https://docs.composio.dev/docs/authentication): per-user credentials, managed authentication, custom configurations and connection lifecycle.
+- [Sessions](https://docs.composio.dev/docs/how-composio-works): stable user identity, discovery and execution context; session tools require session execution.
+- [Toolkits and tools](https://docs.composio.dev/docs/toolkits): runtime discovery, action schemas and connections reused across sessions.
+- [Session restrictions and account selection](https://docs.composio.dev/kb/guide/mcp-tool-router-sessions): allowed toolkits, pinned accounts and user ownership.

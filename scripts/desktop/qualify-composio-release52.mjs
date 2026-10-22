@@ -1,0 +1,28 @@
+import assert from 'node:assert/strict';
+import {readFile,writeFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import path from 'node:path';
+import {extractFile} from '@electron/asar';
+import {desktopOperation} from './operation-lock.mjs';
+import {hash} from './phased-backup-control.mjs';
+
+desktopOperation('qualify exact Composio candidate release payload');
+const root=path.resolve(import.meta.dirname,'../..'),json=async p=>JSON.parse(await readFile(p,'utf8'));
+const pointer=await json(path.join(root,'.supabase/desktop-composio-candidate52/current.json')),proof=await json(pointer.proof);
+const controlPointer=await json(path.join(root,'.supabase/desktop-agent-controls52/current.json')),controls=await json(controlPointer.evidence);
+const applicationFile=path.join(proof.out,'composio-application-qualification.json'),application=await json(applicationFile);
+const recoveredFile=path.join(proof.out,'composio-recovery-dispatch-qualification.json'),recovered=await json(recoveredFile);
+assert(proof.success&&controls.success&&application.success&&recovered.success);
+assert.equal(proof.version,'0.44.52');assert.equal(controls.imageSha256,proof.imageSha256);assert.equal(application.imageSha256,proof.imageSha256);assert.equal(recovered.imageSha256,proof.imageSha256);
+assert.equal(await hash(proof.image),proof.imageSha256);assert.equal(await hash(proof.exe),proof.exeSha256);
+assert.equal(await hash(pointer.proof),application.proofSha256);assert.equal(await hash(pointer.proof),recovered.proofSha256);
+for(const [name,expected] of Object.entries(proof.programFiles))assert.equal(await hash(path.join(proof.program,name)),expected,name);
+for(const [name,expected] of Object.entries(proof.resourceFiles))assert.equal(await hash(path.join(proof.assets,name)),expected,name);
+for(const [name,expected] of Object.entries(proof.compiled))assert.equal(createHash('sha256').update(extractFile(proof.image,path.join('build',name))).digest('hex'),expected,name);
+for(const [name,expected] of Object.entries(proof.sourceHashes))assert.equal(await hash(path.join(root,'desktop',name)),expected,name);
+assert.equal(JSON.parse(extractFile(proof.image,'package.json').toString()).version,proof.version);
+assert.deepEqual(await json(path.join(proof.assets,'version.json')),proof.runtimeVersion);
+assert.equal(proof.runtimeVersion.desktopRecovery,10);
+const result={success:true,at:new Date().toISOString(),version:proof.version,imageSha256:proof.imageSha256,proofSha256:await hash(pointer.proof),compiledFilesVerified:Object.keys(proof.compiled).length,resourceFilesVerified:Object.keys(proof.resourceFiles).length,programFilesVerified:Object.keys(proof.programFiles).length,sourceFilesVerified:Object.keys(proof.sourceHashes).length,archivedControls:controlPointer.evidence,archivedControlsSha256:await hash(controlPointer.evidence),archivedChecks:controls.passed,applicationQualification:applicationFile,recoveryAndDispatchQualification:recoveredFile,actualPackagedVersionObserved:true,freshCapability10RestorePassed:true,actualPostgreSQLNamedAndScheduledDispatchPassed:true,eligibleForInstallerConstruction:true,eligibleForProductionInstallation:false,liveComposioAcceptancePending:true,projectManagementDesignPending:true,productionBackupAndOrdinaryAcceptancePending:true,installed:false,liveProviderRequests:0,liveComposioRequests:0,fullGoalComplete:false};
+await writeFile(path.join(proof.out,'qualification.json'),JSON.stringify(result,null,2),{flag:'wx'});
+console.log(JSON.stringify(result));

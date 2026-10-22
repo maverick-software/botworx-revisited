@@ -1,0 +1,17 @@
+# Presentation mode installed in 0.44.47
+
+October 19, 2026. **Presentation mode is installed and verified as correction `presentation-4` to 0.44.47.** The trusted main-frame permission handler and matching UI were delivered together.
+
+In the ordinary installed app, Present fills the 1920×1080 screen with a 1440×1080 slide and dark side margins, preserving the sample deck's proportions. Right Arrow works immediately after Present, advances to the next slide and updates the floating page controls. Escape restores the same selected slide in the preview and returns focus to Present. The preview now centers Fit slides within the pane, following the actual reference inspection. The original PDF was selected again after acceptance.
+
+The archive differs from installed Office3 in exactly two places: `build/main.js` changes and `build/presentation-permission.js` is added. Existing document readers, provider and workspace-agent modules remain byte-identical. Twenty checks pass against the exact extracted archive; two actual Electron checks continue reading XLSX/PPTX from inside that archive. The source-qualified 50 presentation/viewer/navigation/permission groups bind the delivered UI bytes, including the reproduced and corrected denied-fullscreen pending request. Those groups overlap with the archive checks and should not be added together as independent tests.
+
+Before application, a normal close and stopped database were confirmed. A new protected profile copy preserves 3,934 verified files and 416,096,010 bytes. The five logical database/encryption files were copied and rehashed, and all 126 current saved tables match those archives. The retained complete cold-runtime base was independently rehashed; five immutable identity/version/secrets/key files match. Previous archive/UI copies remain in both the protected recovery and installed rollback paths. No new cold-runtime image or clean-machine restore is claimed.
+
+The app reopened with the saved administrator session, original conversation, PDF attachment, Native Codex Assistant, ChatGPT model/thinking choice, and Word/PDF/XLSX/PPTX tabs. After the native presentation checks, another normal close and reopening restored those selections. Both post-installation SQL comparisons matched all 126 tables, including account/password records, saved requests and agent state/memory. No provider request or inference replay was made during installation acceptance.
+
+Installed archive SHA-256: `a9a520a65a467ffe260490315c020d0939ff106b85a1f7dc6420bff4ad27f9a3`. All 219 UI files match. Resource manifest SHA-256: `d4ada316ffa432e4f5c5486736015cfe503ab1b8dbba7211b1bcaf991e54cacb`.
+
+Evidence: `C:/Users/charl/AgentopiaQA/presentation-delivery/1792463435115/{proof,qualification,recovery,installed,native-acceptance,reopened}.json`, its `electron-runtime/evidence.json`, and `.supabase/desktop-presentation-delivery/`. Recovery: `C:/Users/charl/AgentopiaRecovery/presentation-4/1792463530273/`, with the retained cold base identified in its receipt. The maintenance recovery selector accepts this archive identity only after its installed/reopening receipt is present.
+
+The normal full installer still predates the focused corrections. Full installer delivery, clean-machine/Windows reboot acceptance, wider spreadsheet fidelity, model-driven Office editing/refresh, external context and broader workspace-agent acceptance remain open. The overall goal remains active.

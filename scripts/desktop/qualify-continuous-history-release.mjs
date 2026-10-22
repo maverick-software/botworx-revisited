@@ -1,0 +1,14 @@
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {createReadStream} from 'node:fs';
+import {createHash} from 'node:crypto';
+import {spawn} from 'node:child_process';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {desktopOperation} from './operation-lock.mjs';
+desktopOperation('qualify the full release continuous-history renderer');
+const root=path.resolve(import.meta.dirname,'../..'),candidate=path.join(root,'.supabase/desktop-continuous-history/candidate-04410'),out=path.join(candidate,'renderer-checks'),json=async file=>JSON.parse(await readFile(file,'utf8')),hashFile=async file=>{const h=createHash('sha256');for await(const bytes of createReadStream(file))h.update(bytes);return h.digest('hex');};
+const proof=await json(path.join(candidate,'package-proof.json'));assert(proof.success);assert.equal(await hashFile(proof.image),proof.imageSha256);await mkdir(out);for(const [file,digest]of Object.entries(proof.sourceHashes))assert.equal(await hashFile(path.join(proof.source,file)),digest);
+const env={...process.env,AGENTOPIA_TRANSCRIPT_DETAILS_OUTPUT:path.relative(root,path.join(out,'transcript')),AGENTOPIA_TRANSCRIPT_DETAILS_COMPONENT:path.join(proof.source,'ui/ConversationTranscript.tsx'),AGENTOPIA_TRANSCRIPT_DETAILS_STYLE:path.join(proof.source,'ui/style.css')};
+const code=await new Promise((resolve,reject)=>{const child=spawn(process.execPath,['scripts/desktop/test-transcript-details.mjs'],{cwd:root,env,windowsHide:true,stdio:['ignore','pipe','pipe']});const log=[];for(const stream of [child.stdout,child.stderr])stream.on('data',bytes=>log.push(bytes));child.once('error',reject);child.once('exit',async code=>{await writeFile(path.join(out,'checks.log'),Buffer.concat(log));resolve(code);});});assert.equal(code,0,'Inspect the renderer check log.');
+const checked=await json(path.join(out,'transcript/evidence.json'));assert(checked.success&&checked.streamingPreservesReadingPosition&&checked.continuousHistoryAndKeyboardTimeline&&checked.boundedOverviewRetainsAllMessages);assert.equal(checked.layouts.length,4);assert.equal(await hashFile(proof.image),proof.imageSha256);
+const qualified={...proof,phase:'portable-controlled-qualification-complete',at:new Date().toISOString(),rendererEvidence:path.join(out,'transcript/evidence.json'),rendererChecks:{continuousHistory:true,keyboardTimeline:true,streamingReadingPosition:true,allMessagesRetained:true,themesAndLayouts:4},nativeUnitChecksInheritedByExactBackendBytes:proof.nativeUnitChecks,nativeHomeChecksInheritedByExactBackendBytes:proof.nativeHomeChecks,inferenceRequests:0,productionAccess:false,installed:false,liveAcceptancePending:true};await writeFile(path.join(candidate,'qualification.json'),JSON.stringify(qualified,null,2),{flag:'wx'});console.log(JSON.stringify({success:true,version:proof.version,imageSha256:proof.imageSha256,rendererChecks:qualified.rendererChecks,nativeBackendByteIdentical:true},null,2));

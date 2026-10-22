@@ -1,0 +1,14 @@
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import {createHash} from 'node:crypto';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {desktopOperation} from './operation-lock.mjs';
+desktopOperation('qualify storage47 checks and sealed migration target boundary');
+const root=path.resolve(import.meta.dirname,'../..'),out=path.join(root,'.supabase/desktop-profile-location/storage47-qualification-'+Date.now()),exec=promisify(execFile),sha=b=>createHash('sha256').update(b).digest('hex');await mkdir(out);
+const boundary=await exec(process.execPath,['--test','scripts/desktop/test-profile-storage-authority.mjs'],{cwd:root,windowsHide:true,encoding:'utf8',timeout:30000});await writeFile(path.join(out,'boundary.log'),boundary.stdout+boundary.stderr);assert(boundary.stdout.includes('pass 12'));
+const integration=await exec(process.execPath,['scripts/desktop/test-storage-preflight47.mjs'],{cwd:root,windowsHide:true,encoding:'utf8',timeout:240000,maxBuffer:4*1024*1024});await writeFile(path.join(out,'integration.log'),integration.stdout+integration.stderr);const last=JSON.parse(integration.stdout.slice(integration.stdout.lastIndexOf('\n{')+1));assert(last.success&&last.groups===7);
+const file=path.join(last.out,'evidence.json'),evidence=JSON.parse(await readFile(file,'utf8'));assert(evidence.success&&evidence.generatedOnly&&evidence.providerRequests===0);
+const files={};for(const name of ['launch-storage-preflight.mjs','profile-storage-authority.mjs','test-profile-storage-authority.mjs'])files[name]=sha(await readFile(path.join(root,'scripts/desktop',name)));
+const result={success:true,at:new Date().toISOString(),version:'0.44.47',imageSha256:evidence.imageSha256,out,boundaryChecks:12,generatedStorageGroups:7,generatedOnly:true,productionProfileChanged:false,providerRequests:0,sourceHashes:files,integration:{file,sha256:sha(await readFile(file))}};await writeFile(path.join(root,'.supabase/desktop-profile-location/storage47-qualified.json'),JSON.stringify(result,null,2),{flag:'wx'});console.log(JSON.stringify(result));

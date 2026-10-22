@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import {readFile,writeFile} from 'node:fs/promises';
+const root=path.resolve(import.meta.dirname,'../..'),folder=path.join(root,'scripts/desktop');
+let controller=await readFile(path.join(folder,'renew-primary-chatgpt57.mjs'),'utf8');
+controller=controller.replaceAll('desktop-agent-report-release57','desktop-report-copy-release59').replaceAll('desktop-live-readiness57','desktop-live-readiness60').replaceAll('desktop-primary-renewal57','desktop-primary-renewal60').replaceAll('normal-current57-process.mjs','normal-current60-process.mjs').replaceAll('app-0.44.57/Agentopia.exe','app-0.44.59/Agentopia.exe');
+await writeFile(path.join(folder,'renew-primary-chatgpt60.mjs'),controller,{flag:'wx'});
+const process=await readFile(path.join(folder,'normal-maintenance59-process.mjs'),'utf8');assert(process.includes('app-0.44.58/Agentopia.exe'));
+await writeFile(path.join(folder,'normal-current60-process.mjs'),process.replaceAll('app-0.44.58/Agentopia.exe','app-0.44.59/Agentopia.exe'),{flag:'wx'});
+let tests=await readFile(path.join(folder,'test-primary-renewal57.mjs'),'utf8');
+tests=tests.replaceAll('desktop-primary-renewal57','desktop-primary-renewal60').replaceAll('normal-current57-process.mjs','normal-current60-process.mjs').replaceAll('normal-maintenance57-process.mjs','normal-maintenance59-process.mjs').replaceAll('renew-primary-chatgpt57.mjs','renew-primary-chatgpt60.mjs').replaceAll('test-primary-renewal57.mjs','test-primary-renewal60.mjs').replaceAll('app-0.44.56/Agentopia.exe','app-0.44.58/Agentopia.exe').replaceAll('app-0.44.57/Agentopia.exe','app-0.44.59/Agentopia.exe');
+await writeFile(path.join(folder,'test-primary-renewal60.mjs'),tests,{flag:'wx'});
+console.log('Prepared current59 normal-close/reopen controller while retaining the unchanged original-store renewal workflow.');

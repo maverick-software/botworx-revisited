@@ -1,0 +1,21 @@
+# Workspace navigation parity
+
+The reference app was inspected directly on October 19, 2026. Its top-left menu offers ChatGPT (Create, learn, and explore) and Codex (Build, debug, and ship). Changing that mode preserves the open conversation. The header also has notification and search buttons. The profile avatar stays at the bottom of the narrow left rail, including in Settings.
+
+Agentopia now follows that arrangement. The agent chooser has its own row beneath New chat, and @ switching continues to select a saved agent within the current conversation. The mode choice does not change the provider, model, permissions, agent definition or execution harness. Both configured providers and workspace agents remain available in both modes. A folder-based project initially selects Codex; a project without a folder initially selects ChatGPT. The header saves an explicit override for the entire project. Tasks outside projects retain their own choice, and new tasks use the account's last choice. Display preferences are separated by account and survive reopening. Existing project lists and search remain available in either mode.
+
+The bell uses actual working and unread completed conversation states. Selecting an activity opens its conversation and clears its unread marker. Account Usage, Settings, administration, shortcuts and sign-out actions are retained in the rail menu. Settings remains a full-page surface, permits using the rail account menu and returns keyboard focus to the new avatar when closed.
+
+The change is a UI-only correction to 0.44.46. The backend, agent runtime and database schema remain unchanged. Existing live provider and agent execution evidence is carried forward for those unchanged modules. New checks use controlled responses and make no paid AI requests; they do not establish a new live-provider concurrency result.
+
+The baseline 0.44.46 installer predates UI corrections 1, 2 and 3. The next full installer must contain these source changes. Full Office editing, durable private-profile adoption, Windows reboot recovery and remaining desktop parity requirements continue separately.
+
+The final frozen UI is `C:/Users/charl/AgentopiaQA/workspace-navigation-ui/1792451448870/ui`, with resource manifest SHA-256 `eb36146ead94c02c8ec21199bd322f26bc242e898307a94b3c6262c473da27cd`. Qualification passed 15 built-application navigation/composer workflows, 17 component workflows, five built-agent workflows and 15 agent-form workflows. Visible-window keyboard checks ran sequentially to avoid focus interference. Account navigation waits for the closing menu to return focus before opening Settings, and a working agent keeps a readable identity label.
+
+Installed and reopened through the ordinary Windows launcher. Native inspection confirmed the ChatGPT/Codex menu, preservation of the selected chat and ChatGPT model/thinking choice, the rail account avatar and its working Usage page, and keyboard return to the conversation. All 7,443 runtime/resource files matched the final manifest; all 216 UI files matched again after reopening. The read-only comparison preserved 126 tables, including 2 accounts, 109 chats, 384 messages and 192 saved requests. No paid provider requests were made.
+
+Recovery includes a checked full logical database archive, 22 verified account/session/UI-state files and the previous UI for rollback. Runtime images and generated QA profiles are outside the focused profile copy; deployment leaves them unchanged. Receipts are `workspace-navigation-proof.json`, `workspace-navigation-qualification.json`, `workspace-navigation-installed.json` and `workspace-navigation-reopened.json` under `.supabase/desktop-platform-release/candidate-04446`.
+
+Further comparison should check the restored position of attachment-rich chats against the user's intended reading position: the installed sample reopened mid-history, while controlled plain-text latest-follow tests pass. The prior reading position was not recorded, so this observation alone does not establish a regression.
+
+The ordinary agent library also opens and displays the preserved Native Codex Assistant and ChatGPT Assistant definitions. Inspection returned to the original conversation without starting an assignment or model request.

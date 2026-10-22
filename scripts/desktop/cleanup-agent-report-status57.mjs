@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import {desktopOperation} from './operation-lock.mjs';
+import {json,hash} from './phased-backup-control.mjs';
+desktopOperation('remove two finished report-status QA program copies while retaining evidence and data');
+const root=path.resolve(import.meta.dirname,'../..'),proof=await json((await json(path.join(root,'.supabase/desktop-agent-report-release57/current.json'))).proof),accepted=await json(path.join(proof.out,'agent-report-status-accepted.json'));
+assert(accepted.success&&accepted.qaRuntimeStopped&&accepted.ordinaryProductionProcessUnchanged);
+const shell=path.join(proof.assets,'code-tools/powershell-7.6.7/pwsh.exe');assert.equal(await hash(shell),proof.resourceFiles['code-tools/powershell-7.6.7/pwsh.exe']);
+const result=await promisify(execFile)(shell,['-NoProfile','-NonInteractive','-File',path.join(root,'scripts/desktop/remove-report-status-qa-programs57.ps1')],{cwd:root,windowsHide:true,encoding:'utf8',timeout:120000,maxBuffer:1024*1024});console.log(result.stdout.trim());

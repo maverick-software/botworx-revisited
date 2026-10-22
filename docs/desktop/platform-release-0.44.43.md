@@ -1,0 +1,39 @@
+# Agentopia 0.44.43
+
+This release implements the October 19 five-part chat presentation, Full access and file-opening request. The current application remains 0.44.41 until installer/recovery checks and installation acceptance complete.
+
+The composer and sent messages share their text scale, the new-chat page omits recent history, running chats use a neutral spinner, and blue marks unread completed responses. Full access executes enabled tools automatically while enforcing account ownership, revocation, read-only Plan mode and restricted-agent policies. File links open the right workspace and offer save-copy, associated Windows application, Explorer, Google import guidance and copy-link actions.
+
+Office and PDF previews use extracted read-only content. Full Office page/slide layout and editing are outside this release. Google import opens Drive and explains its manual upload step; it does not automatically upload local files. New generated output folders are user-visible external folders and need their own backup coverage for a future clean-machine restore.
+
+Exact archive qualification passes 480 backend checks and two schema checks. The delivered renderer has 64 interface checks: 54 retained by byte equality and ten newly executed connection-failure checks. The actual executable, native Codex process, document worker, filesystem, real local database, local browser and encrypted draft store pass 19 acceptance groups using controlled responses. Three normal closes and two cold reopenings retain saved state and make no inference replay. No paid provider call is made.
+
+The complete parity goal remains unfinished, including durable-profile migration, broader live integration and machine-restart acceptance. See [chat polish and file links](chat-polish-and-file-links-2026-10-19.md) for details and proof paths.
+
+## October 19: Windows installation hold and41 availability restored
+
+The automated43 installer completed in the Codex Windows Store context, which redirected new program files into that host's LocalCache. Physical Linux inspection found no43 archive in the ordinary application directory. Windows API checks from that same host also followed the redirected paths, so they could not establish ordinary installation. The normal program directory was missing after that attempt. No ordinary43 acceptance is claimed.
+
+The original saved profile's credentials.bin, Local State and runtime-binding.json match the verified closed-profile recovery byte-for-byte. The previous verified41 portable program is restored to the physical ordinary application directory; all7,309 program files compare equal. The Desktop shortcut now points directly to that restored41 executable. Reopening through the original Explorer window restores the existing administrator session, Word/PDF chat, ChatGPT GPT-6.1 Sol High, Full access and maximized view without logging in or sending a message. A fresh read-only comparison matches126 saved tables/1,658 rows, including both accounts,109 chats,380 messages,190 requests and191 readable encrypted vault records. No active request or goal is present.
+
+The new installer preflight writes a harmless unique marker and checks its physical location independently through Linux. It correctly refuses the current redirected host before launching an installer and removes its marker. The verified43 package, installer and current recovery remain retained. Its normal Windows installation is awaiting the pending confirmation required by the Computer Use policy;43 ordinary acceptance remains open. The broader parity goal remains unfinished.
+
+Evidence: `candidate-04443/ordinary41-program-recovery.json`, `ordinary41-recovery-ui.json`, `ordinary-upgrade-audit/before-0.44.41.json`, `host-context-hold.json`.
+
+## October 19: exact43 packaged normal-profile and copied-storage probes
+
+The exact qualified0.44.43 archive now passes an ordinary-style startup in an isolated Windows home, with a bound deliberately unregistered private runtime. Its unchanged main module is paused before Electron readiness only to set the QA home/profile and deny external fetches. It selects the intended legacy profile, reports the absent owned runtime, exits normally and leaves the running ordinary41 processes and WSL registrations unchanged. Evidence: `C:/Users/charl/AgentopiaQA/durable-transition/1792434588114/evidence.json`.
+
+A second seven-group test uses the same archived main module and packaged Secrets service. It seeds generated encrypted identity/preferences, an attachment and a persistent Chromium cookie, closes, and copies the physical profile through the existing WSL copier. Every copied file matches its manifest. The pinned relocation helper rebases a generated SQLite native-history index while both original and copied rollout bytes remain unchanged. An explicit copied-profile opening validates encryption/cookie/attachment before publication of a generated location fixture.
+
+Two further separate packaged starts use the normal legacy initial path and a generated Store-style initial AppData path. Both select the same published private profile. The first writes another encrypted value; the second reads it back together with the preserved cookie and attachment. All four child openings exit normally, make zero external fetch attempts, and retain the ordinary application's process IDs. The source generated credentials, browser key, binding and rollout retain their original hashes. Evidence: `C:/Users/charl/AgentopiaQA/durable-transition/1792434588114/profile-copy-1792434726602/evidence.json`.
+
+These are generated-data packaged selector/encryption/cookie/index checks. The binding is intentionally unregistered, so the normal Runtime path refuses before broker/SQL initialization. The completion/location fixture is generated directly after preflight; this is not a new invocation of the full stopped-profile activation controller. It does not establish migration of the ordinary account, live website-session preservation, actual Codex conversation reopening or resumed inference from this new copy. The prior actual143-thread audit remains separate evidence. A full isolated backend transition and subsequent ordinary adoption remain open. The verified43 installer is still held for the pending normal-Windows confirmation; restored41 remains available. No production profile, runtime registration or paid-provider request is changed.
+
+
+October19 follow-up: the two reproduced private-migration output defects are corrected in candidate0.44.44: saved legacy/Store-cache links map to current owned copied bytes, and opening errors survive a closed-pane transition. Both compilations,85 source backend checks, eleven source interface groups, exact-archive483 backend/two schema/eleven interface groups and five isolated private-backend/completion groups are verified. Cold reopening preserves the generated administrator, native result, draft, cookie and file access without inference replay. The worker-debugger and outer-recorder failures are retained and explained in [candidate44 evidence](platform-release-0.44.44.md). Production migration and ordinary44 installation are not performed. Ordinary41 remains unchanged;43 is the existing verified installer awaiting normal-Windows confirmation. The full desktop-parity goal remains active.
+
+
+## Superseded installer request
+
+The uninstalled43 installer and its pending Windows installation question are withdrawn in favor of verified44. Original artifacts and qualification evidence remain preserved.44 passes485 backend/schema checks,68 interface groups,19 copied-SQL/native workflows and seven installer-integrity groups, and contains the later copied-file-link/error fixes. Ordinary41 remains open pending current recovery and a separate44 Windows installation confirmation.

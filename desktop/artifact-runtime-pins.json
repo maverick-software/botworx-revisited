@@ -1,0 +1,115 @@
+{
+  "format": 1,
+  "python": "3.14",
+  "platform": "win_amd64",
+  "directory": "artifact-python",
+  "modules": [
+    "docx",
+    "openpyxl",
+    "pptx",
+    "reportlab",
+    "PIL",
+    "pypdf"
+  ],
+  "wheels": [
+    {
+      "name": "charset-normalizer",
+      "version": "3.5.2",
+      "file": "charset_normalizer-3.5.2-cp314-cp314-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/d1/78/5ed86f743d4bc350db307e7636419a0a5ee1d91806d30c7f667bd5c80dae/charset_normalizer-3.5.2-cp314-cp314-win_amd64.whl",
+      "sha256": "e4e81e09c1578b8df602e3db08b0b3ea0a6947ad612f52bf8dc5ea8d47691f0c",
+      "requiresPython": ">=3.7",
+      "license": "MIT"
+    },
+    {
+      "name": "et-xmlfile",
+      "version": "2.0.0",
+      "file": "et_xmlfile-2.0.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/c1/8b/5fe2cc11fee489817272089c4203e679c63b570a5aaeb18d852ae3cbba6a/et_xmlfile-2.0.0-py3-none-any.whl",
+      "sha256": "7a91720bc756843502c3b7504c77b8fe44217c85c537d85037f0f536151b2caa",
+      "requiresPython": ">=3.8",
+      "license": "MIT"
+    },
+    {
+      "name": "lxml",
+      "version": "6.1.3",
+      "file": "lxml-6.1.3-cp314-cp314-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/0f/bc/5811cc73cac05e324e05ba9b0924e1a163a317a167ede8a9c748b11db30a/lxml-6.1.3-cp314-cp314-win_amd64.whl",
+      "sha256": "66299564c046bc7e0cc5de5106601eae907e9fa5904cd68a323380a8502f7861",
+      "requiresPython": ">=3.8",
+      "license": "BSD-3-Clause"
+    },
+    {
+      "name": "openpyxl",
+      "version": "3.1.5",
+      "file": "openpyxl-3.1.5-py2.py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/c0/da/977ded879c29cbd04de313843e76868e6e13408a94ed6b987245dc7c8506/openpyxl-3.1.5-py2.py3-none-any.whl",
+      "sha256": "5282c12b107bffeef825f4617dc029afaf41d0ea60823bbb665ef3079dc79de2",
+      "requiresPython": ">=3.8",
+      "license": "MIT"
+    },
+    {
+      "name": "pillow",
+      "version": "13.0.0",
+      "file": "pillow-13.0.0-cp314-cp314-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/50/e2/7ad17747517e4c813dca78257d6bb593466f8231baf1384bc98d92745edb/pillow-13.0.0-cp314-cp314-win_amd64.whl",
+      "sha256": "f7cbb7a64e7ec664775195e4f81923bc8a93d9451b963f844e59118f63147a7a",
+      "requiresPython": ">=3.11",
+      "license": "MIT-CMU"
+    },
+    {
+      "name": "pypdf",
+      "version": "6.21.1",
+      "file": "pypdf-6.21.1-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/85/e6/24c944e473c34e818cf1b98085796fcd780465ecfe17663f2bf8fee1958b/pypdf-6.21.1-py3-none-any.whl",
+      "sha256": "553e2d42f5bb3bb2a785a7d3de8ef90bb7df74b5413eff5a7b4388007ea9254b",
+      "requiresPython": ">=3.9",
+      "license": "BSD-3-Clause"
+    },
+    {
+      "name": "python-docx",
+      "version": "1.2.0",
+      "file": "python_docx-1.2.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/d0/00/1e03a4989fa5795da308cd774f05b704ace555a70f9bf9d3be057b680bcf/python_docx-1.2.0-py3-none-any.whl",
+      "sha256": "3fd478f3250fbbbfd3b94fe1e985955737c145627498896a8a6bf81f4baf66c7",
+      "requiresPython": ">=3.9",
+      "license": "MIT"
+    },
+    {
+      "name": "python-pptx",
+      "version": "1.0.2",
+      "file": "python_pptx-1.0.2-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/d9/4f/00be2196329ebbff56ce564aa94efb0fbc828d00de250b1980de1a34ab49/python_pptx-1.0.2-py3-none-any.whl",
+      "sha256": "160838e0b8565a8b1f67947675886e9fea18aa5e795db7ae531606d68e785cba",
+      "requiresPython": ">=3.8",
+      "license": "MIT"
+    },
+    {
+      "name": "reportlab",
+      "version": "5.0.1",
+      "file": "reportlab-5.0.1-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/db/cb/dacbc268cb68d0428ea2cbd85266195a9ab3e677449589ddae59bd7542ac/reportlab-5.0.1-py3-none-any.whl",
+      "sha256": "1c36e6bb0e71780c72331eba60da7f602e8d4389a8723825af71342e49d791e8",
+      "requiresPython": "<4,>=3.9",
+      "license": "BSD license (see license.txt for details), Copyright (c) 2000-2025, ReportLab Inc."
+    },
+    {
+      "name": "typing-extensions",
+      "version": "4.16.0",
+      "file": "typing_extensions-4.16.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl",
+      "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+      "requiresPython": ">=3.9",
+      "license": "PSF-2.0"
+    },
+    {
+      "name": "xlsxwriter",
+      "version": "3.2.9",
+      "file": "xlsxwriter-3.2.9-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/3a/0c/3662f4a66880196a590b202f0db82d919dd2f89e99a27fadef91c4a33d41/xlsxwriter-3.2.9-py3-none-any.whl",
+      "sha256": "9a5db42bc5dff014806c58a20b9eae7322a134abb6fce3c92c181bfb275ec5b3",
+      "requiresPython": ">=3.8",
+      "license": "BSD-2-Clause"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+import {readFile,writeFile,mkdir,copyFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {spawnSync} from 'node:child_process';
+import path from 'node:path';
+import {desktopOperation} from './operation-lock.mjs';
+desktopOperation('fresh agent integration migration regression');
+const root=path.resolve(import.meta.dirname,'../..'),out=path.join(root,'.supabase/desktop-fresh-agent',String(Date.now())),files=['desktop/database/0001-baseline.sql','desktop/database/0069-explicit-agent-integrations.sql','desktop/tests/fresh-agent-integrations.test.cjs'];await mkdir(out,{recursive:true});const hashes={};
+const hash=async file=>createHash('sha256').update(await readFile(path.join(root,file))).digest('hex');
+for(const file of files){hashes[file]=await hash(file);await copyFile(path.join(root,file),path.join(out,path.basename(file)));}await copyFile(import.meta.filename,path.join(out,'verification.mjs'));
+const result=spawnSync(process.execPath,['--test','--test-reporter=tap',path.join(root,files[2])],{cwd:root,encoding:'utf8',windowsHide:true,timeout:60000,env:{...process.env,AGENTOPIA_TEST_ROOT:root}});await writeFile(path.join(out,'tests.tap'),(result.stdout??'')+(result.stderr??''));
+const evidence={at:new Date().toISOString(),out,scope:'Actual baseline credential/grant/trigger functions in embedded PostgreSQL. Missing legacy provider reproduces the foreign-key failure. Migration69 removes only the automatic hook, preserves historical grants and allows fresh agents without credentials. No production database access.',sourceHashes:hashes,testsPassed:Number(result.stdout?.match(/# pass (\d+)/)?.[1]??0),testsFailed:Number(result.stdout?.match(/# fail (\d+)/)?.[1]??0),sourceUnchanged:(await Promise.all(files.map(async file=>hashes[file]===await hash(file)))).every(Boolean),productionAccess:false,providerRequests:0};evidence.success=result.status===0&&evidence.testsPassed===5&&evidence.sourceUnchanged;await writeFile(path.join(out,'evidence.json'),JSON.stringify(evidence,null,2));console.log(JSON.stringify(evidence,null,2));if(!evidence.success)process.exitCode=1;

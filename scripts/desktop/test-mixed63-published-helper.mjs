@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import {AsyncLocalStorage} from 'node:async_hooks';
+import {EventEmitter} from 'node:events';
+import {writeFile} from 'node:fs/promises';
+import {installLiveMixedGuard} from './install-live-mixed63-guard.mjs';
+const digest=crypto.createHash('sha256').update('published helper').digest('hex');
+for(const mode of ['absent','matching','changed']){
+ let context,count=0;class Broker{constructor(){this.native={running:new Map(),workers:[]};}initialize(){}}class ToolService{execute(){throw Error('No tool needed');}}class Gateway{constructor(){this.server=new EventEmitter();this.server.on('request',(r,s)=>context.fetch(r.url,r.args).then(s.resolve,s.reject));}start(){}}
+ const req=raw=>{const name=raw.replaceAll('\\','/');return name==='node:path'?path:name==='node:crypto'?crypto:name==='node:async_hooks'?{AsyncLocalStorage}:name==='node:fs'?{writeFileSync:()=>{},readFileSync:file=>{assert.equal(path.basename(file),'audit.py');return Buffer.from(mode==='changed'?'replaced helper':'published helper');}}:name.endsWith('/build/broker.js')?{Broker}:name.endsWith('/build/tool-service.js')?{ToolService}:name.endsWith('/build/codex-gateway.js')?{CodexGateway:Gateway}:(()=>{throw Error(name)})();};context=vm.createContext({Buffer,Date,JSON,Set,Map,URL,__durableProbeRequire:req,fetch:async()=>{count++;return {status:200,headers:{get:()=>null}};}});await installLiveMixedGuard({evaluate:(fn,arg)=>vm.runInContext('('+fn.toString()+')',context)({app:{getAppPath:()=>'/fixture'}},arg)});const b=new Broker();await b.initialize();const s=context.__liveMixed63;s.leaseActive=true;s.expiresAt=Date.now()+3600000;s.expected={owner:'owner',root:'root',parent:'parent',parentRole:'ROLE',marker:'case',policyTag:'DERIVED-POLICY',workspace:'F:/owned',out:'F:/fixture',...(mode==='absent'?{}:{publishedHelperSha256:digest})};b.native.running.set('root',{owner:'owner',request:{id:'root',agent_id:'parent'},conversation:'conversation',state:{threadId:'thread',turnId:'turn'}});const g=new Gateway();g.start();const request=()=>new Promise((resolve,reject)=>g.server.emit('request',{url:'https://api.openai.com/v1/responses',args:{method:'POST',body:JSON.stringify({model:'gpt-6.1-sol',instructions:'ROLE case',input:'DERIVED-POLICY'})},headers:{'thread-id':'thread','x-codex-turn-metadata':JSON.stringify({turn_id:'turn'})}},{resolve,reject}));if(mode==='matching'){await request();assert.equal(count,1);}else{await assert.rejects(request());assert.equal(count,0);}console.log('PASS '+mode+' published helper');
+}
+await writeFile(path.resolve(import.meta.dirname,'../../.supabase/desktop-live-mixed63/published-helper-checks.json'),JSON.stringify({success:true,checks:3,exactPreviouslyAuthoredBytesRequired:true,changedOrMissingAuthorizationRejected:true,providerRequests:0},null,2));

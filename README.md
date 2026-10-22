@@ -9,6 +9,7 @@ All documentation has been organized into topic-specific guides in the **[README
 **📖 [Start Here: Complete Documentation Index](README/index.md)**
 
 ### 🚀 Quick Links
+- **[Windows Desktop](README/windows-desktop.md)** - Private Electron application, local PostgreSQL/Supabase runtime, installation, providers, and recovery
 - **[Getting Started](README/getting-started.md)** - Installation, setup, and first steps
 - **[Project Overview](README/project-overview.md)** - Features, architecture, and tech stack
 - **[Tool Infrastructure](README/tool-infrastructure.md)** - MCP tool development and integration guide

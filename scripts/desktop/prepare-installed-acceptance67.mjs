@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {readFile,writeFile} from 'node:fs/promises';
+import path from 'node:path';
+const root=path.resolve(import.meta.dirname,'../..'),dir=path.join(root,'scripts/desktop'),read=name=>readFile(path.join(dir,name),'utf8'),save=(name,text)=>writeFile(path.join(dir,name),text,{flag:'wx'});
+let agentJs=(await read('audit-agent-health66.mjs')).replaceAll('health66','health67');await save('audit-agent-health67.mjs',agentJs);
+let agentPy=(await read('audit-agent-health66.py')).replaceAll('health66','health67').replaceAll('0.44.66','0.44.67').replaceAll('74e4477cbbf3cbf3330e47ef5157646d0a113fd12fe786abdc776b654673d235','97798aceb695969bca2275a4f92ccbb7d6b8e0d492575a9ad1052c3dacda9e8b');
+const line="program=Path('/mnt/c/Users/charl/AppData/Local/AgentopiaDesktop/app-0.44.67/resources/app.asar');";assert(agentPy.includes(line));
+agentPy=agentPy.replace(line,"migration=sql(\"SELECT jsonb_build_object('count',(SELECT count(*) FROM agentopia_desktop.migrations),'checksum',(SELECT checksum FROM agentopia_desktop.migrations WHERE version='0070-scheduled-project-workspaces.sql'))\");require(migration['count']==70 and migration['checksum']=='ec1184c71a43eefb6f51a52a1db89f46971ef2fb0203d2a59199ce07d7ae60a3','installed-schema70','0070-scheduled-project-workspaces.sql')\n"+line);
+agentPy=agentPy.replace("'databaseReadOnly':True,'providerRequests':0", "'databaseReadOnly':True,'schemaMigration':migration,'providerRequests':0");await save('audit-agent-health67.py',agentPy);
+let accept=(await read('accept-installed66.mjs')).replaceAll('accept installed55','accept installed67').replaceAll('update66','update67').replaceAll('health66','health67').replaceAll('installed66','installed67').replaceAll('0.44.66','0.44.67').replaceAll('desktop-workspace-paths-release66','desktop-scheduled-workspaces67-release');
+const gate="assert(e.success&&e.installed&&!e.ordinaryReopeningPending);";assert(accept.includes(gate));
+accept=accept.replace(gate,gate+"\nconst schema=await json('F:/Agentopia-Data/profiles/a91a4800-e08f-4440-a4ec-588762d01bfd/profile/schema-release.json');assert(schema.version==='0.44.67'&&schema.schema===70&&schema.desktopRecovery===12,'Wait for the ordinary app to finish its protected schema upgrade');");
+accept=accept.replace('ordinaryFProfileSelected:true,database,agentAudit:', 'ordinaryFProfileSelected:true,schema,database,agentAudit:');await save('accept-installed67.mjs',accept);
+console.log(JSON.stringify({success:true,generated:['audit-agent-health67.mjs','audit-agent-health67.py','accept-installed67.mjs'],ordinaryReadOnlyAcceptancePrepared:true}));

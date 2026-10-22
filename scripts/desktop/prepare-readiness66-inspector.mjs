@@ -1,0 +1,2 @@
+import {readFile,writeFile} from 'node:fs/promises';import path from 'node:path';
+const dir=import.meta.dirname,source=await readFile(path.join(dir,'inspect-live-readiness64.mjs'),'utf8');await writeFile(path.join(dir,'inspect-live-readiness66.mjs'),source.replaceAll('desktop-google-editor-release64','desktop-workspace-paths-release66').replaceAll('desktop-live-readiness64','desktop-live-readiness66'),{flag:'wx'});console.log('Current-image read-only inspector prepared; it makes no provider requests or original-store writes.');

@@ -1,0 +1,13 @@
+import {createReadStream,createWriteStream,existsSync,unlinkSync,writeFileSync} from 'node:fs';
+import {createGzip} from 'node:zlib';
+import {pipeline} from 'node:stream/promises';
+import {createHash} from 'node:crypto';
+import path from 'node:path';
+const directory=path.resolve(import.meta.dirname,'../../desktop/resources');
+const input=path.join(directory,'runtime.tar'),output=path.join(directory,'runtime.tar.gz');
+if(!existsSync(input))throw new Error('Export the clean WSL runtime before compressing it.');
+await pipeline(createReadStream(input),createGzip({level:6}),createWriteStream(output));
+const hash=createHash('sha256');for await(const chunk of createReadStream(output))hash.update(chunk);
+writeFileSync(path.join(directory,'runtime.sha256'),hash.digest('hex'));
+unlinkSync(input);
+console.log('Compressed runtime is ready for offline installation.');

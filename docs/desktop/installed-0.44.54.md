@@ -1,0 +1,28 @@
+# Agentopia 0.44.54 — installed data verification
+
+Later checkpoint: production relocation and remaining C-drive cleanup are complete, and 0.44.55 is installed with the redesigned Plugins/Skills/Tools navigation. The current active profile is on F:. See [installed-0.44.55.md](installed-0.44.55.md). The text below records the earlier 0.44.54 installation checkpoint.
+
+October 21, 2026. The ordinary 0.44.54 application is installed and reopened through Windows Explorer, with one responding main window and no debugger flags. Chromium's actual user-data argument selects C:/Users/charl/.agentopia/desktop/profile. The code project and both retained runtime disks are on F:. The production Windows profile is still on C:; its move and subsequent C-drive cleanup remain unfinished.
+
+The exact application archive is c929ba18422fb63d41c77d721bb005d1d1678941754717e5bb7da87067b02c3e. Five compiled backend files change from accepted 0.44.53, covering the reserved relocated-profile selector, private-path exclusions and saved output-link translation. All 219 accepted UI assets, including the standalone Word/PDF renderer and PDF support files, are unchanged. The schema remains 69 and portable recovery capability remains 10. Composio retains the per-user Plugins → App connections setup delivered in 0.44.53; real connector authentication is still pending protected key entry.
+
+Qualification reused the byte-matching 71 focused source checks and 826 archived agent/control checks, 19 stopped-copy cases, 15 publication cases and 25 maintenance-source cases. Revised exact-image full backend and fresh backup restoration passed. The actual copy/publication controllers were then composed in a generated SQL-backed profile on F:, with independently verified fresh recovery, real Windows encryption and private file permissions. Pinned Codex read all 36 copied native chats without starting a turn, contacting a provider or changing saved rollout bytes. The publication controller checked the sealed receipts before publishing the new location, and cold startup through an installed-shaped executable selected it while preserving the original source and historical recovery. A separate earlier literal C-to-F fixture established cross-volume encryption/cookie/native-history preservation. The production profile was not moved by these tests. Native continuation responses were controlled; they establish saved-thread/memory behavior rather than live model quality.
+
+Installer assembly and embedded payload verification passed. The first assembly attempt stopped before its packaging worker began because its launcher referenced the wrong worker filename. The failure and prior qualification were retained; the corrected launcher reverified and reused the staged payload. Shared vendor helpers were unchanged, and all new build/temporary output remained on F:.
+
+The authorized updater found no active production requests and closed 0.44.53 through its normal main-window request, without force termination or another user approval. Fresh recovery independently verified 4,174 current Windows profile files, the database/keys and all portable resources. It recorded 45 external attachment locations and retained their contents in place. Historical recovery directories remained in the original source; the future relocation copier preserves them separately. The active program was retained on F: for rollback and all 7,531 rollback files matched their physical sources. All 7,533 installed files, including the generated launcher and pinned updater, then matched the qualified package. The source Windows profile remained byte-identical across installation before ordinary reopening.
+
+After ordinary reopening, a read-only comparison again matched all 126 scoped tables and 1,800 saved rows: both accounts/passwords/roles, 119 chats, 408 messages and 191 readable vault records. Four encryption-root bindings match. A separate read-only agent audit found no ownership problems and retained the existing 2 active default assistants, 2 retired QA definitions, 2 memories and 18 assignments. Its legacy reader labels its output 0.44.53; the independently observed executable and physical package are 0.44.54. The 17 completed assignments and 1 historical failed assignment are unchanged. This audit establishes preservation of saved records; it is separate from the generated native continuation tests.
+
+Fresh visual account/document comparison and physical Windows reboot acceptance remain open. Native computer-control initialization was retried after Linux runtime recovery and still fails before JavaScript with “failed to write kernel assets: The system cannot find the path specified. (os error 3).” No screenshots or UI acceptance were inferred from process/database checks. The full desktop-parity/workspace-agent goal remains active and incomplete.
+
+Authoritative evidence:
+
+- F:/Agentopia/.supabase/desktop-profile-release54/1792578806223/installed-data-accepted.json
+- F:/Agentopia/.supabase/desktop-normal-maintenance/1792596209108/evidence.json
+- F:/Agentopia/.supabase/desktop-normal-maintenance/1792596209108/recovery/independent-verification.json
+- F:/Agentopia/.supabase/desktop-production-logical/1792596248261/independent-verification.json
+- F:/Agentopia/.supabase/desktop-profile-release54/1792578806223/installer-verification/evidence.json
+- F:/Agentopia/.supabase/desktop-profile-release54/1792578806223/integrated-migration-1792595263028/evidence.json
+- F:/Agentopia/.supabase/desktop-profile-release54/1792578806223/restored-relocation-accepted.json
+- F:/Agentopia/.supabase/desktop-agent-health53/1792596603317/evidence.json

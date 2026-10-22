@@ -1,0 +1,21 @@
+// Actual direct launch from the desktop host, without startup overrides.
+import {spawn,execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import {readFile,writeFile,access} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import path from 'node:path';
+import os from 'node:os';
+import assert from 'node:assert/strict';
+import {desktopOperation} from './operation-lock.mjs';
+import {closed} from './phased-backup-control.mjs';
+desktopOperation('reopen verified private profile from desktop host');await closed();
+const visible=process.argv[2]==='visible';assert(process.argv.length===2||visible);const receiptName=visible?'host-launch-visible.json':'host-launch.json';
+const root=path.resolve(import.meta.dirname,'../..'),pointer=JSON.parse(await readFile(path.join(root,'.supabase/desktop-profile-location/production47-current.json'),'utf8')),cfg=JSON.parse(await readFile(pointer.intent,'utf8')),exec=promisify(execFile),sha=b=>createHash('sha256').update(b).digest('hex');
+assert.equal(sha(await readFile(pointer.intent)),pointer.intentSha256);assert.equal(sha(await readFile(cfg.installedArchive)),cfg.installedArchiveSha256);
+const activation=JSON.parse(await readFile(path.join(cfg.out,'activation-publish.json'),'utf8'));assert(activation.success&&activation.published);
+const location=JSON.parse(await readFile(path.join(path.dirname(cfg.target),'profile-location.json'),'utf8'));assert.equal(location.runtimeInstanceId,cfg.runtimeInstanceId);assert.equal(location.migrationSha256,sha(await readFile(path.join(cfg.target,'profile-migration.json'))));
+await assert.rejects(access(path.join(cfg.out,receiptName)),error=>error.code==='ENOENT');
+const env={...process.env};for(const key of ['NODE_OPTIONS','ELECTRON_RUN_AS_NODE','AGENTOPIA_TEST_PROFILE'])delete env[key];
+const child=spawn(path.join(path.dirname(path.dirname(cfg.installedArchive)),'Agentopia.exe'),[],{env,cwd:os.tmpdir(),windowsHide:false,detached:true,stdio:'ignore'});await new Promise((resolve,reject)=>{child.once('spawn',resolve);child.once('error',reject);});child.unref();
+const python=path.join(cfg.storageProgram,'resources/resources/script-runtimes/python-3.14.8/python.exe'),identity=JSON.parse((await exec(python,['-B',path.join(root,'scripts/desktop/process_package_identity.py'),String(process.pid),String(child.pid)],{windowsHide:true,encoding:'utf8',timeout:15000})).stdout);
+const receipt={success:true,at:new Date().toISOString(),version:cfg.version,pid:child.pid,profileExpected:cfg.target,launch:'direct desktop-host child, no startup or profile overrides',visibleStartup:true,identity,providerRequests:0,installedImageSha256:cfg.installedArchiveSha256};await writeFile(path.join(cfg.out,receiptName),JSON.stringify(receipt,null,2),{flag:'wx'});console.log(JSON.stringify(receipt));

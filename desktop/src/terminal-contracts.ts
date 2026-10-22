@@ -1,0 +1,5 @@
+export type TerminalStatus='running'|'completed'|'failed'|'cancelled'|'timed_out'|'interrupted';
+export type TerminalRun={id:string;user_id:string;conversation_id:string|null;request_id:string|null;tool_call_id:string|null;source:'user'|'agent';command:string;cwd:string;reference_id:string;relative_path:string;timeout_ms:number;status:TerminalStatus;stdout:string;stderr:string;exit_code:number|null;truncated:boolean;started_at:string;ended_at:string|null};
+export type CommandPermissions={administrator:boolean;enabled:boolean;full:boolean};
+export type TerminalSession={id:string;user_id:string;conversation_id:string|null;source:'user'|'agent';cwd:string;reference_id:string;relative_path:string;status:'running'|'completed'|'failed'|'cancelled'|'interrupted';output:string;revision:number;exit_code:number|null;truncated:boolean;started_at:string;ended_at:string|null};
+export const commandDisclosure='Windows commands run as your Windows account. They can read or change files outside this folder, access the network, and start other programs. This is not a filesystem sandbox. Command effects cannot be automatically undone.';

@@ -1,0 +1,50 @@
+{
+  "git": {
+    "version": "2.56.0.windows.2",
+    "url": "https://github.com/git-for-windows/git/releases/download/v2.56.0.windows.2/MinGit-2.56.0.2-64-bit.zip",
+    "sha256": "da35e72aa21c005a5a0d298cfbae110bc1609a815730ea0dde84b01a1b3cd3be",
+    "directory": "git-2.56.0.windows.2",
+    "entry": "cmd/git.exe",
+    "source": "https://github.com/git-for-windows/git/releases/tag/v2.56.0.windows.2"
+  },
+  "ripgrep": {
+    "version": "15.2.0",
+    "file": "codex/x86_64-pc-windows-msvc/codex-path/rg.exe",
+    "sha256": "14231169855ec5205cf5a1b6f1db358ff4aed4247c86b69ce8aae647c77f6680",
+    "licenses": [
+      {
+        "name": "COPYING",
+        "url": "https://raw.githubusercontent.com/BurntSushi/ripgrep/15.2.0/COPYING",
+        "sha256": "01c266bced4a434da0051174d6bee16a4c82cf634e2679b6155d40d75012390f"
+      },
+      {
+        "name": "LICENSE-MIT",
+        "url": "https://raw.githubusercontent.com/BurntSushi/ripgrep/15.2.0/LICENSE-MIT",
+        "sha256": "0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f"
+      },
+      {
+        "name": "UNLICENSE",
+        "url": "https://raw.githubusercontent.com/BurntSushi/ripgrep/15.2.0/UNLICENSE",
+        "sha256": "7e12e5df4bae12cb21581ba157ced20e1986a0508dd10d0e8a4ab9a4cf94e85c"
+      },
+      {
+        "name": "PCRE2-COPYING",
+        "url": "https://raw.githubusercontent.com/PCRE2Project/pcre2/pcre2-10.45/COPYING",
+        "sha256": "99272c55f3dcfa07a8a7e15a5c1a33096e4727de74241d65fa049fccfdd59507"
+      },
+      {
+        "name": "PCRE2-LICENCE.md",
+        "url": "https://raw.githubusercontent.com/PCRE2Project/pcre2/pcre2-10.45/LICENCE.md",
+        "sha256": "9cf7ac6976099a1d856826d3ef1b093bd6b84489dc6100628ac79e740cf9885a"
+      }
+    ]
+  },
+  "powershell": {
+    "version": "7.6.7",
+    "url": "https://github.com/PowerShell/PowerShell/releases/download/v7.6.7/PowerShell-7.6.7-win-x64.zip",
+    "sha256": "d2f952ebdbf24386cb8923553aa58e41a846db35a6155ea04c58142a4b16dbb7",
+    "directory": "powershell-7.6.7",
+    "entry": "pwsh.exe",
+    "source": "https://github.com/PowerShell/PowerShell/releases/tag/v7.6.7"
+  }
+}

@@ -1,0 +1,23 @@
+# Automatic public attachment identity capture
+
+October 19, 2026: **the full maintenance-backup workflow now includes automatic public-reference capture in source, with a verified real-checkpoint run of the shared capture step.** The installed desktop remains accepted 0.44.47 recovery-bootstrap-15. This change does not replace the pending complete cold backup, fresh-backend recovery or normal product backup/restore acceptance.
+
+Previously the maintenance script archived public document bytes, while a separate helper tied to revision 14 captured attachment identities. Those identities are needed to reconnect a saved chat's file link to its restored document. The new shared step supports either a verified copied profile directory or a compressed profile archive and has no fixed account count or checkpoint directory.
+
+`archived_account_owners.py` validates the copied database manifest and archives, reads account IDs from that exact offline auth archive, and binds the owner receipt to its manifest and auth-file hashes. It exports no other account columns and starts no database service. The existing capture entry point invokes it before publishing a successful capture receipt.
+
+`portable-public-reference-backup.mjs` verifies those bindings, the public archive and the profile's copied credential context. It creates a separate protected helper profile containing only the two encrypted-context files required for Windows decryption. The helper uses the pinned installed Secrets and public-reference modules to retain only public file/folder identities for the archived owners. External selected files and clipboard attachments remain outside this public-only index. Both child and parent validate the resulting account/path ownership, and the completion receipt is published only after source bindings are checked again. Failed or changed input remains unpublished.
+
+The full maintenance script now copies the account-reader dependency and invokes the shared reference step after its private-profile and public-file captures. The historical revision-14 helper remains as reproduction evidence; the current full-backup workflow no longer depends on it.
+
+## Evidence
+
+Frozen source and qualification: `.supabase/desktop-portable-reference-backup/1792478779640/`. Twelve Node checks cover directory/archive capture, changed or mismatched resources, duplicate accounts, redirected paths, duplicate/linked archive entries, altered child results, interrupted capture and zero archived accounts. Eight Python checks cover exact owner extraction, corruption, duplicate IDs, manifest constraints and publication boundaries. Two generated integration checks execute the existing capture entry point and prove that valid copied archives produce the owner record while corrupted archives prevent completion.
+
+The shared step also ran against the actual protected checkpoint `D:/Users/charl/AgentopiaRecovery/recovery-bootstrap-15/1792477990357/`. The offline reader derived both owners from its matching database archives. The installed modules recovered all four public attachment identities and preserved all 17 public files. The complete new index equals the earlier index whose separate restoration and cold-encryption reopening were verified. The original private archive, public source collection and installed application bytes remain unchanged. No production profile write, database startup or model request occurred. Evidence is `automatic-reference-capture.json`, `public-reference-index.json` and the account receipt in that checkpoint.
+
+## Remaining acceptance
+
+The complete maintenance backup, including another cold runtime image, was not rerun. Its existing capacity requirement exceeds current free space. All existing runtime disks, recovery originals and incomplete cold captures remain retained. The new integration is therefore qualified in source and the shared step is demonstrated with real data; the entire cold-backup workflow is not newly demonstrated by these checks.
+
+The normal app's backup UI still needs the complete portable workflow incorporated and verified for an ordinary user. The maintenance workflow retains a directory-form private copy, while the current format-2 preparer expects a compressed profile bundle; those forms and the producer/sealing flow need reconciliation. A missing public collection also needs an explicit empty portable-bundle case. External generated files, selected workspace folders, clipboard attachment identities and portable preferences remain separate requirements. Complete fresh-backend restore, full installer/reboot recovery and the wider workspace-agent scope remain active.

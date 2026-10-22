@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import {readFile,writeFile,mkdir,cp,readdir,lstat,symlink} from 'node:fs/promises';
+import path from 'node:path';
+import {promisify} from 'node:util';
+import {execFile} from 'node:child_process';
+import {build} from 'vite';
+import {desktopOperation} from './operation-lock.mjs';
+import {hash} from './phased-backup-control.mjs';
+
+desktopOperation('freeze the per-user Composio connection card as a UI-only update');
+const root=path.resolve(import.meta.dirname,'../..'),json=async f=>JSON.parse(await readFile(f,'utf8')),baseFile=(await json(path.join(root,'.supabase/desktop-composio-candidate52/current.json'))).proof,base=await json(baseFile),out=path.join(root,'.supabase/desktop-composio-connection-ui52',String(Date.now())),source=path.join(out,'source/desktop'),ui=path.join(out,'ui'),exec=promisify(execFile);
+const changed=['ui/ComposioConnectionCard.tsx','ui/ComposioPage.tsx','ui/WorkspaceViews.tsx'];
+async function hashes(directory){const values={};for(const name of (await readdir(directory,{recursive:true})).sort()){const file=path.join(directory,name),s=await lstat(file);assert(!s.isSymbolicLink());if(s.isFile())values[name.replaceAll('\\','/')]=await hash(file);}return values;}
+assert(base.success&&base.version==='0.44.52');assert.equal(await hash('C:/Users/charl/AppData/Local/AgentopiaDesktop/app-0.44.52/resources/app.asar'),base.imageSha256);
+const before=await hashes(path.join(base.source,'ui')),current=await hashes(path.join(root,'desktop/ui')),diff=[...new Set([...Object.keys(before),...Object.keys(current)])].filter(name=>before[name]!==current[name]).map(name=>'ui/'+name).sort();assert.deepEqual(diff,changed.toSorted());
+const standard=await json(path.join(base.out,'standard-user-connections-accepted.json'));assert(standard.success&&standard.standardAccounts===2&&standard.checks===4&&standard.liveComposioRequests===0);const cardFile=path.join(root,'.supabase/desktop-composio-card53/1792567802781/evidence.json'),card=await json(cardFile);assert(card.success&&card.checks.length===6&&card.liveRequests===0);
+await mkdir(out,{recursive:true});await cp(base.source,source,{recursive:true});for(const file of changed)await cp(path.join(root,'desktop',file),path.join(source,file));await cp(path.join(root,'desktop/presentation-renderer-patch.mjs'),path.join(source,'presentation-renderer-patch.mjs'));await symlink(path.join(root,'node_modules'),path.join(out,'source/node_modules'),'junction');await symlink(path.join(root,'node_modules'),path.join(out,'node_modules'),'junction');
+const types=await exec(process.execPath,[path.join(root,'node_modules/typescript/bin/tsc'),'-p',path.join(source,'ui/tsconfig.json')],{windowsHide:true,cwd:root,timeout:120000,encoding:'utf8',maxBuffer:1024*1024});await writeFile(path.join(out,'ui-types.log'),types.stdout+types.stderr);
+await build({configFile:path.join(source,'vite.config.mjs'),build:{outDir:ui}});
+const uiFiles=await hashes(ui),sourceHashes={};
+for(const name of changed)sourceHashes[name]=await hash(path.join(source,name));
+assert(uiFiles['index.html']&&uiFiles['document-viewer.html']);for(const folder of ['pdf/cmaps/','pdf/standard_fonts/','pdf/wasm/'])assert(Object.keys(uiFiles).some(name=>name.startsWith(folder)),folder+' was omitted');assert(Object.keys(uiFiles).length>100);const proof={success:true,at:new Date().toISOString(),version:'0.44.52',revision:'composio-connection-card-1',out,source,ui,baseProof:baseFile,baseImageSha256:base.imageSha256,changedSourceFiles:changed,sourceHashes,buildDependencies:{'vite.config.mjs':await hash(path.join(source,'vite.config.mjs')),'presentation-renderer-patch.mjs':await hash(path.join(source,'presentation-renderer-patch.mjs'))},correctedPriorUiPackaging:{priorUiFiles:Object.keys(base.resourceFiles).filter(name=>name.startsWith('ui/')).length,priorStandaloneDocumentViewer:!!base.resourceFiles['ui/document-viewer.html'],builtThroughQualifiedViteConfig:true,documentViewerAndPdfAssetsPresent:true},uiFiles,sourceCardUiEvidence:cardFile,sourceCardUiEvidenceSha256:await hash(cardFile),standardUserEvidence:standard.evidence,standardUserEvidenceSha256:await hash(standard.evidence),actualStandardAccounts:2,sourceUiChecks:6,actualUserWorkflows:4,backendAndRuntimeUnchanged:true,installed:false,liveProviderRequests:0,liveComposioRequests:0,fullGoalComplete:false};
+await writeFile(path.join(out,'proof.json'),JSON.stringify(proof,null,2),{flag:'wx'});await writeFile(path.join(root,'.supabase/desktop-composio-connection-ui52/current.json'),JSON.stringify({out,proof:path.join(out,'proof.json')},null,2));console.log(JSON.stringify({success:true,out,uiFiles:Object.keys(uiFiles).length,backendAndRuntimeUnchanged:true,installed:false}));

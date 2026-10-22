@@ -1,0 +1,5 @@
+export type WorkspaceRecoveryRow={id:string;phase:string;createdAt:string;recoveryAvailable:boolean;privateHistory?:boolean;review?:ScheduledWorkspaceReview;restoredPath?:string;interruptedRestoration?:boolean;restorations?:{id:string;phase:string;path:string;referenceId?:string}[]};
+export type RetainedWorkspaceRow={runId:string;taskId:string;requestId?:string;path:string;source:string;ref:string;phase:string;at:string;runStatus?:string|null;requestStatus?:string|null;requestAcknowledged?:boolean;operation?:WorkspaceRecoveryRow;operations?:WorkspaceRecoveryRow[];problem?:string};
+export type ScheduledWorkspaceReview={id:string;runId:string;path:string;files:number;bytes:number;recoveryBytes:number;expiresAt:string;hasGit:boolean};
+export type ScheduledWorkspaceResult={id:string;runId:string;phase:string;removedBytes:number;recoveryBytes:number;path?:string;referenceId?:string};
+export type WorkspaceInspection={id:string;kind:'capture'|'restoration'|'request';runId:string;operationId?:string;path:string;summary:string;requestId?:string;conversationId?:string;expiresAt:string};

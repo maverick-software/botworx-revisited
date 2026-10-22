@@ -1,0 +1,31 @@
+import {_electron,expect} from '@playwright/test';
+import {build} from 'esbuild';
+import {createServer} from 'node:http';
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {createRequire} from 'node:module';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {desktopOperation} from './operation-lock.mjs';
+desktopOperation('delayed composer menu geometry check');
+const require=createRequire(import.meta.url),root=path.resolve(import.meta.dirname,'../..'),out=path.join(root,'.supabase/desktop-menu-stability',String(Date.now()));
+await mkdir(out,{recursive:true});
+await build({stdin:{contents:`import React,{useState,useRef} from 'react';import {createRoot} from 'react-dom/client';import {ComposerAddMenu} from './desktop/ui/ComposerAddMenu';import './desktop/ui/style.css';
+document.documentElement.dataset.theme='dark';window.calls=[];window.agentopia={call:async(action)=>{window.calls.push(action);if(action==='tools.catalog')return new Promise(resolve=>window.releaseCatalog=()=>resolve(Array.from({length:12},(_,i)=>({id:'app-'+i,name:'Fixture app '+i,kind:'mcp',ready:true,enabled:true,detail:'Local test connection'}))));if(action==='browser.context.list')return {tabs:[]};return [];}};
+const agent={id:'fixture-agent',name:'Fixture agent',active:true};function Fixture(){const input=useRef(null),[value,setValue]=useState(''),[options,setOptions]=useState({mode:'chat',permission:'full',files:[]});window.mode=options.mode;window.toolIds=options.tools;return <form className="composer enhanced-composer" style={{position:'fixed',bottom:30,left:30,width:'calc(100vw - 60px)'}} onSubmit={e=>e.preventDefault()}><textarea aria-label="Message" ref={input} value={value} onChange={e=>setValue(e.target.value)}/><ComposerAddMenu agent={agent} agents={[agent]} scope="fixture" options={options} change={next=>setOptions(o=>({...o,...next}))} files={[]} pick={async kind=>window.picked=kind} disabled={false} request={false} input={input} value={value} setValue={setValue} selectAgent={()=>{}} goal={()=>{}}/></form>}createRoot(document.getElementById('root')).render(<Fixture/>);`,loader:'tsx',resolveDir:root},bundle:true,platform:'browser',format:'iife',outfile:path.join(out,'app.js'),define:{'process.env.NODE_ENV':'"production"'}});
+await writeFile(path.join(out,'index.html'),'<html><head><link rel="stylesheet" href="/app.css"></head><body><div id="root"></div><script src="/app.js"></script></body></html>');
+const server=createServer((req,res)=>{void(async()=>{const name=new URL(req.url,'http://localhost').pathname;assert(['/','/app.js','/app.css'].includes(name));res.setHeader('Content-Type',name.endsWith('.js')?'text/javascript':name.endsWith('.css')?'text/css':'text/html');res.end(await readFile(path.join(out,name==='/'?'index.html':name.slice(1))));})().catch(()=>{res.statusCode=404;res.end();});});
+await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+await writeFile(path.join(out,'main.cjs'),`const {app,BrowserWindow}=require('electron');app.setPath('userData',${JSON.stringify(path.join(out,'profile'))});app.whenReady().then(()=>new BrowserWindow({show:true,width:1000,height:800,useContentSize:true,webPreferences:{sandbox:true,contextIsolation:true,backgroundThrottling:false}}).loadURL('about:blank'));app.on('window-all-closed',()=>app.quit());`);
+const evidence={at:new Date().toISOString(),productionAccess:false,providerRequests:0,checks:[],failures:[]},env={...process.env};delete env.ELECTRON_RUN_AS_NODE;let app,page;
+try{app=await _electron.launch({executablePath:require('electron'),args:[path.join(out,'main.cjs')],env});page=await app.firstWindow();page.setDefaultTimeout(5000);
+ for(const size of [{width:1362,height:900},{width:800,height:600}]){
+  await app.browserWindow(page).then(w=>w.evaluate((w,s)=>w.setContentSize(s.width,s.height),size));await page.goto('http://127.0.0.1:'+server.address().port);
+  await page.getByRole('button',{name:'Add to chat',exact:true}).click();const files=page.getByRole('menuitem',{name:'Files and folders',exact:true});await expect(files).toBeVisible();const before=await files.boundingBox();const menuBefore=await page.locator('.composer-add-menu').boundingBox();await page.mouse.move(before.x+before.width/2,before.y+before.height/2);
+  await page.evaluate(()=>window.releaseCatalog());await expect(page.getByRole('menuitem',{name:/^Fixture app 11/})).toHaveCount(1);await page.waitForTimeout(150);const after=await files.boundingBox();assert(Math.abs(after.y-before.y)<1,'Files and folders moved after delayed plugin loading: '+JSON.stringify({before,after}));assert(Math.abs((await page.locator('.composer-add-menu').boundingBox()).height-menuBefore.height)<1);
+  await page.mouse.click(before.x+before.width/2,before.y+before.height/2);assert.equal(await page.evaluate(()=>window.mode),'chat');assert.equal(await page.evaluate(()=>window.picked),'file');await expect(page.locator('.composer-add-menu')).toHaveCount(0);evidence.checks.push('Delayed catalog keeps the Files action under the pointer and opens files at '+size.width+'x'+size.height);
+  await page.getByRole('button',{name:'Add to chat',exact:true}).click();const reopened=await page.locator('.composer-add-menu').boundingBox();assert(reopened.height>menuBefore.height);const last=page.getByRole('menuitem',{name:/^Fixture app 11/});await last.scrollIntoViewIfNeeded();await expect(last).toBeVisible();await last.click();await expect(page.getByRole('textbox',{name:'Message',exact:true})).toHaveValue('');assert.deepEqual(await page.evaluate(()=>window.toolIds),['app-11']);evidence.checks.push('Reopened menu measures the loaded catalog and its last app can be selected at '+size.width+'x'+size.height);await page.screenshot({path:path.join(out,'selected-'+size.width+'.png')});
+ }
+ evidence.success=true;
+}catch(error){evidence.success=false;evidence.failures.push(error.stack);if(page)await page.screenshot({path:path.join(out,'failure.png')});}
+finally{await writeFile(path.join(out,'evidence.json'),JSON.stringify(evidence,null,2));if(app)await app.close();await new Promise(resolve=>server.close(resolve));}
+console.log(JSON.stringify({...evidence,out},null,2));if(!evidence.success)process.exitCode=1;

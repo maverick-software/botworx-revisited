@@ -1,0 +1,8 @@
+import React,{useState} from 'react';import {createRoot} from 'react-dom/client';
+import {AgentEditor} from '../../desktop/ui/AgentSettings';import PluginManager from '../../desktop/ui/PluginManager';import '../../desktop/ui/style.css';
+declare const __AGENT_APP_FIXTURE__:any;
+const config=__AGENT_APP_FIXTURE__;
+Object.assign(window,{agentopia:{call:async(action:string,args:any={})=>{const response=await fetch('/rpc',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action,args})}),body=await response.json();if(!response.ok)throw Error(body.error);return body;}}});
+document.documentElement.dataset.theme='light';
+function Fixture(){const [open,setOpen]=useState(true),[error,setError]=useState(''),[agent,setAgent]=useState(config.agents[0]);return <><header aria-label="Desktop navigation" style={{height:32}}>Agentopia controlled application</header><div className="workspace-columns"><textarea aria-label="Background chat draft" defaultValue="Keep this unsent draft"/></div>{error&&<p role="alert">{error}</p>}{new URLSearchParams(location.search).has('global')?<PluginManager agents={config.agents} admin edit={()=>{}}/>:open?<AgentEditor agent={agent} defaultModel="fixture-model" connections={null} run={async task=>{try{await task();}catch(error){setError((error as Error).message);}}} close={()=>setOpen(false)} saved={async()=>{const agents=await window.agentopia.call<any[]>('agents.list');setAgent(agents.find(row=>row.id===agent.id)!);}} administrator preview={()=>setOpen(false)}/>:<button onClick={()=>setOpen(true)}>Reopen editor</button>}</>;}
+createRoot(document.getElementById('root')!).render(<Fixture/>);

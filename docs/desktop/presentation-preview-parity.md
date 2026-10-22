@@ -1,0 +1,17 @@
+# Formatted PowerPoint preview — source acceptance
+
+Later October 19: **This preview is now installed and verified in 0.44.47 office-preview-3.** The following records the earlier source checkpoint. [Installed acceptance and remaining limits](office-preview-installed-0.44.47.md).
+
+October 19, 2026. Production remains **0.44.47 UI correction 2**. The presentation changes described here are tested source and have **not been installed**. The top-left task/project mode switch and account button in the narrow left rail are already installed; their acceptance is recorded in [workspace navigation](workspace-navigation-parity.md).
+
+The actual ChatGPT Desktop comparison displayed the sample PowerPoint as a white slide, with its original presentation order and a compact title, Request edits, Fit, presentation and download toolbar. Its spreadsheet comparison displayed column letters, row numbers, a formula bar and named sheet tabs. Agentopia's installed presentation and spreadsheet viewers still show extracted content. The source change now renders PowerPoint slides; the formatted spreadsheet viewer remains to be implemented.
+
+The new preview uses pinned `@aiden0z/pptx-renderer` 1.4.0 inside the existing isolated document frame. The frame has no application bridge, blocks external media and limits archive entries, expanded bytes, media and slide count. Only an authorized visual workspace read receives original presentation bytes. Model context continues to receive extracted text. Existing account ownership and permission checks remain enforced.
+
+Eight interface checks pass: slide order, navigation, images/text/tables/charts, zoom/Fit, original-file action routing, blocked external media, extracted fallback and damaged-file handling. Seven document/backend checks pass, including authorized original-byte delivery and refusal for another account. Seventeen Word/PDF/menu/settings regression checks pass. Three dependency-guard checks pass. These are local checks with no model requests or production-data access.
+
+A generated two-slide deck was also exported read-only by installed Microsoft PowerPoint and compared with the browser preview. This exposed cropped Fit margins, an opaque chart background and darkened default column colors. The margins and transparency are corrected. A build transform corrects the palette only for the exact dependency hash and refuses changed dependency bytes or a skipped transform. Apache notices and the modification record are included by the packaging script. The settled comparison preserves slide geometry and the sampled native chart colors. This is evidence for that deck, not a guarantee for every PowerPoint feature.
+
+Evidence: `.supabase/desktop-presentation-ui/1792461077643/` contains interface/backend/guard receipts, screenshots, the read-only PowerPoint export, resize measurements and the frozen source manifest. Word/PDF/menu regression receipt: `.supabase/desktop-ui-parity/1792461197481/evidence.json`.
+
+Remaining work includes the formatted spreadsheet grid, formula bar and sheet tabs; presentation mode; a real edit-and-refresh workflow; and broader Office fidelity. Request edits and download were checked with local callbacks, so a fresh model-driven PowerPoint edit is not claimed. The next full release must include the backend original-byte path, current UI corrections, renderer licenses and checked restore helper, then pass packaging, recovery and installed-app checks. The broader parity and persistent workspace-agent goal remains active.

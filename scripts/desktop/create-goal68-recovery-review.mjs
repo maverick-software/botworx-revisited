@@ -1,0 +1,14 @@
+import {readFile,writeFile} from 'node:fs/promises';
+import path from 'node:path';
+let text=await readFile(path.join(import.meta.dirname,'review-autonomous-goal68.mjs'),'utf8');
+text=text.replaceAll("'.supabase/desktop-autonomous-goal68'", "'.supabase/desktop-autonomous-goal68-recovery66'");
+text=text.replace("assert(e.agentPolicyMaxTurns,10)","assert(e.profile.policy.maxTurns,10)").replace('assert.equal(e.agentPolicyMaxTurns,10)','assert.equal(e.profile.policy.maxTurns,10)');
+text=text.replace('e.modelRequests<=80','e.modelRequests<=68').replace('e.network.tools.length,44','e.network.tools.length,38');
+text=text.replace("const writes=e.network.tools.filter(row=>row.name==='write_file');", "const original=await json(e.originalEvidence);assert.equal(await hash(e.originalEvidence),e.originalEvidenceSha256);assert.equal(original.cleanup.tools.length,6);const writes=[...original.cleanup.tools,...e.network.tools].filter(row=>row.name==='write_file');assert.equal(e.files[0].sha256,e.originalFirstHash);assert.equal(e.network.tools[0].name,'write_file');assert.equal(e.network.tools[0].stage,2);assert(e.httpRequests.length===9&&e.httpRequests.every(row=>Number(row.path.split('/').at(-1))>=3));assert.equal(new Set(e.httpRequests.map(row=>row.path)).size,9);assert.equal(e.native.thread_id,e.originalThread);");
+text=text.replace("const completed=e.network.events.filter", "assert(compacted.filter(row=>Date.parse(row.timestamp)>=Date.parse(e.startedAt)).length>=2);const completed=e.network.events.filter");
+text=text.replace("new Set(e.network.events.filter(row=>row.method==='turn/started')", "new Set([...original.cleanup.events,...e.network.events].filter(row=>row.method==='turn/started')");
+text=text.replace('actualHostTools:44','actualHostTools:44,newHostTools:38,priorHostTools:6,originalModelRequests:12,totalActualModelRequests:12+e.modelRequests');
+text=text.replace('oneGoalStart:true','oneOriginalStartAndOneRecoveryResume:true,uninterruptedElevenStageClaim:false,originalGoalAndNativeThreadPreserved:true,originalFirstReceiptUnchanged:true,completedSourcesAndWritesNotRepeated:true');
+text=text.replace("'This verifies this finite eleven-stage autonomous assignment;", "'This verifies recovery of the same finite eleven-stage assignment after a code fix and resume;");
+await writeFile(path.join(import.meta.dirname,'review-autonomous-goal68-recovery.mjs'),text,{flag:'wx'});
+console.log('Recovery review generated.');

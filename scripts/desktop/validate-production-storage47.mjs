@@ -1,0 +1,30 @@
+// Compare the saved encrypted values with a recovery slice at the real target.
+import {readFile,writeFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {desktopOperation} from './operation-lock.mjs';
+import {closed} from './phased-backup-control.mjs';
+import {launchStoragePreflight} from './launch-storage-preflight.mjs';
+desktopOperation('read actual staged47 Windows encrypted storage');await closed();
+const root=path.resolve(import.meta.dirname,'../..'),sha=b=>createHash('sha256').update(b).digest('hex'),json=async file=>JSON.parse(await readFile(file,'utf8')),exec=promisify(execFile);
+const pointer=await json(path.join(root,'.supabase/desktop-profile-location/production47-current.json')),cfg=await json(pointer.intent);assert.equal(sha(await readFile(pointer.intent)),pointer.intentSha256);
+const planFile=path.join(cfg.out,'plan.json'),plan=await json(planFile),storage=await json(cfg.storageQualification),out=path.dirname(cfg.storageProgram),home=path.join(out,'home'),appData=path.join(home,'AppData/Roaming');
+assert.equal(plan.target,cfg.target);assert(storage.success&&storage.version===cfg.version&&storage.imageSha256===cfg.installedArchiveSha256);
+for(const [name,digest]of Object.entries(storage.sourceHashes))assert.equal(sha(await readFile(path.join(root,'scripts/desktop',name))),digest);
+assert.equal(sha(await readFile(path.join(cfg.storageProgram,'resources/app.asar'))),cfg.installedArchiveSha256);
+const python=path.join(cfg.storageProgram,'resources/resources/script-runtimes/python-3.14.8/python.exe');
+let source;
+try{source=await json(path.join(out,'production-source-read/evidence.json'));assert(source.success&&source.imageSha256===cfg.installedArchiveSha256&&source.result.version===cfg.version);const extraction=await json(path.join(out,'production47-extraction.json'));assert(extraction.success&&path.resolve(extraction.profile).toLowerCase()===path.join(out,'profiles/recovery-source-production47').toLowerCase());}catch(error){if(error.code!=='ENOENT')throw error;const extract=await exec(python,['-B',path.join(root,'scripts/desktop/extract-production-storage47.py'),out],{windowsHide:true,encoding:'utf8',timeout:120000,maxBuffer:1024*1024});await writeFile(path.join(cfg.out,'encrypted-extraction.log'),extract.stdout+extract.stderr,{flag:'wx'});}
+const base={out,home,appData,exe:path.join(cfg.storageProgram,'Agentopia.exe'),imageSha256:cfg.installedArchiveSha256,marker:'production47-read-only'};
+source??=await launchStoragePreflight({...base,profile:path.join(out,'profiles/recovery-source-production47'),label:'production-source-read'});
+assert(source.success&&source.result.hasSavedSession&&source.result.credentialRecords>0);
+await closed();
+const target=await launchStoragePreflight({...base,profile:cfg.target,label:'production-target-read',migrationPlanFile:planFile,migrationPlanSha256:sha(await readFile(planFile)),expectedCredentialValuesSha256:source.result.credentialValuesSha256,expectedCookieValuesSha256:source.result.cookieValuesSha256});
+assert(target.success&&target.result.hasSavedSession&&target.result.credentialRecords===source.result.credentialRecords&&target.result.cookiesRead===source.result.cookiesRead);
+assert.equal(path.resolve(target.result.profile).toLowerCase(),path.resolve(cfg.target).toLowerCase());assert.equal(target.result.version,cfg.version);await closed();
+const evidence={success:true,at:new Date().toISOString(),profile:cfg.target,version:cfg.version,imageSha256:cfg.installedArchiveSha256,credentialsDecrypted:true,savedSessionPreserved:true,credentialRecords:target.result.credentialRecords,cookiePartitions:target.result.cookiePartitions.length,cookiesRead:target.result.cookiesRead,credentialFingerprintsMatch:true,cookieFingerprintsMatch:true,providerRequests:0,windowsOpened:0,backendStarted:false,sourceEvidence:path.join(out,'production-source-read/evidence.json'),targetEvidence:path.join(out,'production-target-read/evidence.json')};
+for(const key of ['sourceEvidence','targetEvidence'])evidence[key+'Sha256']=sha(await readFile(evidence[key]));
+await writeFile(path.join(cfg.out,'encryptedEvidence.json'),JSON.stringify(evidence,null,2),{flag:'wx'});console.log(JSON.stringify(evidence));

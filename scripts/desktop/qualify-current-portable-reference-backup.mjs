@@ -1,0 +1,17 @@
+import {readFile,writeFile,mkdir,realpath} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import path from 'node:path';
+import os from 'node:os';
+import assert from 'node:assert/strict';
+import {desktopOperation} from './operation-lock.mjs';
+import {hash} from './phased-backup-control.mjs';
+import {capturePublicOutputs,inventoryPublicOutputs} from './public-output-recovery.mjs';
+import {capturePortablePublicReferences} from './portable-public-reference-backup.mjs';
+desktopOperation('qualify automatic attachment identity capture from accepted recovery');
+const root=path.resolve(import.meta.dirname,'../..'),json=async file=>JSON.parse(await readFile(file,'utf8')),accepted=await json(path.join(root,'.supabase/desktop-recovery-bootstrap/reopened.json')),out=path.resolve(accepted.recovery),checkpoint=await json(path.join(out,'ui-recovery.json'));
+assert(accepted.success&&accepted.normalReopeningPassed&&accepted.allSavedDataPreserved&&accepted.tablesCompared===126);assert.equal((await realpath(out)).toLowerCase(),out.toLowerCase());assert.equal(path.dirname(out),path.resolve('D:/Users/charl/AgentopiaRecovery/recovery-bootstrap-15'));assert(checkpoint.success);assert.equal(await hash(checkpoint.profileArchive),checkpoint.profileArchiveSha256);
+const installed='C:/Users/charl/AppData/Local/AgentopiaDesktop/app-0.44.47/resources/app.asar';assert.equal(await hash(installed),accepted.imageSha256);
+const source=path.join(os.homedir(),'Agentopia Files'),before=await inventoryPublicOutputs(source),captured=await capturePublicOutputs(source,path.join(out,'public-outputs.tar.gz'),{headroomBytes:512*1024**2,maxCompressedBytes:32*1024**2}),outputs={...captured,privateProfileArchiveSha256:checkpoint.profileArchiveSha256,logicalManifestSha256:await hash(path.join(out,'current-database-backup/manifest.json'))};await writeFile(path.join(out,'public-outputs.json'),JSON.stringify(outputs,null,2),{flag:'wx'});
+const result=await capturePortablePublicReferences({backupRoot:out,profileRecordFile:path.join(out,'private-profile.json'),publicRecordFile:path.join(out,'public-outputs.json'),accountRecordFile:path.join(out,'public-recovery-owners.json'),installedArchive:installed,expectedArchiveSha256:accepted.imageSha256,electronExecutable:path.join(root,'node_modules/electron/dist/electron.exe')});
+assert.deepEqual(await inventoryPublicOutputs(source),before);assert.equal(await hash(checkpoint.profileArchive),checkpoint.profileArchiveSha256);assert.equal(await hash(installed),accepted.imageSha256);
+const evidence={success:true,at:new Date().toISOString(),out,realInstalledModulesUsed:true,isolatedCopiedCredentialContext:true,accounts:result.accounts,references:result.references,publicFiles:captured.fileCount,originalProfileArchiveUnchanged:true,publicSourceUnchanged:true,productionArchiveUnchanged:true,productionWrites:0,providerRequests:0,fullColdBackupRun:false,fullApplicationRecoveryProven:false,receipt:path.join(out,'public-reference-index.json')};await writeFile(path.join(out,'automatic-reference-capture.json'),JSON.stringify(evidence,null,2),{flag:'wx'});const records=path.join(root,'.supabase/desktop-portable-reference-backup');await mkdir(records,{recursive:true});await writeFile(path.join(records,'current.json'),JSON.stringify({success:true,out,evidence:path.join(out,'automatic-reference-capture.json'),receipt:evidence.receipt},null,2));console.log(JSON.stringify(evidence));

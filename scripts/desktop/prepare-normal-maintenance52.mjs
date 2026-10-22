@@ -1,0 +1,31 @@
+import assert from 'node:assert/strict';
+import {readFile,writeFile} from 'node:fs/promises';
+import path from 'node:path';
+import {desktopOperation} from './operation-lock.mjs';
+import {hash} from './phased-backup-control.mjs';
+
+desktopOperation('prepare verified 0.44.51 to 0.44.52 maintenance');
+const root=path.resolve(import.meta.dirname,'../..'),dir=path.join(root,'scripts/desktop'),json=async file=>JSON.parse(await readFile(file,'utf8'));
+const pointer=await json(path.join(root,'.supabase/desktop-composio-candidate52/current.json')),proof=await json(pointer.proof),base=await json(proof.acceptedBase),made=await json(path.join(proof.out,'installer-readiness.json'));
+assert(proof.success&&made.success&&proof.version==='0.44.52'&&base.version==='0.44.51');
+assert((await json(path.join(proof.out,'capability10-restore-accepted.json'))).success);assert((await json(path.join(proof.out,'concurrent-agents-accepted.json'))).success);
+assert.equal(await hash(proof.image),proof.imageSha256);assert.equal(await hash(made.installer),made.installerSha256);
+const stamp=path.basename(proof.out);assert(/^\d{13}$/.test(stamp));
+const versions=s=>s.replaceAll('0.44.51','__NEXT_VERSION__').replaceAll('0.44.50','0.44.51').replaceAll('__NEXT_VERSION__','0.44.52');
+const common=s=>s.replaceAll('51.mjs','52.mjs').replaceAll('51.py','52.py').replaceAll('qualified51','qualified52').replaceAll('scope51','scope52').replaceAll('update51','update52').replaceAll('Update51.cmd','Update52.cmd').replaceAll('capability9','capability10').replaceAll('capability-9','capability-10').replaceAll('application-scope51','application-scope52');
+const read=name=>readFile(path.join(dir,name),'utf8'),save=(name,value)=>writeFile(path.join(dir,name),value,{flag:'wx'});
+let s=common(await read('maintenance-update-command51.mjs'));s=s.replaceAll(String.raw`desktop-release-04451\\1792554001993`,String.raw`desktop-composio-candidate52\\${stamp}`);await save('maintenance-update-command52.mjs',s);
+for(const name of ['test-maintenance-update-command51.mjs','test-maintenance-program51.mjs','test-maintenance-existing-runtime51.py']){s=common(await read(name));s=s.replaceAll('desktop-release-04451','desktop-composio-candidate52');await save(name.replace('51.','52.'),s);}
+s=versions(await read('maintenance-program-rollback51.mjs'));s=s.replaceAll('5d2161f97a06087c37244264938324f6c121f85116996f2d6c2598e5c92c24d7',base.imageSha256).replaceAll('desktop-release-04450/1792545647151','desktop-release-04451/1792554001993');await save('maintenance-program-rollback52.mjs',s);
+s=(await read('maintenance-existing-runtime51.py')).replaceAll('desktop-release-04451','desktop-composio-candidate52');await save('maintenance-existing-runtime52.py',s);
+s=versions(await read('verify-maintenance-installation51.py'));await save('verify-maintenance-installation52.py',s);
+s=(await read('verify-maintenance-portable51.py')).replace("descriptor['requiresDesktopRecoveryFormat']==9","descriptor['requiresDesktopRecoveryFormat']==10");await save('verify-maintenance-portable52.py',s);
+s=common(versions(await read('run-normal-maintenance51.mjs'))).replaceAll('desktop-release-04451/1792554001993','desktop-composio-candidate52/'+stamp);
+s=s.replace(/const currentSha=.*?;/,`const currentSha=${JSON.stringify(base.imageSha256)},nextSha=${JSON.stringify(proof.imageSha256)},setupSha=${JSON.stringify(made.installerSha256)};`);
+s=s.replace("path.join(release,'database-upgrade-accepted.json')","path.join(release,'composio-application-qualification.json')");
+s=s.replace("'The capability-9 full application restore is required before installation.'","'The capability-10 full application restore is required before installation.'");
+await save('run-normal-maintenance52.mjs',s);
+s=common(versions(await read('qualify-normal-maintenance51.mjs'))).replaceAll('desktop-release-04451/1792554001993','desktop-composio-candidate52/'+stamp).replaceAll('portableCapability===9','portableCapability===10').replaceAll('launcher-batch-test51.log','launcher-batch-test52.log');await save('qualify-normal-maintenance52.mjs',s);
+s=common(versions(await read('request-normal-shutdown51.mjs'))).replaceAll('desktop-release-04450/1792545647151','desktop-release-04451/1792554001993').replaceAll('ordinary50','ordinary51');await save('request-normal-shutdown52.mjs',s);
+s=versions(await readFile(path.join(root,'Run-Agentopia-Settings-Update51.cmd'),'utf8')).replaceAll('maintenance51.mjs','maintenance52.mjs');await writeFile(path.join(root,'Run-Agentopia-Settings-Update52.cmd'),s,{flag:'wx'});
+console.log(JSON.stringify({success:true,version:proof.version,base:base.version,installerInvoked:false,productFilesChanged:false}));

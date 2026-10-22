@@ -1,0 +1,13 @@
+# Live image understanding in the ordinary application
+
+On October 19, the physically installed 0.44.24/schema67 application sent one new image question through the connected ChatGPT OAuth account and actual Codex 0.163.0 harness. A generated PNG contained four panels with randomized shape/color assignments, counts and independent four-letter labels. The prompt requested those visual facts without supplying their values. The image had no answer-bearing metadata, and its expected values were saved separately outside the selected context.
+
+The model returned all 16 requested color/shape/count/label values correctly. PostgreSQL records prove one submitted user message and one completed native request, ChatGPT provider, GPT-6.1 Sol model and native thread/turn identities. The saved message contains exactly the generated PNG bytes by SHA256. The native trace contains user message, reasoning and assistant response items, with no tools. No OpenRouter inference or image-generation API was used.
+
+The test used the ordinary Windows file picker and Send flow, without an extra file-sharing approval. After completion the user message displays its image thumbnail. A separate chat preserved the original conversation's unsent pasted-image draft. This establishes genuine visual understanding for this simple novel fixture on this installed model. It does not establish all image types/resolutions, unsupported models, child visual context, OCR of every document, or image generation.
+
+Saved request: `13f27724-8e3d-4fca-9435-e467e612d160`; conversation: `1e25ab8d-06b2-47ce-ae51-be9475e59ea3`.
+
+Evidence: `.supabase/desktop-vision-live/1792371918104/intent.json` and `acceptance.json`. The completed request must be preserved and must not be sent again. A receipt-reader Windows-path basename error was corrected for the Linux read-only audit; no inference was repeated.
+
+The ordinary account and original draft are preserved. Refreshed recovery backup `candidate-04429/upgrade-backup-1792372277969` preserves 3,450 ordinary-profile files, 3,051 overlay-profile files, five logical database files and a 5,766,119,424-byte cold disk. A separate archive read verifies the exact submitted PNG, completed answer and native thread/turn inside the backup, without starting database services. Actual Explorer shortcut reopening restores the signed-in administrator and original image draft. A read-only follow-up confirms the same completed request ID/timestamps, answer, image bytes and native thread/turn. The ordinary database now contains two accounts, 105 conversations and 360 messages, with no running requests or goals. Evidence: `cold-reopen-acceptance.json`. Candidate 29 remains uninstalled and unchanged.

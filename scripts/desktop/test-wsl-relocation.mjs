@@ -1,0 +1,34 @@
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import {mkdir,writeFile,readFile,realpath} from 'node:fs/promises';
+import path from 'node:path';
+import {randomUUID,createHash} from 'node:crypto';
+import assert from 'node:assert/strict';
+import {desktopOperation} from './operation-lock.mjs';
+desktopOperation('disposable WSL export/import relocation verification');
+const exec=promisify(execFile),root=path.resolve(import.meta.dirname,'../..'),id=randomUUID(),name='AgentopiaRelocationProbe-'+id.slice(0,8),out=path.join(root,'.supabase/desktop-standalone','wsl-probe-'+id),initial=path.join(out,'initial'),moved=path.join(out,'relocated'),archive=path.join(out,'probe.tar'),wsl=path.join(process.env.SystemRoot,'System32/wsl.exe'),powershell=path.join(process.env.SystemRoot,'System32/WindowsPowerShell/v1.0/powershell.exe');
+await mkdir(out,{recursive:true});assert.equal(await realpath(out),out);
+const evidence={at:new Date().toISOString(),distribution:name,output:out,inference:false,originalRuntimeMoved:false,phase:'preparing'};
+const save=async()=>writeFile(path.join(out,'evidence.json'),JSON.stringify(evidence,null,2));
+const decode=b=>(b.includes(0)?b.toString('utf16le'):b.toString('utf8')).replace(/^\uFEFF/,'').trim();
+const run=async(args)=>{try{const result=await exec(wsl,args,{encoding:'buffer',windowsHide:true,timeout:60000,maxBuffer:1024*1024});return decode(result.stdout);}catch(error){throw new Error(error.stdout?.length?decode(error.stdout):error.message);}};
+const list=async(running=false)=>(await run(['--list',...(running?['--running']:[]),'--quiet'])).split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+const clone=name+'-Copy';
+const registeredPath=async(distro=name)=>{assert([name,clone].includes(distro));const command="$ErrorActionPreference='Stop';$OutputEncoding=[Console]::OutputEncoding=[Text.UTF8Encoding]::new();Get-ChildItem 'HKCU:/Software/Microsoft/Windows/CurrentVersion/Lxss'|ForEach-Object {$r=Get-ItemProperty $_.PSPath;if($r.DistributionName -eq '"+distro+"'){[pscustomobject]@{name=$r.DistributionName;path=$r.BasePath;version=$r.Version}|ConvertTo-Json -Compress}}";const result=await exec(powershell,['-NoProfile','-NonInteractive','-Command',command],{encoding:'utf8',windowsHide:true,timeout:15000});assert(result.stdout.trim(),'Probe registration not found');return JSON.parse(result.stdout.replace(/^\uFEFF/,''));};
+const canonical=value=>path.win32.normalize(value.replace(/^\\\\\?\\/, '')).toLowerCase();
+const ownPath=value=>{const relative=path.win32.relative(canonical(out),canonical(value));assert(relative&&!relative.startsWith('..')&&!path.win32.isAbsolute(relative),'Probe storage escaped its output directory');};
+const before=await list(),running=await list(true);assert(!before.includes(name)&&!before.includes(clone));assert(before.includes('AgentopiaRuntime'));evidence.before={distributions:before,running};evidence.method='export-import';evidence.wslVersion=await run(['--version']);await save();
+const archiveLinux='/mnt/'+archive[0].toLowerCase()+archive.slice(2).replaceAll('\\','/'),receipt='AGENTOPIA-WSL-MOVE-'+id;
+const python=`import io,json,os,re,subprocess,tarfile\narchive=${JSON.stringify(archiveLinux)}\nfiles=set(['/bin/sh','/bin/cat','/usr/bin/id'])\nfor executable in list(files):\n text=subprocess.check_output(['ldd',executable],text=True)\n files.update(re.findall(r'(/[^\\s()]+)',text))\nwith tarfile.open(archive,'w',dereference=True) as output:\n for file in sorted(files):output.add(file,arcname=file.lstrip('/'),recursive=False)\n for name,content in {'etc/passwd':'root:x:0:0:root:/root:/bin/sh\\n','etc/group':'root:x:0:\\n','etc/wsl.conf':'[boot]\\nsystemd=false\\n[user]\\ndefault=root\\n[interop]\\nenabled=false\\nappendWindowsPath=false\\n','etc/os-release':'NAME=AgentopiaRelocationProbe\\nID=agentopia-relocation-probe\\n','etc/agentopia-probe':${JSON.stringify(receipt)}}.items():\n  data=content.encode();info=tarfile.TarInfo(name);info.size=len(data);info.mode=0o644;output.addfile(info,io.BytesIO(data))\nprint(json.dumps({'files':len(files)}))`;
+try{
+ evidence.rootfs=JSON.parse(await run(['-d','AgentopiaRuntime','-u','agentopia','--exec','python3','-c',python]));evidence.archiveBytes=(await readFile(archive)).length;
+ await run(['--import',name,initial,archive,'--version','2']);evidence.phase='imported';evidence.initialRegistration=await registeredPath();ownPath(evidence.initialRegistration.path);assert.equal(canonical(evidence.initialRegistration.path),canonical(initial));await save();
+ const check=async(distro)=>{const value=await run(['-d',distro,'-u','root','--exec','/bin/sh','-c','/bin/cat /etc/agentopia-probe; /usr/bin/id -u']);assert.equal(value,receipt+'0');return createHash('sha256').update(value).digest('hex');};
+ evidence.beforeReceipt=await check(name);await run(['--terminate',name]);evidence.phase='exporting';await save();
+ // Export/import retains the original registration until the copied data is
+ // verified. It also works while another distribution keeps the WSL VM alive.
+ ownPath(initial);ownPath(moved);assert.equal(evidence.initialRegistration.name,name);const snapshot=path.join(out,'export.tar');await run(['--export',name,snapshot]);evidence.phase='importing-copy';await save();await run(['--import',clone,moved,snapshot,'--version','2']);evidence.phase='copied';evidence.movedRegistration=await registeredPath(clone);ownPath(evidence.movedRegistration.path);assert.equal(canonical(evidence.movedRegistration.path),canonical(moved));await save();
+ evidence.afterReceipt=await check(clone);assert.equal(evidence.afterReceipt,evidence.beforeReceipt);evidence.afterRunning=await list(true);for(const other of running)assert(evidence.afterRunning.includes(other),'An unrelated running distribution stopped: '+other);
+ for(const [distro,expected] of [[clone,moved],[name,initial]]){const finalRegistration=await registeredPath(distro);ownPath(finalRegistration.path);assert.equal(canonical(finalRegistration.path),canonical(expected));assert.equal(finalRegistration.name,distro);await run(['--unregister',distro]);}
+ evidence.afterDistributions=await list();assert(!evidence.afterDistributions.includes(name)&&!evidence.afterDistributions.includes(clone));for(const other of before)assert(evidence.afterDistributions.includes(other));for(const other of running)assert((await list(true)).includes(other));evidence.probeRemoved=true;evidence.phase='completed';evidence.success=true;await save();console.log(JSON.stringify({success:true,method:evidence.method,output:out,archiveBytes:evidence.archiveBytes,receiptPreserved:true,unrelatedRunningPreserved:true,probeRemoved:true}));
+}catch(error){evidence.error=error.message;evidence.success=false;await save();throw new Error('The disposable WSL relocation probe stopped. Inspect its evidence before recovery or another run: '+out,{cause:error});}

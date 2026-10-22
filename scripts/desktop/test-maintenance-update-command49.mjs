@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {maintenanceUpdateCommand,installedUpdater} from './maintenance-update-command49.mjs';
+const releaseDirectory='F:/Agentopia/.supabase/desktop-release-04449/1792536883499/installer-build-short/output',temp='F:/Agentopia-Tmp/update49-1792533477486';
+const command=maintenanceUpdateCommand({releaseDirectory,temp,environment:{ELECTRON_RUN_AS_NODE:'1',AGENTOPIA_TEST_PROFILE:'wrong',NODE_OPTIONS:'--inspect',KEEP:'yes'}});
+assert.equal(command.exe,installedUpdater);assert.deepEqual(command.args,['--update',releaseDirectory.replaceAll('/','\\')]);
+assert.equal(command.env.TEMP,temp.replaceAll('/','\\'));assert.equal(command.env.TMP,command.env.TEMP);assert.equal(command.env.SQUIRREL_TEMP,command.env.TEMP);assert.equal(command.env.KEEP,'yes');
+for(const key of ['ELECTRON_RUN_AS_NODE','AGENTOPIA_TEST_PROFILE','NODE_OPTIONS'])assert(!Object.hasOwn(command.env,key));
+for(const invalid of ['C:/temp','F:/Agentopia-Tmp/update49-../bad','F:/Agentopia-Tmp/update49-1792533477486/nested'])assert.throws(()=>maintenanceUpdateCommand({releaseDirectory,temp:invalid}));
+assert.throws(()=>maintenanceUpdateCommand({releaseDirectory:'F:/other-release',temp}));
+console.log(JSON.stringify({success:true,checks:13,installedRootSelectedByUpdaterLocation:true,setupBootstrapperNotUsed:true,shortFDriveScratch:true}));

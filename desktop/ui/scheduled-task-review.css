@@ -1,0 +1,12 @@
+.scheduled-tool-review{display:grid;gap:12px;font-size:13px;line-height:1.5;min-width:0}
+.scheduled-tool-review strong{overflow-wrap:anywhere}
+.scheduled-tool-review dl{margin:0;display:grid;gap:6px}
+.scheduled-tool-review dl>div{display:grid;grid-template-columns:minmax(100px,150px) minmax(0,1fr);gap:12px}
+.scheduled-tool-review dt{color:var(--muted)}
+.scheduled-tool-review dd{margin:0;overflow-wrap:anywhere}
+.scheduled-review-instructions{white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--input)}
+.scheduled-tool-review p{margin:0}
+.scheduled-tool-review ul{margin:8px 0;padding-left:20px;overflow-wrap:anywhere}
+.scheduled-tool-receipt{display:grid;gap:6px;font-size:13px;overflow-wrap:anywhere}
+.scheduled-tool-receipt p{margin:0}
+@media(max-width:600px){.scheduled-tool-review dl>div{grid-template-columns:110px minmax(0,1fr);gap:8px}}

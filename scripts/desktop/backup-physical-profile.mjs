@@ -1,0 +1,47 @@
+import {readFile,writeFile,mkdir,copyFile,stat} from 'node:fs/promises';
+import {createReadStream} from 'node:fs';
+import {execFile,execFileSync} from 'node:child_process';
+import {promisify} from 'node:util';
+import {createHash} from 'node:crypto';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {desktopOperation} from './operation-lock.mjs';
+desktopOperation('complete physical profiles and cold runtime backup');
+const root=path.resolve(import.meta.dirname,'../..'),exec=promisify(execFile),backupName=process.argv[2];
+assert(/^\d{4}-\d{2}-\d{2}T[\d-]+\.\d{3}Z-manual$/.test(backupName));
+const json=async file=>JSON.parse(await readFile(file,'utf8')),linux=value=>'/mnt/'+value[0].toLowerCase()+value.slice(2).replaceAll('\\','/');
+const closed=()=>assert.equal(execFileSync('powershell.exe',['-NoProfile','-NonInteractive','-Command','@(Get-Process Agentopia,AgentopiaSetup -ErrorAction SilentlyContinue).Count'],{encoding:'utf8',windowsHide:true}).trim(),'0');
+const decode=bytes=>(bytes.includes(0)?bytes.toString('utf16le'):bytes.toString('utf8')).replace(/^\uFEFF/,'');
+const run=async(args,timeout=60000)=>{const result=await exec('wsl.exe',args,{windowsHide:true,encoding:'buffer',timeout,maxBuffer:8*1024*1024});return decode(result.stdout).trim();};
+const list=async running=>(await run(['--list',...(running?['--running']:[]),'--quiet'])).split(/\r?\n/).map(s=>s.trim()).filter(Boolean).sort();
+const original=await json(path.join(root,'.supabase/desktop-maintenance-0437/update.json'));assert(original.success&&original.version==='0.43.7');
+const release=await json(path.join(root,'.supabase/desktop-plugin-updates/candidate-0448/release-proof.json'));assert(release.success&&!release.installed);
+closed();const before={registered:await list(false),running:await list(true)};assert(!before.running.includes(original.distribution)&&!before.running.includes('AgentopiaRuntime'));
+const registrations=JSON.parse(execFileSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',"$OutputEncoding=[Console]::OutputEncoding=[Text.UTF8Encoding]::new();@(Get-ChildItem 'HKCU:/Software/Microsoft/Windows/CurrentVersion/Lxss'|ForEach-Object {$r=Get-ItemProperty -LiteralPath $_.PSPath;@{name=$r.DistributionName;path=$r.BasePath}})|ConvertTo-Json -Compress"],{encoding:'utf8',windowsHide:true}));
+const normalize=value=>path.win32.normalize(value.replace(/^\\\\\?\\/,'')),bound=registrations.find(row=>row.name===original.distribution),retained=registrations.find(row=>row.name==='AgentopiaRuntime');assert(bound&&retained);
+assert.equal(normalize(bound.path).toLowerCase(),path.join(original.ordinaryProfile,'wsl').toLowerCase());
+const overlay=path.dirname(normalize(retained.path));assert(overlay.toLowerCase().endsWith('\\openai.codex_2p2nqsd0c76g0\\localcache\\roaming\\agentopia'));
+const parent=path.join(root,'.supabase/desktop-installed-0448'),out=path.join(parent,'physical-backup-'+Date.now());await mkdir(parent,{recursive:true});
+const sid=execFileSync('powershell.exe',['-NoProfile','-NonInteractive','-Command','[Security.Principal.WindowsIdentity]::GetCurrent().User.Value'],{encoding:'utf8',windowsHide:true}).trim();assert(/^S-1-5-[0-9-]+$/.test(sid));
+execFileSync('icacls.exe',[parent,'/inheritance:r','/grant:r','*'+sid+':(OI)(CI)F','*S-1-5-18:(OI)(CI)F','/Q'],{windowsHide:true,stdio:'ignore'});await mkdir(out);
+const binding=await json(path.join(original.ordinaryProfile,'runtime-binding.json'));assert.equal(binding.distribution,original.distribution);
+const cfg={at:new Date().toISOString(),backupName,distribution:binding.distribution,instanceId:binding.instanceId,roots:{ordinary:{windows:original.ordinaryProfile,linux:linux(original.ordinaryProfile)},overlay:{windows:overlay,linux:linux(overlay)}},before,registrations,out,installed:false,productionMigrated:false,providerRequests:0};
+await writeFile(path.join(out,'intent.json'),JSON.stringify(cfg,null,2),{flag:'wx'});await copyFile(path.join(root,'scripts/desktop/backup-physical-profile.py'),path.join(out,'backup.py'));
+const evidence={...cfg,success:false};let started=false;
+try{
+ closed();started=true;
+ const output=await run(['-d',binding.distribution,'-u','agentopia','--exec','python3',linux(path.join(out,'backup.py')),linux(out)],900000);
+ await writeFile(path.join(out,'copy.log'),output);
+ evidence.files=await json(path.join(out,'files-evidence.json'));assert(evidence.files.success);
+ await run(['--terminate',binding.distribution]);started=false;closed();assert.deepEqual(await list(true),before.running);
+ const image=path.join(out,'runtime.vhdx');evidence.phase='exporting';await writeFile(path.join(out,'evidence.json'),JSON.stringify(evidence,null,2));
+ const exported=await run(['--export',binding.distribution,image,'--format','vhd'],600000);await writeFile(path.join(out,'export.log'),exported);
+ closed();assert.deepEqual(await list(true),before.running);assert.deepEqual(await list(false),before.registered);
+ const h=createHash('sha256');for await(const bytes of createReadStream(image))h.update(bytes);
+ evidence.image={file:image,bytes:(await stat(image)).size,sha256:h.digest('hex'),sourceDistribution:binding.distribution,sourceRegistrationVerified:true};
+ assert(evidence.image.bytes>1024*1024*1024);evidence.phase='completed';evidence.success=true;
+ await writeFile(path.join(out,'evidence.json'),JSON.stringify(evidence,null,2));
+ await writeFile(path.join(parent,'latest-backup.json'),JSON.stringify({success:true,at:new Date().toISOString(),evidence:path.join(out,'evidence.json'),physicalProfiles:true,roots:cfg.roots,ordinaryCopy:path.join(out,'ordinary'),overlayCopy:path.join(out,'overlay'),runtimeImage:evidence.image,files:evidence.files.files,bytes:evidence.files.bytes,installed:false,productionMigrated:false},null,2));
+ console.log(JSON.stringify({success:true,evidence:path.join(out,'evidence.json'),files:evidence.files.files,bytes:evidence.files.bytes,imageBytes:evidence.image.bytes,providerRequests:0,installed:false},null,2));
+}catch(error){evidence.error=error.message;await writeFile(path.join(out,'evidence.json'),JSON.stringify(evidence,null,2));throw Error('Physical backup stopped; inspect '+out,{cause:error});}
+finally{if(started&&(await list(true)).includes(binding.distribution))await run(['--terminate',binding.distribution]);}

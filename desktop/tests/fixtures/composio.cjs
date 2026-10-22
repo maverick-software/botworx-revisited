@@ -1,0 +1,28 @@
+const {randomUUID}=require('node:crypto'),assert=require('node:assert/strict'),path=require('node:path');const build=process.env.AGENTOPIA_COMPOSIO_TEST_BUILD;if(!build)throw Error('Use the isolated Composio build.');const {ComposioClient}=require(path.join(build,'composio-client.js'));const {ComposioConnections}=require(path.join(build,'composio-connections.js'));
+const key='controlled-composio-key-not-a-credential';
+const toolkit=(slug='github')=>({slug,name:'GitHub',auth_schemes:['oauth2','api_key'],composio_managed_auth_schemes:['oauth2'],meta:{description:'Repository tools',tools_count:2,version:'20261020_00',categories:[{id:'developer-tools',name:'Developer tools'}],logo:'https://logos.composio.dev/github.png'},auth_config_details:[{mode:'OAUTH2',fields:{auth_config_creation:{required:[{name:'client_secret',displayName:'Client secret',is_secret:true,default:'must-not-leak',description:'Secret'}]},connected_account_initiation:{required:[]}}},{mode:'API_KEY',fields:{auth_config_creation:{required:[]},connected_account_initiation:{required:[{name:'api_key',is_secret:true,default:'must-not-leak'}]}}}]});
+const tool=(slug='GITHUB_LIST_REPOSITORIES',app='github')=>({slug,description:'List repositories',toolkit:{slug:app},version:'20261020_00',input_parameters:{type:'object',properties:{limit:{type:'integer',maximum:100}},additionalProperties:false},output_parameters:{type:'object',properties:{items:{type:'array'}},required:['items']},tags:['readOnlyHint']});
+const response=(value,status=200)=>new Response(JSON.stringify(value),{status,headers:{'content-type':'application/json'}});
+function fixture(){
+ const calls=[],accounts=new Map(),configs=new Map(),opened=[],values=new Map();let current=randomUUID(),owner=current,agent=randomUUID(),otherAgent=randomUUID(),network=false,status=200,openFails=false,hook;
+ const http=async(url,options)=>{url=new URL(url);const body=options.body?JSON.parse(options.body):undefined;calls.push({url,options,body});assert.equal(url.origin,'https://backend.composio.dev');assert.equal(options.redirect,'error');if(hook){const special=await hook(url,options,body);if(special)return special;}if(network)throw Error('network '+key);if(status!==200)return response({echoed_secret:key},status);
+  const route=url.pathname;
+  if(route==='/api/v3.1/toolkits')return response({items:[toolkit()],next_cursor:null,total_items:1});
+  if(route.startsWith('/api/v3.1/toolkits/'))return response(toolkit(decodeURIComponent(route.split('/').at(-1))));
+  if(route==='/api/v3.1/auth_configs'&&options.method==='POST'){const scheme=body.auth_config.type==='use_composio_managed_auth'?'OAUTH2':body.auth_config.authScheme,id='ac_'+(configs.size+1),config={toolkit:{slug:body.toolkit.slug},auth_config:{id,auth_scheme:scheme,is_composio_managed:scheme==='OAUTH2'}};configs.set(id,config);return response(config,201);}
+  if(route.startsWith('/api/v3.1/auth_configs/'))return response(configs.get(route.split('/').at(-1)));
+  if(route==='/api/v3.1/connected_accounts/link'){const id='ca_'+(accounts.size+1),config=configs.get(body.auth_config_id);accounts.set(id,{id,user_id:body.user_id,toolkit:config.toolkit,auth_config:config.auth_config,status:'INITIATED',state:{val:{access_token:'provider-secret-must-not-leak'}}});return response({connected_account_id:id,redirect_url:'https://connect.composio.dev/link/controlled_'+id,expires_at:new Date(Date.now()+600000).toISOString(),link_token:'must-not-be-returned'},201);}
+  if(route==='/api/v3.1/connected_accounts'&&options.method==='POST'){const id='ca_'+(accounts.size+1),config=configs.get(body.auth_config.id);accounts.set(id,{id,user_id:body.connection.user_id,toolkit:config.toolkit,auth_config:config.auth_config,status:'ACTIVE'});return response({id,status:'ACTIVE'},201);}
+  if(route.endsWith('/revoke')){accounts.get(route.split('/').at(-2)).status='REVOKED';return response({success:true});}
+  if(route.startsWith('/api/v3.1/connected_accounts/'))return response(accounts.get(route.split('/').at(-1)));
+  if(route==='/api/v3.1/tools')return response({items:[tool()],next_cursor:null});
+  if(route.startsWith('/api/v3.1/tools/execute/'))return response({successful:true,data:{items:['saved-result']},log_id:'log_controlled'});
+  if(route.startsWith('/api/v3.1/tools/'))return response(tool());
+  throw Error('Unexpected fixture route '+route);
+ };
+ const store={get:name=>values.has(name)?structuredClone(values.get(name)):undefined,setMany:async entries=>{for(const [name,value]of entries)value===undefined?values.delete(name):values.set(name,structuredClone(value));}};
+ const allowedAgents=new Set([agent]);const service=new ComposioConnections(store,async()=>current,async(o,a)=>{assert.equal(o,owner);if(!allowedAgents.has(a))throw Error('foreign or retired agent');},async url=>{opened.push(url);if(openFails)throw Error('Browser unavailable');},value=>new ComposioClient(value,http));
+ return {calls,accounts,configs,opened,values,store,service,owner,agent,otherAgent,client:new ComposioClient(key,http),configure:()=>service.configure(owner,key),connect:async()=>{await service.configure(owner,key);const connection=await service.connect(owner,{toolkit:'github',scheme:'OAUTH2'});accounts.get(connection.accountId).status='ACTIVE';await service.refresh(owner,connection.id);return connection;},setAgentAvailable:(id,available)=>available?allowedAgents.add(id):allowedAgents.delete(id),setOwner:value=>current=value,setNetwork:value=>network=value,setStatus:value=>status=value,setHook:value=>hook=value,setOpenFails:value=>openFails=value};
+}
+
+module.exports={fixture,toolkit,tool,response,key};

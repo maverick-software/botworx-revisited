@@ -1,0 +1,204 @@
+-- Run only against the registered disposable qualification database. No inference.
+BEGIN;
+SET LOCAL client_min_messages=warning;
+DO $$ BEGIN
+ IF current_database() NOT LIKE 'agentopia_agents_%' THEN RAISE EXCEPTION 'Agent record qualification requires a disposable database'; END IF;
+END $$;
+CREATE FUNCTION pg_temp.rejects(statement text,expected text) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+ BEGIN EXECUTE statement;
+ EXCEPTION WHEN OTHERS THEN
+  IF strpos(SQLERRM,expected)>0 THEN RETURN; END IF;
+  RAISE EXCEPTION 'Unexpected rejection: % (expected %)',SQLERRM,expected;
+ END;
+ RAISE EXCEPTION 'Expected rejection containing %',expected;
+END $$;
+INSERT INTO public.roles(name,description) VALUES('admin','Fixture administrator'),('user','Fixture user') ON CONFLICT(name) DO NOTHING;
+INSERT INTO public.service_providers(id,name,display_name,authorization_endpoint,token_endpoint)
+ VALUES('00000000-0000-0000-0000-000000000003','contact_management','Fixture contact system','https://fixture.invalid/authorize','https://fixture.invalid/token') ON CONFLICT(id) DO NOTHING;
+INSERT INTO auth.users(id,email,raw_user_meta_data,raw_app_meta_data) VALUES
+ ('d90e0720-565a-4a5b-a022-c248f461c820','agent-records-owner@example.invalid','{}','{}'),
+ ('8d6999e5-4194-4fcf-b171-781fb6d96caa','agent-records-other@example.invalid','{}','{}');
+DO $$
+DECLARE owner_id uuid:='d90e0720-565a-4a5b-a022-c248f461c820';other_id uuid:='8d6999e5-4194-4fcf-b171-781fb6d96caa';
+ mira uuid;starter uuid;foreign_agent uuid;profile jsonb;updated jsonb;first_turn jsonb;next_turn jsonb;project_a jsonb;project_b jsonb;decision jsonb;conversation uuid;
+ options jsonb:='{"thinking":"default","permission":"files","mode":"chat","files":[]}';
+ first_request uuid:=gen_random_uuid();next_request uuid:=gen_random_uuid();memory jsonb;source uuid;query_result jsonb;memory_generation bigint;
+BEGIN
+ mira=desktop_save_agent(owner_id,NULL,'Mira','Research specialist','Use evidence.','openai-oauth','fixture-model');
+ starter=desktop_save_agent(owner_id,NULL,'Starter','Original agent','Help with tasks.','openai-oauth','fixture-model');
+ foreign_agent=desktop_save_agent(other_id,NULL,'Foreign','Other account','Other work.','openai-oauth','fixture-model');
+ PERFORM desktop_agent_profile(other_id,foreign_agent);
+ profile=desktop_agent_profile(owner_id,mira);
+ ASSERT (profile->>'revision')::integer=1,'First definition revision';
+ ASSERT (desktop_agent_profile(owner_id,mira)->>'revision')::integer=1,'Unchanged definition must not create duplicate revisions';
+ updated=desktop_save_agent_profile(owner_id,mira,1,profile||'{"handle":"mira","role":"Research specialist","sops":"Verify primary sources","guardrails":"Cite saved evidence"}'::jsonb);
+ ASSERT (updated->>'revision')::integer=2,'Definition edits create a new revision';
+ PERFORM pg_temp.rejects(format('SELECT desktop_save_agent_profile(%L,%L,1,%L::jsonb)',owner_id,mira,profile::text),'changed');
+ PERFORM pg_temp.rejects(format('SELECT desktop_agent_profile(%L,%L)',other_id,mira),'unavailable');
+ ASSERT (SELECT count(*) FROM desktop_agent_definition_revisions WHERE agent_id=mira)=2,'Definition history retained';
+
+ project_a=desktop_save_project_memory(owner_id,NULL,'Project A',NULL,'','{}',NULL,false);
+ project_b=desktop_save_project_memory(owner_id,NULL,'Project B',NULL,'','{}',NULL,false);
+ profile=desktop_agent_profile(owner_id,starter);
+ first_turn=desktop_begin_agent_chat(owner_id,first_request,starter,NULL,'Start the shared chat',options,'[]',(project_a->>'id')::uuid,(project_a->>'revision')::bigint,NULL,NULL,(profile->>'revision')::bigint,NULL);
+ conversation=(first_turn->>'conversation_id')::uuid;
+ PERFORM desktop_checkpoint_chat(owner_id,first_request,'Starter completed','completed',NULL);
+ profile=desktop_agent_profile(owner_id,mira);
+ next_turn=desktop_begin_agent_chat(owner_id,next_request,mira,conversation,'Mira, continue this chat',options,'[]',(project_a->>'id')::uuid,(project_a->>'revision')::bigint,NULL,NULL,(profile->>'revision')::bigint,NULL);
+ ASSERT next_turn->'agent'->>'name'='Mira','Response has the actual agent identity';
+ ASSERT (SELECT agent_id FROM conversation_sessions WHERE conversation_id=conversation)=starter,'Original conversation attribution retained';
+ ASSERT (SELECT session_state->>'desktop_active_agent' FROM conversation_sessions WHERE conversation_id=conversation)=mira::text,'Active agent switched';
+ ASSERT (SELECT count(*) FROM desktop_agent_participants WHERE conversation_id=conversation)=2,'Both participants retained';
+ ASSERT (SELECT metadata->'agent'->>'name' FROM chat_messages_v2 WHERE id=(first_turn->>'assistant_message_id')::uuid)='Starter','Old author snapshot retained';
+ ASSERT (desktop_begin_agent_chat(owner_id,next_request,mira,conversation,'Mira, continue this chat',options,'[]',(project_a->>'id')::uuid,(project_a->>'revision')::bigint,NULL,NULL,(profile->>'revision')::bigint,NULL)->>'existing')::boolean,'Repeated request is idempotent';
+ ASSERT desktop_agent_request(owner_id,next_request)->'instance'->>'agent_id'=mira::text,'Runtime context bound to actual agent';
+ PERFORM pg_temp.rejects(format('SELECT desktop_agent_request(%L,%L)',other_id,next_request),'no longer active');
+ PERFORM pg_temp.rejects(format('DELETE FROM agents WHERE id=%L',starter),'Retire');
+
+ source=(next_turn->>'user_message_id')::uuid;
+ memory=desktop_save_agent_memory(owner_id,mira,(next_turn->>'agent_instance_id')::uuid,NULL,NULL,'Atlas release decision','The chosen release marker is ATLAS-731.',source,(project_a->>'id')::uuid,'agent');
+ query_result=desktop_search_agent_memory(owner_id,mira,(project_b->>'id')::uuid,'Atlas',12);
+ ASSERT jsonb_array_length(query_result)=1,'Mira retrieves her own memory across projects';
+ ASSERT desktop_validate_agent_references(owner_id,mira,(project_b->>'id')::uuid,jsonb_build_array(jsonb_build_object('id',memory->>'id','revision',1)),ARRAY[(next_turn->>'agent_instance_id')::uuid]),'Current tool-retrieved memory revisions and assignment sources remain authorized';
+ ASSERT jsonb_array_length(desktop_search_agent_memory(owner_id,starter,(project_b->>'id')::uuid,'Atlas',12))=0,'Other agents do not inherit Mira memory';
+ PERFORM pg_temp.rejects(format('SELECT desktop_search_agent_memory(%L,%L,NULL,''Atlas'',12)',other_id,mira),'unavailable');
+ UPDATE desktop_projects SET agent_memory_isolated=true WHERE id=(project_a->>'id')::uuid;
+ ASSERT jsonb_array_length(desktop_search_agent_memory(owner_id,mira,(project_b->>'id')::uuid,'Atlas',12))=0,'Isolated source does not leak into another project';
+ PERFORM pg_temp.rejects(format('SELECT desktop_validate_agent_references(%L,%L,%L,%L::jsonb,ARRAY[]::uuid[])',owner_id,mira,project_b->>'id',jsonb_build_array(jsonb_build_object('id',memory->>'id','revision',1))::text),'corrected, forgotten or isolated');
+ ASSERT jsonb_array_length(desktop_search_agent_memory(owner_id,mira,(project_a->>'id')::uuid,'Atlas',12))=1,'Isolated project retains its own memory';
+ ASSERT NOT desktop_agent_project_visible(owner_id,(project_a->>'id')::uuid,(project_b->>'id')::uuid),'Isolated project cannot read incoming project memory';
+ ASSERT NOT desktop_agent_project_visible(owner_id,(project_a->>'id')::uuid,NULL),'Projectless memory also excluded from isolated context';
+ ASSERT NOT desktop_agent_project_visible(other_id,NULL,(project_a->>'id')::uuid),'Foreign project excluded';
+ UPDATE desktop_projects SET agent_memory_isolated=false WHERE id=(project_a->>'id')::uuid;
+ memory=desktop_save_agent_memory(owner_id,mira,(next_turn->>'agent_instance_id')::uuid,(memory->>'id')::uuid,1,'Atlas release decision','The corrected release marker is ATLAS-732.',source,(project_a->>'id')::uuid,'agent');
+ ASSERT (memory->>'revision')::integer=2,'Memory replacement uses revision';
+ PERFORM pg_temp.rejects(format('SELECT desktop_validate_agent_references(%L,%L,NULL,%L::jsonb,ARRAY[]::uuid[])',owner_id,mira,jsonb_build_array(jsonb_build_object('id',memory->>'id','revision',1))::text),'corrected, forgotten or isolated');
+ ASSERT desktop_validate_agent_references(owner_id,mira,NULL,jsonb_build_array(jsonb_build_object('id',memory->>'id','revision',2)),ARRAY[]::uuid[]),'A caller that received the successful memory correction may use its current revision';
+ PERFORM pg_temp.rejects(format('SELECT desktop_save_agent_memory(%L,%L,%L,%L,1,''Stale'',''Stale content'',%L,%L,''agent'')',owner_id,mira,next_turn->>'agent_instance_id',memory->>'id',source,project_a->>'id'),'changed');
+ ASSERT (SELECT count(*) FROM desktop_agent_memory_revisions WHERE memory_id=(memory->>'id')::uuid)=2,'Concurrent replacement cannot erase earlier version';
+ PERFORM pg_temp.rejects(format('SELECT desktop_save_agent_memory(%L,%L,NULL,NULL,NULL,''Forged'',''Foreign memory'',NULL,NULL,''agent'')',other_id,mira),'unavailable');
+ PERFORM pg_temp.rejects(format('SELECT desktop_save_agent_memory(%L,%L,NULL,NULL,NULL,''No source'',''Unsupported memory'',NULL,NULL,''agent'')',owner_id,mira),'require a saved source');
+ PERFORM desktop_checkpoint_chat(owner_id,next_request,'Mira completed','completed',NULL);
+ ASSERT (SELECT status FROM desktop_agent_instances WHERE id=(next_turn->>'agent_instance_id')::uuid)='completed','Instance follows actual request completion';
+ ASSERT (SELECT checkpoint FROM desktop_agent_instances WHERE id=(next_turn->>'agent_instance_id')::uuid)='Mira completed','Checkpoint comes from saved answer';
+ INSERT INTO desktop_codex_turns(request_id,user_id,thread_id,runtime_version,state) VALUES(next_request,owner_id,'root-fixture','fixture','{"threadId":"root-fixture","children":[{"threadId":"child-fixture","status":"running"}]}');
+ ASSERT desktop_agent_request_scope(owner_id,next_request,'child-fixture')->'instance'->>'agent_id'=mira::text,'Registered native background child keeps bound agent identity after parent completion';
+ PERFORM pg_temp.rejects(format('SELECT desktop_agent_request_scope(%L,%L,''unknown-thread'')',owner_id,next_request),'no longer active');
+ PERFORM pg_temp.rejects(format('SELECT desktop_agent_request_scope(%L,%L,''child-fixture'')',other_id,next_request),'no longer active');
+ PERFORM pg_temp.rejects(format('SELECT desktop_agent_request_scope(%L,%L,NULL)',owner_id,next_request),'no longer active');
+ PERFORM desktop_select_chat_agent(owner_id,conversation,starter);
+ ASSERT (SELECT session_state->>'desktop_active_agent' FROM conversation_sessions WHERE conversation_id=conversation)=starter::text,'Agent selection persists independently of sending';
+ PERFORM pg_temp.rejects(format('SELECT desktop_select_chat_agent(%L,%L,%L)',other_id,conversation,foreign_agent),'unavailable');
+ next_request=gen_random_uuid();
+ decision=desktop_begin_agent_chat(owner_id,next_request,mira,conversation,'Follow up',options,'[]',(project_a->>'id')::uuid,(project_a->>'revision')::bigint,NULL,NULL,(profile->>'revision')::bigint,NULL);
+ ASSERT decision->>'agent_instance_id'=next_turn->>'agent_instance_id','Follow-up resumes the same assignment instance';
+ updated=desktop_save_agent_profile(owner_id,mira,(profile->>'revision')::bigint,profile||'{"guardrails":"Changed policy requires a fresh response"}'::jsonb);
+ PERFORM pg_temp.rejects(format('SELECT desktop_agent_request(%L,%L)',owner_id,next_request),'definition changed');
+ PERFORM desktop_checkpoint_chat(owner_id,next_request,'Interrupted after definition edit','interrupted',NULL);
+ memory_generation=(desktop_agent_profile(owner_id,mira)->>'memory_revision')::bigint;
+ DELETE FROM desktop_agent_memories WHERE id=(memory->>'id')::uuid AND user_id=owner_id;
+ ASSERT jsonb_array_length(desktop_search_agent_memory(owner_id,mira,NULL,'Atlas',12))=0,'Forgotten memory excluded from retrieval';
+ ASSERT (SELECT count(*) FROM desktop_agent_memory_revisions WHERE memory_id=(memory->>'id')::uuid)=0,'Forget removes retained memory versions';
+ ASSERT (desktop_agent_profile(owner_id,mira)->>'memory_revision')::bigint=memory_generation+1,'Forgetting invalidates the previous memory context';
+END $$;
+DO $$
+DECLARE owner_id uuid:='d90e0720-565a-4a5b-a022-c248f461c820';mira uuid;specialist uuid;profile jsonb;specialist_profile jsonb;updated jsonb;parent_turn jsonb;root_request uuid:=gen_random_uuid();first_receipt jsonb;receipt jsonb;child_turn jsonb;child_request uuid;grandchild jsonb;grand_turn jsonb;grand_request uuid;ceiling jsonb;count_before integer;hidden jsonb;hidden_chat uuid;source_memory jsonb;
+ options jsonb:='{"thinking":"default","permission":"files","mode":"chat","files":[]}';
+BEGIN
+ mira=desktop_save_agent(owner_id,NULL,'Mira queue fixture','Persistent self instances','Coordinate distinct assignments.','openai-oauth','fixture-model');
+ specialist=desktop_save_agent(owner_id,NULL,'Specialist queue fixture','Different agent policy','Research the assigned topic.','openai-oauth','fixture-model');
+ profile=desktop_agent_profile(owner_id,mira);profile=desktop_save_agent_profile(owner_id,mira,(profile->>'revision')::bigint,profile||jsonb_build_object('policy',(profile->'policy')||'{"tools":["read_file","invoke_agent","read_agent_instance"]}'::jsonb));
+ specialist_profile=desktop_agent_profile(owner_id,specialist);
+ parent_turn=desktop_begin_agent_chat(owner_id,root_request,mira,NULL,'Coordinate five distinct assignments',options,'[]',NULL,NULL,NULL,NULL,(profile->>'revision')::bigint,NULL);
+ FOR n IN 1..5 LOOP
+  receipt=desktop_reserve_agent_invocation(owner_id,root_request,NULL,'self-'||n,mira,'Distinct Mira task '||n,options,profile->'policy',(profile->>'revision')::bigint,gen_random_uuid());
+  ASSERT receipt->>'status'='queued','Reserved assignments are honestly queued';
+  IF n=1 THEN first_receipt=receipt;END IF;
+ END LOOP;
+ ASSERT (SELECT count(*) FROM desktop_agent_instances WHERE parent_instance_id=(parent_turn->>'agent_instance_id')::uuid)=5,'Five distinct instances share one saved identity';
+ receipt=desktop_reserve_agent_invocation(owner_id,root_request,NULL,'self-1',mira,'Distinct Mira task 1',options,profile->'policy',(profile->>'revision')::bigint,gen_random_uuid());
+ ASSERT (receipt->>'existing')::boolean AND receipt->>'child_instance_id'=first_receipt->>'child_instance_id','A repeated provider receipt never creates another instance';
+ PERFORM pg_temp.rejects(format('SELECT desktop_reserve_agent_invocation(%L,%L,NULL,''self-1'',%L,''Changed task'',%L::jsonb,%L::jsonb,%s,gen_random_uuid())',owner_id,root_request,mira,options::text,(profile->'policy')::text,profile->>'revision'),'already used');
+ PERFORM pg_temp.rejects(format('SELECT desktop_reserve_agent_invocation(%L,%L,NULL,''bad-ceiling'',%L,''Try a broader policy'',%L::jsonb,%L::jsonb,%s,gen_random_uuid())',owner_id,root_request,specialist,options::text,(specialist_profile->'policy')::text,specialist_profile->>'revision'),'authority ceiling');
+ ceiling=desktop_intersect_agent_policy(specialist_profile->'policy',profile->'policy');
+ PERFORM pg_temp.rejects(format('SELECT desktop_reserve_agent_invocation(%L,%L,NULL,''broaden-access'',%L,''Try broader permissions'',%L::jsonb,%L::jsonb,%s,gen_random_uuid())',owner_id,root_request,specialist,(options||'{"permission":"full"}'::jsonb)::text,ceiling::text,specialist_profile->>'revision'),'cannot broaden');
+ receipt=desktop_reserve_agent_invocation(owner_id,root_request,NULL,'specialist',specialist,'Research a dedicated specialist task',options,ceiling,(specialist_profile->>'revision')::bigint,gen_random_uuid());
+ child_request=(receipt->>'request_id')::uuid;
+ ASSERT (desktop_claim_agent_invocation(owner_id,child_request)->>'claimed')::boolean,'First worker may claim an assignment';
+ ASSERT NOT (desktop_claim_agent_invocation(owner_id,child_request)->>'claimed')::boolean,'Another worker cannot claim the same assignment';
+ child_turn=desktop_begin_agent_chat(owner_id,child_request,specialist,(SELECT conversation_id FROM desktop_agent_instances WHERE id=(receipt->>'child_instance_id')::uuid),'Research a dedicated specialist task',options,'[]',NULL,NULL,NULL,NULL,(specialist_profile->>'revision')::bigint,(parent_turn->>'agent_instance_id')::uuid);
+ ASSERT child_turn->>'agent_instance_id'=receipt->>'child_instance_id','Claim starts the reserved target instance';
+ ASSERT desktop_agent_request_scope(owner_id,child_request,NULL)->'profile'->'policy'->'tools'=profile->'policy'->'tools','A broader target agent receives the caller tool ceiling';
+ PERFORM pg_temp.rejects(format('SELECT desktop_reserve_agent_invocation(%L,%L,NULL,''cycle'',%L,''Coordinate five distinct assignments'',%L::jsonb,%L::jsonb,%s,gen_random_uuid())',owner_id,child_request,mira,options::text,(profile->'policy')::text,profile->>'revision'),'repeats an ancestor');
+ grandchild=desktop_reserve_agent_invocation(owner_id,child_request,NULL,'second-level',mira,'A different second-level Mira assignment',options,profile->'policy',(profile->>'revision')::bigint,gen_random_uuid());
+ grand_request=(grandchild->>'request_id')::uuid;PERFORM desktop_claim_agent_invocation(owner_id,grand_request);
+ grand_turn=desktop_begin_agent_chat(owner_id,grand_request,mira,(SELECT conversation_id FROM desktop_agent_instances WHERE id=(grandchild->>'child_instance_id')::uuid),'A different second-level Mira assignment',options,'[]',NULL,NULL,NULL,NULL,(profile->>'revision')::bigint,(child_turn->>'agent_instance_id')::uuid);
+ PERFORM pg_temp.rejects(format('SELECT desktop_reserve_agent_invocation(%L,%L,NULL,''too-deep'',%L,''A distinct but excessive-depth task'',%L::jsonb,%L::jsonb,%s,gen_random_uuid())',owner_id,grand_request,specialist,options::text,ceiling::text,specialist_profile->>'revision'),'depth or policy');
+ PERFORM desktop_checkpoint_chat(owner_id,root_request,'Mira launched owned assignments.','completed',NULL);
+ ASSERT desktop_agent_request_scope(owner_id,child_request,NULL)->'instance'->>'agent_id'=specialist::text,'A specialist can continue after its requesting response completes';
+ source_memory=desktop_save_agent_memory(owner_id,mira,NULL,NULL,NULL,'Source move marker','This memory belongs to its original source context.',(parent_turn->>'user_message_id')::uuid,NULL,'user');
+ hidden=desktop_save_project_memory(owner_id,NULL,'Isolated queue fixture',NULL,'','{}',NULL,false);UPDATE desktop_projects SET agent_memory_isolated=true WHERE id=(hidden->>'id')::uuid;
+ FOR n IN 1..6 LOOP
+  INSERT INTO conversation_sessions(conversation_id,user_id,agent_id,title) VALUES(gen_random_uuid(),owner_id,mira,'Hidden source '||n) RETURNING conversation_id INTO hidden_chat;
+  INSERT INTO desktop_project_chats(user_id,conversation_id,project_id) VALUES(owner_id,hidden_chat,(hidden->>'id')::uuid);
+  INSERT INTO desktop_agent_instances(user_id,agent_id,agent_revision,conversation_id,project_id,assignment,status,updated_at) VALUES(owner_id,mira,(profile->>'revision')::bigint,hidden_chat,(hidden->>'id')::uuid,'Hidden assignment '||n,'queued',now()+interval '1 day');
+ END LOOP;
+ ASSERT jsonb_array_length(desktop_list_agent_instances(owner_id,mira,NULL,1))=1,'Isolation filtering happens before the result limit';
+ ASSERT desktop_list_agent_instances(owner_id,mira,NULL,1)->0->'project_id'='null'::jsonb,'The visible older assignment remains accessible';
+ PERFORM desktop_move_project_chat(owner_id,(parent_turn->>'conversation_id')::uuid,(hidden->>'id')::uuid);
+ ASSERT NOT desktop_agent_memory_visible(owner_id,NULL,(source_memory->>'id')::uuid),'Moving a source into isolation invalidates the old memory scope';
+ PERFORM pg_temp.rejects(format('SELECT desktop_validate_agent_snapshot(%L,%L,NULL,ARRAY[%L::uuid],ARRAY[]::uuid[])',owner_id,mira,source_memory->>'id'),'memory source changed');
+ PERFORM pg_temp.rejects(format('SELECT desktop_agent_request_scope(%L,%L,NULL)',owner_id,child_request),'changed project scope');
+ PERFORM desktop_move_project_chat(owner_id,(parent_turn->>'conversation_id')::uuid,NULL);
+ updated=desktop_save_agent_profile(owner_id,mira,(profile->>'revision')::bigint,profile||'{"guardrails":"Changed requesting policy"}'::jsonb);
+ PERFORM pg_temp.rejects(format('SELECT desktop_agent_request_scope(%L,%L,NULL)',owner_id,child_request),'requesting agent changed');
+END $$;
+DO $$
+DECLARE owner_id uuid:='d90e0720-565a-4a5b-a022-c248f461c820';agent uuid;profile jsonb;project jsonb;changed jsonb;first_turn jsonb;next_turn jsonb;receipt jsonb;cancelled jsonb;first_request uuid:=gen_random_uuid();next_request uuid:=gen_random_uuid();goal uuid;goal_turn jsonb;goal_request uuid:=gen_random_uuid();goal_receipt jsonb;child_turn jsonb;
+ options jsonb:='{"thinking":"default","permission":"files","mode":"chat","files":[]}';
+BEGIN
+ agent=desktop_save_agent(owner_id,NULL,'Mira activity fixture','','Track all saved work.','openai-oauth','fixture-model');profile=desktop_agent_profile(owner_id,agent);
+ project=desktop_save_workspace_project(owner_id,NULL,'Atomic isolation fixture',NULL,'Original project instructions','{}',NULL,false,true);
+ ASSERT (project->>'agent_memory_isolated')::boolean,'New project saves isolation atomically';
+ changed=desktop_save_workspace_project(owner_id,(project->>'id')::uuid,'Atomic isolation updated',NULL,'Updated project instructions','{}',(project->>'revision')::bigint,true,false);
+ ASSERT NOT (changed->>'agent_memory_isolated')::boolean AND (changed->>'revision')::bigint=(project->>'revision')::bigint+1,'Project instructions and isolation share one versioned save';
+ PERFORM pg_temp.rejects(format('SELECT desktop_save_workspace_project(%L,%L,''Stale overwrite'',NULL,''Wrong instructions'',''{}'',%s,false,true)',owner_id,project->>'id',project->>'revision'),'Project changed');
+ ASSERT (SELECT name='Atomic isolation updated' AND NOT agent_memory_isolated FROM desktop_projects WHERE id=(project->>'id')::uuid),'Rejected stale settings cannot partially change isolation';
+ first_turn=desktop_begin_agent_chat(owner_id,first_request,agent,NULL,'First activity turn',options,'[]',NULL,NULL,NULL,NULL,(profile->>'revision')::bigint,NULL);
+ PERFORM desktop_checkpoint_chat(owner_id,first_request,'Parent response completed','completed',NULL);
+ INSERT INTO desktop_codex_turns(request_id,user_id,thread_id,runtime_version,state) VALUES(first_request,owner_id,'activity-root','fixture','{"threadId":"activity-root","children":[{"threadId":"activity-background","status":"running"}]}');
+ next_turn=desktop_begin_agent_chat(owner_id,next_request,agent,(first_turn->>'conversation_id')::uuid,'Newer activity turn',options,'[]',NULL,NULL,NULL,NULL,(profile->>'revision')::bigint,NULL);
+ PERFORM desktop_checkpoint_chat(owner_id,next_request,'Newer response completed','completed',NULL);
+ ASSERT desktop_agent_instance_snapshot(owner_id,NULL,(first_turn->>'agent_instance_id')::uuid)->>'status'='running','An older background child remains visible after a newer completed turn';
+ ASSERT (desktop_agent_instance_snapshot(owner_id,NULL,(first_turn->>'agent_instance_id')::uuid)->>'active_children')::integer=1,'Background activity count covers every turn in the assignment';
+ UPDATE desktop_codex_turns SET state='{"threadId":"activity-root","children":[{"threadId":"activity-background","status":"completed","delivery":"delivered"}]}' WHERE request_id=first_request;
+ ASSERT desktop_agent_instance_snapshot(owner_id,NULL,(first_turn->>'agent_instance_id')::uuid)->>'status'='completed','Finished background work stops reporting activity';
+ next_request=gen_random_uuid();next_turn=desktop_begin_agent_chat(owner_id,next_request,agent,NULL,'Reserve and cancel',options,'[]',NULL,NULL,NULL,NULL,(profile->>'revision')::bigint,NULL);
+ receipt=desktop_reserve_agent_invocation(owner_id,next_request,NULL,'cancel-before-claim',agent,'Cancel this queued task',options,profile->'policy',(profile->>'revision')::bigint,gen_random_uuid());
+ UPDATE desktop_agent_invocations SET status='cancelled' WHERE request_id=(receipt->>'request_id')::uuid;
+ ASSERT NOT (desktop_claim_agent_invocation(owner_id,(receipt->>'request_id')::uuid)->>'claimed')::boolean,'Cancelled receipt cannot be claimed';
+ PERFORM pg_temp.rejects(format('SELECT desktop_begin_agent_chat(%L,%L,%L,%L,''Cancel this queued task'',%L::jsonb,''[]'',NULL,NULL,NULL,NULL,%s,%L)',owner_id,receipt->>'request_id',agent,(SELECT conversation_id FROM desktop_agent_instances WHERE id=(receipt->>'child_instance_id')::uuid),options::text,profile->>'revision',next_turn->>'agent_instance_id'),'stopped or was not claimed');
+ ASSERT NOT EXISTS(SELECT 1 FROM desktop_requests WHERE id=(receipt->>'request_id')::uuid),'Cancellation before start creates no inference request';
+ receipt=desktop_reserve_agent_invocation(owner_id,next_request,NULL,'cancel-after-claim',agent,'Cancel this claimed task',options,profile->'policy',(profile->>'revision')::bigint,gen_random_uuid());PERFORM desktop_claim_agent_invocation(owner_id,(receipt->>'request_id')::uuid);
+ UPDATE desktop_agent_invocations SET status='cancelled' WHERE request_id=(receipt->>'request_id')::uuid;
+ PERFORM pg_temp.rejects(format('SELECT desktop_begin_agent_chat(%L,%L,%L,%L,''Cancel this claimed task'',%L::jsonb,''[]'',NULL,NULL,NULL,NULL,%s,%L)',owner_id,receipt->>'request_id',agent,(SELECT conversation_id FROM desktop_agent_instances WHERE id=(receipt->>'child_instance_id')::uuid),options::text,profile->>'revision',next_turn->>'agent_instance_id'),'stopped or was not claimed');
+ ASSERT jsonb_array_length(desktop_list_agent_instances_page(owner_id,agent,NULL,1,0))=1 AND jsonb_array_length(desktop_list_agent_instances_page(owner_id,agent,NULL,1,1))=1,'Saved assignment listing supports later pages';
+ ASSERT desktop_list_agent_instances_page(owner_id,agent,NULL,1,0)->0->>'id'<>desktop_list_agent_instances_page(owner_id,agent,NULL,1,1)->0->>'id','Adjacent assignment pages do not repeat the same row';
+ INSERT INTO desktop_goals(user_id,agent_id,objective,status) VALUES(owner_id,agent,'Goal delegation fixture','running') RETURNING id INTO goal;
+ goal_turn=desktop_begin_agent_chat(owner_id,goal_request,agent,NULL,'Goal-scoped parent task',options||jsonb_build_object('goalId',goal),'[]',NULL,NULL,NULL,NULL,(profile->>'revision')::bigint,NULL);
+ goal_receipt=desktop_reserve_agent_invocation(owner_id,goal_request,NULL,'goal-child',agent,'A goal-scoped specialist task',options,profile->'policy',(profile->>'revision')::bigint,gen_random_uuid());PERFORM desktop_claim_agent_invocation(owner_id,(goal_receipt->>'request_id')::uuid);
+ child_turn=desktop_begin_agent_chat(owner_id,(goal_receipt->>'request_id')::uuid,agent,(SELECT conversation_id FROM desktop_agent_instances WHERE id=(goal_receipt->>'child_instance_id')::uuid),'A goal-scoped specialist task',options,'[]',NULL,NULL,NULL,NULL,(profile->>'revision')::bigint,(goal_turn->>'agent_instance_id')::uuid);
+ ASSERT desktop_agent_request_scope(owner_id,(goal_receipt->>'request_id')::uuid,NULL)->'instance'->'authority_chain'->0->>'goal_id'=goal::text,'Specialist authority records its originating goal';
+ UPDATE desktop_goals SET status='paused' WHERE id=goal;
+ PERFORM pg_temp.rejects(format('SELECT desktop_agent_request_scope(%L,%L,NULL)',owner_id,goal_receipt->>'request_id'),'goal was paused or completed');
+END $$;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub','8d6999e5-4194-4fcf-b171-781fb6d96caa',true);
+DO $$ BEGIN
+ ASSERT (SELECT count(*) FROM public.desktop_agent_profiles)=1,'Owner-scoped profile SELECT';
+ ASSERT (SELECT count(*) FROM public.desktop_agent_instances)=0,'Another owner cannot read assignment registry';
+ ASSERT NOT has_function_privilege('authenticated','public.desktop_agent_profile(uuid,uuid)','EXECUTE'),'Renderer cannot call privileged profile function directly';
+END $$;
+RESET ROLE;
+ROLLBACK;

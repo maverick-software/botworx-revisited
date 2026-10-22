@@ -1,0 +1,13 @@
+import {mkdir,writeFile,readFile} from 'node:fs/promises';
+import {spawn} from 'node:child_process';
+import {createHash} from 'node:crypto';
+import path from 'node:path';
+const root=path.resolve(import.meta.dirname,'../..'),out=path.join('C:/Users/charl/AgentopiaQA/mcp-oauth',String(Date.now()));await mkdir(out,{recursive:true});
+const commands=[];
+async function run(name,args,env={}){let log='';const child=spawn(process.execPath,args,{cwd:root,windowsHide:true,env:{...process.env,...env}});child.stdout.on('data',v=>log+=v);child.stderr.on('data',v=>log+=v);const code=await new Promise((resolve,reject)=>{child.once('error',reject);child.once('exit',resolve);});await writeFile(path.join(out,name+'.log'),log);commands.push({name,code});process.stdout.write(log);if(code!==0)throw Error(name+' failed ('+code+')');}
+let success=false;try{await run('compile',['node_modules/typescript/bin/tsc','-p','desktop/tsconfig.json','--outDir',path.join(out,'build')]);await run('oauth',['--test','desktop/tests/mcp-oauth.test.cjs'],{NODE_PATH:path.join(root,'node_modules'),AGENTOPIA_OAUTH_TEST_BUILD:path.join(out,'build')});
+ const hook=path.join(out,'isolated-build.cjs');await writeFile(hook,`const Module=require('node:module'),path=require('node:path'),original=Module._resolveFilename;Module._resolveFilename=function(request,parent,...args){if(parent?.filename.startsWith(${JSON.stringify(path.join(root,'desktop/tests')+path.sep)})&&request.startsWith('../build/'))request=path.join(${JSON.stringify(path.join(out,'build'))},request.slice('../build/'.length));return original.call(this,request,parent,...args);};`);
+ await run('related-regressions',['--require',hook,'--test','desktop/tests/external-tools.test.cjs','desktop/tests/plugin-compatibility.test.cjs'],{NODE_PATH:path.join(root,'node_modules'),AGENTOPIA_PLUGIN_IMPORT_BUILD:path.join(out,'build')});success=true;}finally{
+ const sources=['desktop/src/mcp-oauth.ts','desktop/src/mcp-oauth-network.ts','desktop/src/mcp-oauth-connections.ts','desktop/src/mcp-oauth-declaration.ts','desktop/src/plugin-contracts.ts','desktop/src/plugin-validation.ts','desktop/src/remote-tools.ts','desktop/src/broker.ts','desktop/ui/McpSettings.tsx','desktop/tests/mcp-oauth.test.cjs', 'scripts/desktop/test-mcp-oauth.mjs'];const hashes={};for(const file of sources)hashes[file]=createHash('sha256').update(await readFile(path.join(root,file))).digest('hex');
+ await writeFile(path.join(out,'evidence.json'),JSON.stringify({at:new Date().toISOString(),success,commands,scope:'Real local OAuth and MCP HTTP servers with the pinned SDK; controlled browser callback, memory credential store, no production data or real provider request.',sources:hashes},null,2));console.log('OAuth evidence: '+out);
+}

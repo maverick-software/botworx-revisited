@@ -38,7 +38,7 @@ serve(async (req) => {
     }
 
     // Parse request body
-    const { name, description, avatar_url, personality, metadata } = await req.json()
+    const { name, description, avatar_url, personality, metadata, system_instructions, assistant_instructions, provider, model } = await req.json()
 
     if (!name || !name.trim()) {
       throw new Error('Agent name is required')
@@ -52,11 +52,11 @@ serve(async (req) => {
       active: true,
       avatar_url: avatar_url || null,
       personality: personality || 'helpful',
-      system_instructions: `You are ${name.trim()}, a helpful AI assistant. Be friendly, professional, and assist users with their questions and tasks.`,
-      assistant_instructions: 'Provide clear, accurate, and helpful responses. Ask clarifying questions when needed.',
+      system_instructions: system_instructions || `You are ${name.trim()}, a helpful AI assistant. Be friendly, professional, and assist users with their questions and tasks.`,
+      assistant_instructions: assistant_instructions || 'Provide clear, accurate, and helpful responses. Ask clarifying questions when needed.',
       metadata: metadata || {},
       reasoning_config: {
-        enabled: true,
+        enabled: false,
         threshold: 0.3,
         timeout_ms: 30000,
         max_iterations: 6,
@@ -82,23 +82,13 @@ serve(async (req) => {
 
     console.log('Agent created successfully:', newAgent)
 
-    // Create default LLM preferences for the new agent
-    const { error: llmPrefsError } = await supabase
-      .from('agent_llm_preferences')
-      .insert({
-        agent_id: newAgent.id,
-        provider: 'openai',
-        model: 'gpt-4o-mini',
-        params: {},
-        embedding_model: 'text-embedding-3-small'
-      })
-
-    if (llmPrefsError) {
-      console.error('Error creating LLM preferences:', llmPrefsError)
-      // Don't throw error here - agent is already created, just log the warning
-      console.warn('Agent created but LLM preferences failed to create')
-    } else {
-      console.log('LLM preferences created successfully for agent:', newAgent.id)
+    // The database trigger owns default preference creation. Apply an explicit selection once.
+    if (provider && model) {
+      const { error: llmPrefsError } = await supabase
+        .from('agent_llm_preferences')
+        .update({ provider, model, params: {} })
+        .eq('agent_id', newAgent.id)
+      if (llmPrefsError) throw new Error(`Failed to save model preferences: ${llmPrefsError.message}`)
     }
 
     // The database trigger should automatically grant reasoning permissions

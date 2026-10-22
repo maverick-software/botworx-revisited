@@ -1,0 +1,64 @@
+// Runs the actual packaged Settings producer against an isolated, restored SQL backend.
+// Only provider responses and the native destination chooser are controlled.
+import assert from 'node:assert/strict';
+import {readFile,writeFile,mkdir,readdir,lstat} from 'node:fs/promises';
+import {createHash,randomUUID} from 'node:crypto';
+import path from 'node:path';
+import {expect} from '@playwright/test';
+import {desktopOperation} from './operation-lock.mjs';
+import {launchDurableProfileProbe} from './launch-durable-profile-probe.mjs';
+
+desktopOperation('real Settings portable recovery acceptance');
+const root=path.resolve(import.meta.dirname,'../..'),json=async file=>JSON.parse(await readFile(file,'utf8')),sha=async file=>createHash('sha256').update(await readFile(file)).digest('hex');
+const pointer=await json(path.join(root,'.supabase/desktop-portable-app/current.json')),accepted=await json(path.join(pointer.out,'acceptance-current.json')),cfg=await json(accepted.intent),proof=await json(cfg.buildProof),materialized=await json(path.join(pointer.out,'materialized-assets.json'));
+assert(cfg.emptyRuntimeVerified&&cfg.registered&&materialized.success&&proof.success&&!proof.installed);
+assert.equal(await sha(path.join(cfg.program,'resources/app.asar')),cfg.imageSha256);assert.equal(await sha(cfg.configFile),cfg.testConfigSha256);
+assert(cfg.profile.startsWith(cfg.home+path.sep)&&cfg.out.startsWith(pointer.out+path.sep));assert(!(await lstat(cfg.profile)).isSymbolicLink());
+const label='settings-producer-'+Date.now(),out=path.join(cfg.out,label),evidence={at:new Date().toISOString(),scope:'Real packaged Settings backup; isolated SQL copy and generated account/files',sourceProof:cfg.buildProof,materializedAssets:true,productionAccess:false,providerRequests:0,success:false};await mkdir(out,{recursive:true});
+const save=()=>writeFile(path.join(out,'workflow.json'),JSON.stringify(evidence,null,2));
+try{
+ const account={email:'portable-settings-'+randomUUID()+'@example.invalid',password:randomUUID()+randomUUID()},marker='PORTABLE-SETTINGS-'+randomUUID();
+ await writeFile(path.join(out,'private-generated-account.json'),JSON.stringify(account),{flag:'wx',mode:0o600});
+ const result=await launchDurableProfileProbe(cfg,{label,testProfile:false,initialProfile:cfg.profile,expectedProfile:cfg.profile,expectedRuntime:'ready',resumeDebugWorkers:true,isolateOsHome:true,runReady:async({application,page})=>{
+  const call=(action,args)=>page.evaluate(({action,args})=>window.agentopia.call(action,args),{action,args});
+  // Retain previous generated history inside this disposable database; accounts
+  // referenced by saved chats are deliberately protected against deletion.
+  evidence.baselineAccounts=await application.evaluate(async()=>{const r=await globalThis.__coordination.broker.admin.auth.admin.listUsers({page:1,perPage:1000});if(r.error)throw Error(r.error.message);return r.data.users.length;});await save();
+  const user=await application.evaluate(async(_,account)=>{const b=globalThis.__coordination.broker,check=r=>{if(r.error)throw Error(r.error.message);return r.data;},created=check(await b.admin.auth.admin.createUser({...account,email_confirm:true})).user,role=check(await b.admin.from('roles').select('id').eq('name','admin').single());check(await b.admin.from('user_roles').insert({user_id:created.id,role_id:role.id}));return {id:created.id};},account);
+  evidence.owner=user.id;await save();
+  await application.evaluate(async(_,owner)=>{const b=globalThis.__coordination.broker;await b.secrets.set('openai:'+owner,{client_id:'controlled-private-client',subject:'controlled-subject',email:'controlled@example.invalid',id_token:'CONTROLLED',access_token:'CONTROLLED-NOT-A-PROVIDER-CREDENTIAL',refresh_token:'',scope:'chatgpt.tokens.use.direct',expires_at:Date.now()+3600000});await b.secrets.set('models:openai-oauth:'+owner,[{id:'gpt-6.1-sol',name:'GPT-6.1 Sol',thinking:['default','low','high'],supportsTools:true}]);await b.secrets.set('prefer-chatgpt:'+owner,true);await b.secrets.set('chatgpt-welcome:'+owner,true);},user.id);
+  await page.getByLabel('Email address',{exact:true}).fill(account.email);await page.getByLabel('Password',{exact:true}).fill(account.password);await page.getByRole('button',{name:'Sign in',exact:true}).click();await expect(page.getByRole('button',{name:/^New chat\b/}).first()).toBeVisible({timeout:30000});
+  const agent=await call('agents.save',{name:'Portable settings acceptance',description:'Generated recovery fixture',instructions:'Answer the requested generated marker.',provider:'openai-oauth',model:'gpt-6.1-sol'}),profile=await call('agents.profile',{agentId:agent});await call('agents.profile.save',{agentId:agent,value:{...profile,policy:{...profile.policy,tools:[],memory:false,memoryWrite:false,delegation:false}}});
+  const requestId=randomUUID(),options={harness:'codex',provider:'openai-oauth',model:'gpt-6.1-sol',thinking:'high',permission:'chat',mode:'chat',files:[]};
+  await application.evaluate((_,{requestId,marker})=>globalThis.__coordination.requests[requestId]={steps:[{text:'Native history '+marker}]},{requestId,marker});
+  const chat=await call('chat.start',{requestId,agentId:agent,text:'Retain this generated recovery marker: '+marker,options});evidence.agent=agent;evidence.request=requestId;evidence.conversation=chat.conversation_id;evidence.marker=marker;await save();
+  await expect.poll(()=>application.evaluate(async(_,id)=>{const r=await globalThis.__coordination.broker.admin.from('desktop_requests').select('status,error').eq('id',id).single();if(r.error)throw Error(r.error.message);if(['failed','cancelled','interrupted'].includes(r.data.status))throw Error(r.data.error??r.data.status);return r.data.status;},requestId),{timeout:60000,intervals:[150,400]}).toBe('completed');
+  await page.goto('agentopia://app/conversations/'+chat.conversation_id);await expect(page.getByText('Native history '+marker,{exact:true})).toBeVisible({timeout:30000});
+  const references=await application.evaluate(async({app,nativeImage},args)=>{
+   const req=globalThis.__durableProbeRequire,fs=req('node:fs/promises'),path=req('node:path'),b=globalThis.__coordination.broker;
+   if(app.getPath('userData')!==args.profile||!b.chatFiles.outputDirectory.startsWith(args.publicRoot+path.sep))throw Error('Generated file scope mismatch');
+   await fs.mkdir(path.join(args.selectedProject,'.git'),{recursive:true});await fs.writeFile(path.join(args.selectedProject,'README.md'),'# Generated selected project\n'+args.marker);await fs.writeFile(path.join(args.selectedProject,'.git/HEAD'),'ref: refs/heads/generated\n');
+   const folder=path.join(b.chatFiles.outputDirectory,args.owner,'fixture-docs');await fs.mkdir(folder,{recursive:true});const publicFile=path.join(folder,'Public.txt');await fs.writeFile(publicFile,'Generated public document '+args.marker);
+   const image=nativeImage.createFromBitmap(Buffer.from([30,100,210,255]),{width:1,height:1}).toPNG().toString('base64');
+   return b.attach(args.owner,[{path:args.selectedProject},{path:publicFile},{name:'Pasted sample.png',image}]);
+  },{owner:user.id,profile:cfg.profile,publicRoot:cfg.publicRoot,selectedProject:cfg.selectedProject,marker});
+  evidence.references=references;await save();const folder=references.references.find(r=>r.kind==='folder'),tab=randomUUID();assert(folder);
+  await call('workspace.save',{scope:chat.conversation_id,state:{open:true,width:580,treeWidth:180,tree:true,tabs:[{id:tab,kind:'file',name:'README.md',referenceId:folder.id,path:'README.md'}],active:tab,referenceId:folder.id}});
+  const draftText='Unsent recovery draft '+marker,draftOptions={...options,files:references.selected};await call('drafts.save',{owner:user.id,scope:'conversation:'+chat.conversation_id,draft:{text:draftText,options:draftOptions,updatedAt:new Date().toISOString()}});
+  await page.reload();await expect(page.getByRole('textbox',{name:'Message',exact:true})).toHaveValue(draftText,{timeout:30000});
+  const mode=page.getByRole('button',{name:/^Switch mode, current mode:/});await mode.click();await page.getByRole('menuitem',{name:/^Codex/}).click();
+  await page.evaluate(({owner,conversation})=>{localStorage.setItem('agentopia.chat-context.'+owner,'closed');localStorage.setItem('agentopia.sidebar.'+owner+'.Your agents','closed');localStorage.setItem('agentopia.sidebar.'+owner+'.Projects','open');localStorage.setItem('agentopia.completed-chats:'+owner,JSON.stringify([conversation]));},{owner:user.id,conversation:chat.conversation_id});
+  const newest=draftText+' immediately before backup';await page.getByRole('textbox',{name:'Message',exact:true}).fill(newest);evidence.expectedDraft=newest;evidence.expectedOptions=draftOptions;evidence.expectedPane={tab,referenceId:folder.id};await save();
+  await application.evaluate(({dialog},parent)=>{const original=dialog.showOpenDialog;dialog.showOpenDialog=async function(...args){const settings=args.at(-1);if(settings?.title==='Choose a private backup folder')return {canceled:false,filePaths:[parent]};return original.apply(this,args);};},cfg.captureParent);
+  await page.keyboard.press('Control+,');await page.getByRole('button',{name:'Data controls',exact:true}).click();await expect(page.getByRole('button',{name:'Back up',exact:true})).toBeEnabled();await page.screenshot({path:path.join(out,'settings-before-backup.png')});await page.getByRole('button',{name:'Back up',exact:true}).click();
+  let destination;await expect.poll(async()=>{const names=await readdir(cfg.captureParent);for(const name of names){const file=path.join(cfg.captureParent,name,'desktop-recovery.json');try{await lstat(file);destination=path.dirname(file);return true;}catch(error){if(error.code!=='ENOENT')throw error;}}return false;},{timeout:240000,intervals:[500,1000]}).toBe(true);
+  evidence.destination=destination;await save();await expect(page.getByText('Backup verified and saved to '+destination,{exact:true})).toBeVisible({timeout:30000});await expect(page.getByRole('button',{name:'Back up',exact:true})).toBeEnabled();await page.screenshot({path:path.join(out,'settings-backup-complete.png')});
+  const descriptor=await json(path.join(destination,'desktop-recovery.json'));assert.equal(descriptor.requiresDesktopRecoveryFormat,6);assert.equal(descriptor.providerReauthorizationRequired,true);const resources=Object.values(descriptor).filter(v=>v&&typeof v==='object'&&v.file);assert.equal(resources.length,12);for(const record of resources)assert.equal(await sha(path.join(destination,record.file)),record.sha256);
+  const database=await json(path.join(destination,'current-database-backup/manifest.json'));assert.equal(database.accounts,evidence.baselineAccounts+1);assert(database.accountIds.includes(user.id));for(const file of database.files)assert.equal(await sha(path.join(destination,'current-database-backup',file.name)),file.sha256);
+  const settings=(await json(path.join(destination,'portable-settings.json'))).accounts.find(a=>a.owner===user.id).settings;assert.equal(settings['chat-drafts']['conversation:'+chat.conversation_id].text,newest);assert.deepEqual(settings['chat-drafts']['conversation:'+chat.conversation_id].options.files,references.selected);
+  const layout=(await json(path.join(destination,'portable-layouts.json'))).accounts.find(a=>a.owner===user.id);assert.equal(layout.display.modes.chats[chat.conversation_id],'codex');assert.equal(layout.display.context,'closed');assert.equal(layout.panes[chat.conversation_id].active,tab);assert.equal(layout.panes[chat.conversation_id].tabs[0].referenceId,folder.id);
+  const privateRecord=await json(path.join(destination,'private-profile.json')),nativeFiles=Object.keys(privateRecord.manifest.files).filter(name=>name.startsWith('codex/'));assert(nativeFiles.some(name=>/\/state_\d+\.sqlite$/.test(name)));assert(nativeFiles.some(name=>/\/sessions\/.+\.jsonl$/.test(name)));assert(!nativeFiles.some(name=>name.endsWith('/auth.json')||name.endsWith('/config.toml')));
+  evidence.capture={realSettingsProducer:true,capability:6,accounts:database.accounts,resources:resources.length,nativeFiles:nativeFiles.length,latestDraft:true,layout:true,generatedImages:true,generatedExternalFolder:true};evidence.success=true;await save();return evidence.capture;
+ }});
+ evidence.normalExit=result.normalExit;evidence.controlledNetwork=result.controlledNetwork;await save();await writeFile(path.join(pointer.out,'settings-accepted.json'),JSON.stringify({success:true,out,evidence:path.join(out,'workflow.json'),startupEvidence:path.join(out,'evidence.json'),destination:evidence.destination,restoreStillPending:true,providerRequests:0},null,2));console.log(JSON.stringify({success:true,out,destination:evidence.destination,providerRequests:0}));
+}catch(error){evidence.success=false;evidence.error=error.stack;await save();console.error(error.stack);if(error.cause)console.error(error.cause.stack);process.exitCode=1;}

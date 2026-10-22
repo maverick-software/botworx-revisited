@@ -1,0 +1,30 @@
+// Derive the version-specific ordinary updater from the accepted 66 controller.
+// Changes to the recovery capability and current renderer overlay are explicit.
+import assert from 'node:assert/strict';
+import {readFile,writeFile} from 'node:fs/promises';
+import path from 'node:path';
+const root=path.resolve(import.meta.dirname,'../..'),dir=path.join(root,'scripts/desktop');
+const read=name=>readFile(path.join(dir,name),'utf8');
+const save=(name,text)=>writeFile(path.join(dir,name),text,{flag:'wx'});
+const bump=text=>text.replace(/0\.44\.(65|66)/g,(_,n)=>'0.44.'+(Number(n)+1));
+let process=await read('normal-maintenance66-process.mjs');
+process=bump(process).replace('(?:65|66)','(?:66|67)');
+await save('normal-maintenance67-process.mjs',process);
+let physical=await read('verify-maintenance-installation66.py');
+physical=bump(physical);
+assert(physical.includes("expected = dict(proof['programFiles'])"));
+physical=physical.replace("expected = dict(proof['programFiles'])","expected = dict(proof['programFiles'])\n    assert expected['squirrel.exe'] == '76359cd4b0349a83337b941332ad042c90351c2bb0a4628307740324c97984cc'");
+await save('verify-maintenance-installation67.py',physical);
+let test=await read('test-maintenance-update-command66.mjs');
+test=test.replaceAll('command66','command67').replaceAll('update66-','update67-').replace('desktop-workspace-paths-release66','desktop-scheduled-workspaces67-release');
+test=test.replace("const releaseDirectory=path.join(path.dirname(pointer.proof),'installer-build-short/output'),temp=", "const made=JSON.parse(await readFile(path.join(pointer.out,'installer-proof.json'),'utf8'));\nconst releaseDirectory=path.dirname(made.installer),temp=");
+await save('test-maintenance-update-command67.mjs',test);
+let controller=await read('run-normal-maintenance66.mjs');
+controller=bump(controller).replaceAll('rollback66','rollback67').replaceAll('command66','command67').replaceAll('maintenance66','maintenance67').replaceAll('installation66','installation67').replaceAll('portable66','ordinary67').replaceAll('current-update66','current-update67').replaceAll('qualified66','qualified67').replaceAll('update66-','update67-').replaceAll('Update66.cmd','Update67.cmd').replaceAll('Workspace-Paths-Update67','Scheduled-Workspaces-Update67').replace('desktop-workspace-paths-release66','desktop-scheduled-workspaces67-release');
+controller=controller.replace('f4d77036adbfccf585f00a09e18092ced3a10d5edd8f1c133570e2a2f1f4743e','74e4477cbbf3cbf3330e47ef5157646d0a113fd12fe786abdc776b654673d235');
+controller=controller.replace("name==='Run-Agentopia-Scheduled-Workspaces-Update67.cmd'","name==='Run-Agentopia-Scheduled-Workspaces-Update67.cmd'");
+controller=controller.replace('qualification.packagedAgentContinuity','qualification.actualClaimDeferral&&qualification.actualMultiProjectClock&&qualification.causalRevocation&&qualification.coldNoReplay&&qualification.recoveryInheritedOnIdenticalModules');
+controller=controller.replace('The exact66 full application restore is required before installation.','The qualified current package cold reopening and recovery impact assessment are required before installation.');
+assert(controller.includes('verify-maintenance-ordinary67.py')&&controller.includes('normal-maintenance67-process.mjs')&&controller.includes('sourceImageSha256:currentSha'));
+await save('run-normal-maintenance67.mjs',controller);
+console.log(JSON.stringify({success:true,generated:['normal-maintenance67-process.mjs','verify-maintenance-installation67.py','test-maintenance-update-command67.mjs','run-normal-maintenance67.mjs'],productionOpened:false}));

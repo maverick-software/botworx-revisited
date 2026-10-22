@@ -1,0 +1,14 @@
+import {readFile,writeFile,realpath} from 'node:fs/promises';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {desktopOperation} from './operation-lock.mjs';
+import {closed,run} from './phased-backup-control.mjs';
+desktopOperation('activate qualified47 transcript startup correction with recovery');await closed();
+const root=path.resolve(import.meta.dirname,'../..'),candidate=path.join(root,'.supabase/desktop-platform-release/candidate-04447'),proof=JSON.parse(await readFile(path.join(candidate,'startup-reading-proof.json'),'utf8')),exec=promisify(execFile);
+assert.equal(path.dirname(proof.work),path.resolve('C:/Users/charl/AgentopiaQA/startup-reading-ui'));assert.equal(await realpath(proof.work),proof.work);
+const sid=(await exec('powershell.exe',['-NoProfile','-NonInteractive','-Command','[Security.Principal.WindowsIdentity]::GetCurrent().User.Value'],{encoding:'utf8',windowsHide:true})).stdout.trim();assert(/^S-1-5-[0-9-]+$/.test(sid));
+await exec('icacls.exe',[proof.work,'/inheritance:r','/grant:r','*'+sid+':(OI)(CI)F','*S-1-5-18:(OI)(CI)F','/Q'],{windowsHide:true});
+await writeFile(path.join(candidate,'startup-reading-activation-intent.json'),JSON.stringify({at:new Date().toISOString(),pid:process.pid,work:proof.work,profileRecoveryProtected:true,ordinaryAppClosed:true,providerRequests:0},null,2),{flag:'wx'});
+console.log(await run(['-d','AgentopiaRuntime-a91a4800-e08f-4440-a4ec-588762d01bfd','-u','agentopia','--exec','python3','/mnt/d/Users/charl/software/Agentopia/scripts/desktop/apply-startup-reading-ui.py'],300000));

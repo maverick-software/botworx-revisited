@@ -1,0 +1,31 @@
+# Public declaration paths through the chat handler
+
+The actual33 application now imports the generated versionless portable ZIP, validates its three skill files through Codex, installs its exact normalized package and assigns it to the test agent in PostgreSQL. The subsequent Codex folder import fails with “Credential and private files cannot be imported as plugin packages.” This is a different failure from the corrected profile path issue.
+
+The folder reader checks `plugin.json`, `.codex-plugin/plugin.json`, `mcp.json` and `.mcp.json`, including optional declarations that may be absent. The chat handler's generic filename rule rejects `.mcp.json` before the reader can check whether it exists. Consequently, valid folder packages are rejected even when they declare a different MCP file. ZIP parsing does not traverse those host filenames, which explains the successful portable ZIP.
+
+## Correction and boundaries
+
+A shared plugin source policy now recognizes the two public dot-prefixed declaration names, `.codex-plugin` and `.mcp.json`. It first applies the existing protected-path check. All other private filename checks and the importer's link, size, credential and schema rules remain enforced. The Broker change is mechanically checked against frozen33: only the pure policy import and this import callback differ. Authentication, model routing and other chat operations are unchanged.
+
+Five new host-policy tests use the actual `WorkspaceFiles` path checker with the real folder reader. They verify a Codex folder with custom MCP configuration and no default dot file, a default `.mcp.json`, a portable folder containing a skill, refusal of private ancestors/protected directories/credential filenames, and refusal of a hard-linked public MCP declaration. All five pass, alongside23 existing import/compatibility checks and backend type checking. The first run retains one invalid test fixture: its portable manifest had no MCP server or skill component. The final fixture includes a real skill; the package requirement is preserved.
+
+The same frozen33 native harness also discovers a generated skill through the actual redirected147-character profile and its346-character cache instruction path. It returns the expected abstract plugin identity with zero inference. That rules out an additional cache metadata path problem in this environment.
+
+## Application rehearsal observations retained
+
+The original33 rehearsal passes15 groups, then reads an old background command before its separate completion event is saved. A later read-only inspection finds the old request stopped/completed and its later reply free of commands. The audit preserves20,401 original rows across152 tables and191 readable vault values. The test now waits up to15 seconds for the same final condition and saves each observation; the product's stop requirement is unchanged.
+
+The continuation controller also retains two setup failures: a wrong expected program path in its diagnostic subfolder, and a subsequent isolated runtime startup refusal after that interrupted launch. Starting/stopping the private backend with the production native/eager/exclusion flags succeeds and repeats the preservation audit. A further continuation opens correctly and reaches the folder declaration failure described above. Process observation now captures the launcher identifier before shutdown, so an already-disconnected Playwright object is not queried after actual Windows exit. These failures are preserved rather than reclassified as completed application acceptance.
+
+The plugin chat test uses Default permissions because Selected files intentionally omits external MCP tools. Its agent policy permits only the reviewed plugin readers and MCP discovery/call tools. The generated helper is never executed, and the external call still requires inline approval. This is a correction to the test setup, with no permission expansion in the product.
+
+## Evidence and current delivery state
+
+Source acceptance: `C:/Users/charl/AgentopiaQA/plugin-source-policy/1792388298239/source-acceptance.json`. The actual33 partial import and failure are retained under `C:/Users/charl/AgentopiaQA/plugin-compatibility/1792387134890/continuation-1792387915512/`. Native discovery evidence is `skill-discovery-probe-1792388193520/evidence.json` beside that continuation's parent. The read-only background/audit evidence is in `background-diagnosis-1792387531403` and `background-diagnosis-1792387844077` there.
+
+Frozen34 contains this three-file source/test change on top of33. Its archive is `0067bea1dc8ca5e305660758257fb6e2b9d676f3c3bc745d0f129f1342c77c9d`. It passes392 archived backend/schema checks and both converted-skill validations through actual Codex. The full production frontend and relevant fixture dependencies match the32 assets exactly, so its36 interface workflows are retained with explicit byte/hash provenance.
+
+The fresh actual34 Windows/SQL/Codex rehearsal passes30 workflow groups, including import, assignment, composer selection of both public skill formats, exact reference reads, one inline-approved local MCP call and cold restoration without replay. Both audits preserve20,401 original rows across152 tables and191 original vault records. The additional local fixture connection intentionally creates one new URL vault record; the final192 total is checked against that single addition. Both actual application exits return0 and only the test-owned runtime is unregistered. Seven installer integrity groups subsequently verify all7,237 resource files, the exact archive/executable/migrations and embedded package. The responses and local MCP endpoint are controlled; this establishes the shipped execution path, rather than general model instruction compliance or arbitrary service compatibility.
+
+The user-approved31 installer is now installed and separately audited, with the administrator, original chat/image draft and all106 chats/362 messages preserved.34 remains uninstalled and has no installation approval. Its release proof is `candidate-04434/release-proof.json`; current recovery and specific installation approval remain gates. All failed32/33 attempts and prior recovery evidence remain retained. No paid model request occurred in the34 rehearsal or installer verification. [Current release evidence](platform-release-0.44.34.md).

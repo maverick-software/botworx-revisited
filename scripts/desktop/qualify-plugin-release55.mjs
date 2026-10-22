@@ -1,0 +1,19 @@
+import assert from 'node:assert/strict';
+import {readFile,writeFile,readdir} from 'node:fs/promises';
+import path from 'node:path';
+import {desktopOperation} from './operation-lock.mjs';
+import {hash,json} from './phased-backup-control.mjs';
+desktopOperation('qualify plugin catalog55 for verified installer construction');
+const root=path.resolve(import.meta.dirname,'../..'),pointer=await json(path.join(root,'.supabase/desktop-plugin-release55/current.json')),proof=await json(pointer.proof),base=await json(proof.acceptedBase),controlsPointer=await json(path.join(root,'.supabase/desktop-agent-controls55/current.json')),controls=await json(controlsPointer.evidence),packaged=await json(path.join(proof.out,'packaged-accepted.json'));
+assert(proof.success&&proof.version==='0.44.55');assert.equal(await hash(proof.image),proof.imageSha256);assert.equal(await hash(base.image),base.imageSha256);assert.deepEqual(proof.compiledChanges,['desktop-location.js','startup-location.js']);
+assert(controls.success&&controls.actualArchivedModules&&controls.imageSha256===proof.imageSha256);assert.equal(controls.passed,815);for(const field of ['failed','skipped','cancelled'])assert.equal(controls[field],0);
+assert(packaged.success&&packaged.coldReopening&&packaged.agentContinuity&&packaged.formattedDocuments&&packaged.imageSha256===proof.imageSha256);
+const application=await json(packaged.evidence);assert(application.success&&application.checks.length===2&&application.modelTurns===0&&application.realProviderRequests===0);
+let uiFile,ui;for(const name of (await readdir(path.join(root,'.supabase/desktop-plugin-catalog55-ui'))).sort().reverse()){if(!/^\d{13}$/.test(name))continue;const file=path.join(root,'.supabase/desktop-plugin-catalog55-ui',name,'evidence.json');let found;try{found=await json(file);}catch{continue;}if(found.success&&found.delivered&&path.resolve(found.delivered)===path.join(proof.assets,'ui')&&found.checks.length===6){uiFile=file;ui=found;break;}}
+assert(uiFile&&ui,'The exact final UI needs its six completed interaction checks');assert.deepEqual(ui.rendererErrors,[]);
+for(const [name,digest]of Object.entries(proof.sourceHashes))assert.equal(await hash(path.join(root,'desktop',name)),digest,'The frozen source changed: '+name);
+for(const [name,digest]of Object.entries(proof.resourceFiles)){if(name.startsWith('ui/')||name==='version.json')continue;assert.equal(digest,base.resourceFiles[name],'A runtime supporting resource changed');}
+assert.equal(proof.runtimeVersion.schema,69);assert.equal(proof.runtimeVersion.desktopRecovery,10);
+const sourceHashes={};for(const name of ['make-plugin-installer55.mjs','make-plugin-installer55-worker.mjs','verify-plugin-installer55.mjs','squirrel-stub-integrity55.mjs','prepare-plugin-release55.mjs','test-plugin-release55.mjs','test-plugin-catalog55-ui.mjs','run-normal-maintenance55.mjs','normal-maintenance55-process.mjs','maintenance-program-rollback55.mjs','maintenance-update-command55.mjs','verify-maintenance-installation55.py'])sourceHashes[name]=await hash(path.join(root,'scripts/desktop',name));
+const result={success:true,at:new Date().toISOString(),version:proof.version,imageSha256:proof.imageSha256,proofSha256:await hash(pointer.proof),sourceHashes,archiveChecks:controls.passed,archiveEvidence:controlsPointer.evidence,uiChecks:ui.checks.length,uiEvidence:uiFile,packagedEvidence:packaged.evidence,packagedAgentContinuity:true,formattedDocuments:true,coldReopening:true,runtimeResourcesUnchanged:true,eligibleForInstallerConstruction:true,eligibleForProductionInstallation:false,freshProductionRecoveryRequired:true,installed:false,realProviderRequests:0,fullGoalComplete:false};
+await writeFile(path.join(proof.out,'qualification.json'),JSON.stringify(result,null,2),{flag:'wx'});console.log(JSON.stringify({success:true,version:proof.version,archiveChecks:815,uiChecks:6,packagedAgentContinuity:true,eligibleForInstallerConstruction:true}));

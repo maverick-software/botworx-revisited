@@ -1,0 +1,25 @@
+# Actual fresh-agent vision and saved procedure — 0.44.61
+
+One actual ChatGPT request passed through the installed61 code, bundled Codex 0.163.0 and real PostgreSQL. This test used a newly created agent in the retained isolated account, with no previous requests, no memory access and an empty tool allowlist. The ordinary production profile remained open and unchanged during the model test.
+
+The agent's saved role was `VISUAL-INSPECTOR-5eaa1a83`. Its saved standard operating procedure requested a JSON response containing its role, each visible shape and color in left-to-right order, and the selected browser text's main heading. The generic user prompt asked it to apply that saved procedure. The prompt and saved procedure supplied no expected colors, shape names or page heading.
+
+The image was the unchanged accepted edit: 2,681,800 bytes, 2512 × 1680 pixels, SHA-256 `82cd40d85e51369f1ad103914dfa210159b610d7629c0560db63e972f5213e9c`. The app used its existing owned encrypted attachment reference. The other input was the real Chrome snapshot previously captured through the connector, with heading `PACKAGED-CHROME-CONTEXT-60`. This was a selected saved snapshot; the old local web server and browser connection were closed.
+
+The actual response correctly returned the configured role, a red square on the left, blue circle in the center, orange triangle on the right and the exact selected-source heading. The native inference request contained an image, the saved role and selected source. No tool was invoked, and no new image was generated. A complete normal close and reopening retained the same response, native thread, image bytes and agent definition, with zero further model requests. The completed test conversation was archived and its temporary agent retired after cold acceptance; its result and evidence remain.
+
+The original ChatGPT access token had expired. Read-only metadata inspection confirmed that state without changing the store. Six isolated renewal guards passed before one real token renewal through the original protected store while Agentopia was normally closed. Identity and unrelated settings were preserved, the updated store was reopened and fresh access was read back. The model test received an encrypted access-only lease; the renewable credential stayed in the original store. The lease was removed before cold reopening. The ordinary app process and exact protected-store bytes remained unchanged throughout the model test after renewal. OpenRouter was not called.
+
+Twelve isolated network-guard checks established owner/request/agent/conversation binding, expiry checks, presence of image and source context, the response-count ceiling, journal-before-dispatch and refusal of identical-input replay. Only the selected ChatGPT request could reach inference. These guard tests used simulated replies; the one subsequent model response was real.
+
+Acceptance: `F:/Agentopia/.supabase/desktop-live-vision61/1792626948504/live-vision-accepted.json`.
+
+Request: `30546811-67ef-480d-9d89-30d29ce522d8`; agent: `8f2847b9-cd5b-41ae-8349-58fa1a217afc`; native thread: `01a160e5-33ff-7b12-933a-420fc500bc9f`. Preserve these completed records without resubmitting them. The source application archive matches installed61 SHA-256 `9b484f7e69a426e4129491fb42e14e468ea3c2daee7242d410e213b6667054b4`.
+
+This establishes one fresh agent's use of its saved identity and procedure with mixed image and selected browser text, plus persistence through reopening. It does not establish general vision accuracy, independent-child vision, large image histories, a live web revisit or broader document creation. Those remain separate goal requirements.
+
+A fresh supported Windows inspection initialization was also attempted. It failed before JavaScript with `failed to write kernel assets: The system cannot find the path specified. (os error 3)`. No app was selected or controlled by that attempt, and no new reference-app screenshot was obtained. The saved Agentopia test captures show the isolated test account; they are not ordinary/reference comparisons. Live Composio authentication still requires a valid project key in protected per-user setup. The full parity goal remains active and incomplete.
+
+The finished private program copy was removed after acceptance. The qualified current program, installed app, encrypted test profile/runtime, saved response and diagnostic evidence remain. The logical program size included shared hardlinks and is not an equivalent physical-space claim. Cleanup receipt: `F:\Agentopia\.supabase\desktop-live-vision61\1792626948504\finished-program-cleanup.json`.
+
+Later verification on installed62 separately established independent-child vision, own-memory retrieval, a live status read from another chat and automatic original-parent reporting. Inspection of saved native transport also established that Codex resizes this selected image to 1913 × 1280 before inference; original-byte preservation describes attachment storage and recovery. See [live child vision and status62](live-child-vision-status62.md). Broader image accuracy and long image histories remain open.

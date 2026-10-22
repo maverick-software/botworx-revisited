@@ -1,0 +1,13 @@
+import {readFile,writeFile} from 'node:fs/promises';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+const root=path.resolve(import.meta.dirname,'../..'),json=async file=>JSON.parse(await readFile(file,'utf8'));
+const pointer=await json(path.join(root,'.supabase/desktop-normal-maintenance/current-update68.json')),installed=await json(path.join(pointer.job,'evidence.json'));
+assert(installed.success&&installed.installed&&!installed.ordinaryReopeningPending&&installed.currentRecoveryVerified&&installed.rollbackVerified);
+const ledger=path.join(root,'.supabase/desktop-recovery-bootstrap/next-acceptance.json'),state=await json(ledger);
+state.at=new Date().toISOString();state.installed='0.44.68';state.deliveryComplete=false;state.fullGoalComplete=false;
+state.continuationBrief=path.join(root,'docs/desktop/continuation-brief68.md');state.fullObjective=path.join(root,'docs/desktop/active-goal-objective.json');
+state.sourceWork68={...state.sourceWork68,phase:'Installed68 and reopened normally; ordinary startup/data/UI acceptance pending in the user-requested fresh chat',installed:true,maintenance:pointer.job,installerVerified:path.join(root,'.supabase/desktop-agent-apps68-release/1792706032442/installer-verified.json'),packagedAccepted:path.join(root,'.supabase/desktop-agent-apps68-release/1792706032442/packaged-accepted.json'),ordinaryAcceptancePending:true};
+state.next=['Finish ordinary68 startup, saved-data/account/picker acceptance; inspect protected connection metadata without requests; remove exact inactive C67 with verified F rollback; record final delivery and align root versions.','Continue the complete remaining parity scope in docs/desktop/continuation-brief68.md and parity-requirements57.md.'];
+state.latestGoalTurnOutcome={at:state.at,result:'progress',description:'Verified68 installer, actual PostgreSQL/Codex scoped picker and cold zero replay, qualified controller, captured fresh recovery and latest UI rollback, installed68 and reopened normally. User requested continuation in a fresh chat with a brief; ordinary startup/UI acceptance remains pending.'};
+await writeFile(ledger,JSON.stringify(state,null,2));console.log(JSON.stringify({success:true,installed:'0.44.68',deliveryComplete:false,continuationBrief:state.continuationBrief}));

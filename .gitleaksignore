@@ -1,0 +1,284 @@
+# Reviewed exact findings: pinned checksums, documented examples, public anon keys,
+# local demo credentials and private-key formatting templates. No service-role keys.
+# Pinned resource checksum
+desktop/src/chrome-runtime-manifest.json:generic-api-key:80
+# Pinned resource checksum
+desktop/src/chrome-runtime-manifest.json:generic-api-key:95
+# Pinned resource checksum
+desktop/src/chrome-runtime-manifest.json:generic-api-key:100
+# Pinned resource checksum
+desktop/src/chrome-runtime-manifest.json:generic-api-key:105
+# Pinned resource checksum
+desktop/src/chrome-runtime-manifest.json:generic-api-key:129
+# Pinned resource checksum
+desktop/src/chrome-runtime-manifest.json:generic-api-key:131
+# Pinned resource checksum
+desktop/src/chrome-runtime-manifest.json:generic-api-key:132
+# Pinned resource checksum
+desktop/src/chrome-runtime-manifest.json:generic-api-key:133
+# Pinned resource checksum
+desktop/src/chrome-runtime-manifest.json:generic-api-key:134
+# Pinned resource checksum
+desktop/src/chrome-runtime-manifest.json:generic-api-key:148
+# Pinned resource checksum
+desktop/src/chrome-runtime-manifest.json:generic-api-key:151
+# Pinned resource checksum
+desktop/src/chrome-runtime-manifest.json:generic-api-key:174
+# Pinned resource checksum
+desktop/src/chrome-runtime-manifest.json:generic-api-key:177
+# Pinned resource checksum
+desktop/src/chrome-runtime-manifest.json:generic-api-key:179
+# Pinned resource checksum
+desktop/src/chrome-runtime-manifest.json:generic-api-key:180
+# Pinned resource checksum
+desktop/src/chrome-runtime-manifest.json:generic-api-key:181
+# Pinned resource checksum
+desktop/src/chrome-runtime-manifest.json:generic-api-key:182
+# Pinned resource checksum
+desktop/src/chrome-runtime-manifest.json:generic-api-key:192
+# Pinned resource checksum
+desktop/src/chrome-runtime-manifest.json:generic-api-key:283
+# Pinned resource checksum
+desktop/src/artifact-runtime-manifest.json:generic-api-key:207
+# Pinned resource checksum
+desktop/src/artifact-runtime-manifest.json:generic-api-key:221
+# Pinned resource checksum
+desktop/src/artifact-runtime-manifest.json:generic-api-key:359
+# Pinned resource checksum
+desktop/src/artifact-runtime-manifest.json:generic-api-key:372
+# Pinned resource checksum
+desktop/src/artifact-runtime-manifest.json:generic-api-key:460
+# Pinned resource checksum
+desktop/src/artifact-runtime-manifest.json:generic-api-key:502
+# Pinned resource checksum
+desktop/src/artifact-runtime-manifest.json:generic-api-key:510
+# Pinned resource checksum
+desktop/src/artifact-runtime-manifest.json:generic-api-key:622
+# Pinned resource checksum
+desktop/src/artifact-runtime-manifest.json:generic-api-key:730
+# Pinned resource checksum
+desktop/src/code-tool-manifest.json:generic-api-key:70
+# Pinned resource checksum
+desktop/src/code-tool-manifest.json:generic-api-key:71
+# Pinned resource checksum
+desktop/src/code-tool-manifest.json:generic-api-key:72
+# Pinned resource checksum
+desktop/src/code-tool-manifest.json:generic-api-key:127
+# Pinned resource checksum
+desktop/src/code-tool-manifest.json:generic-api-key:131
+# Pinned resource checksum
+desktop/src/code-tool-manifest.json:generic-api-key:153
+# Pinned resource checksum
+desktop/src/code-tool-manifest.json:generic-api-key:157
+# Pinned resource checksum
+desktop/src/code-tool-manifest.json:generic-api-key:202
+# Pinned resource checksum
+desktop/src/code-tool-manifest.json:generic-api-key:302
+# Pinned resource checksum
+desktop/src/code-tool-manifest.json:generic-api-key:347
+# Pinned resource checksum
+desktop/src/code-tool-manifest.json:generic-api-key:367
+# Pinned resource checksum
+desktop/src/code-tool-manifest.json:generic-api-key:369
+# Pinned resource checksum
+desktop/src/code-tool-manifest.json:generic-api-key:428
+# Pinned resource checksum
+desktop/src/code-tool-manifest.json:generic-api-key:438
+# Pinned resource checksum
+desktop/src/code-tool-manifest.json:generic-api-key:443
+# Pinned resource checksum
+desktop/src/code-tool-manifest.json:generic-api-key:560
+# Pinned resource checksum
+desktop/src/code-tool-manifest.json:generic-api-key:568
+# Pinned resource checksum
+desktop/src/code-tool-manifest.json:generic-api-key:628
+# Pinned resource checksum
+desktop/src/code-tool-manifest.json:generic-api-key:650
+# Pinned resource checksum
+desktop/src/code-tool-manifest.json:generic-api-key:777
+# Pinned resource checksum
+desktop/src/code-tool-manifest.json:generic-api-key:884
+# Pinned resource checksum
+desktop/src/code-tool-manifest.json:generic-api-key:893
+# Pinned resource checksum
+desktop/src/code-tool-manifest.json:bitbucket-client-secret:45
+# Pinned resource checksum
+desktop/src/code-tool-manifest.json:generic-api-key:968
+# Pinned resource checksum
+desktop/src/code-tool-manifest.json:generic-api-key:1004
+# Pinned resource checksum
+desktop/src/computer-runtime-manifest.json:generic-api-key:29
+# Pinned resource checksum
+desktop/src/computer-runtime-manifest.json:generic-api-key:109
+# Pinned resource checksum
+desktop/src/computer-runtime-manifest.json:generic-api-key:118
+# Pinned resource checksum
+desktop/src/computer-runtime-manifest.json:generic-api-key:187
+# Pinned resource checksum
+desktop/src/computer-runtime-manifest.json:generic-api-key:213
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:91
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:153
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:183
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:245
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:284
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:352
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:376
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:394
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:417
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:479
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:825
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:835
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:1241
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:1405
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:1474
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:1515
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:1539
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:1540
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:1841
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:1875
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:1876
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:1877
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:1878
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:1879
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:2139
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:2166
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:2167
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:2254
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:2429
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:2433
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:2546
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:2639
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:2721
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:3082
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:3198
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:3323
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:3328
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:3349
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:3359
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:3360
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:3476
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:3640
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:3785
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:3792
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:3999
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:4053
+# Pinned resource checksum
+desktop/src/script-runtime-manifest.json:generic-api-key:4054
+# Documentation example, identifier or placeholder
+docs/AUTOMATIC_MCP_SCHEMA_REFRESH_SYSTEM.md:curl-auth-header:165
+# Documentation example, identifier or placeholder
+docs/desktop/composio-integration.md:generic-api-key:37
+# Documentation example, identifier or placeholder
+docs/implementation/dtma_ssh_integration_guide.md:curl-auth-header:171
+# Documentation example, identifier or placeholder
+docs/implementation/dtma_ssh_integration_guide.md:curl-auth-header:177
+# Documentation example, identifier or placeholder
+docs/implementation/dtma_ssh_integration_guide.md:curl-auth-header:183
+# Documentation example, identifier or placeholder
+docs/implementation/dtma_ssh_integration_guide.md:curl-auth-header:191
+# Documentation example, identifier or placeholder
+docs/implementation/dtma_ssh_integration_guide.md:curl-auth-header:197
+# Documentation example, identifier or placeholder
+docs/implementation/dtma_ssh_integration_guide.md:curl-auth-header:205
+# Documentation example, identifier or placeholder
+docs/fixes/function_calling_refactoring_success.md:generic-api-key:33
+# Documentation example, identifier or placeholder
+docs/plans/advanced_json_chat_system/research/3.2_api_design_research.md:generic-api-key:501
+# Documentation example, identifier or placeholder
+docs/implementation/automated_ssh_system_guide.md:curl-auth-header:263
+# Documentation example, identifier or placeholder
+docs/plans/advanced_json_chat_system/implementation/05_api_design_implementation.md:generic-api-key:151
+# Documentation example, identifier or placeholder
+docs/plans/gmail_integration/README.md:curl-auth-header:242
+# Documentation example, identifier or placeholder
+docs/plans/gmail_integration/README.md:curl-auth-header:248
+# Documentation example, identifier or placeholder
+docs/tools/security.md:generic-api-key:114
+# Documentation example, identifier or placeholder
+docs/plans/voice_chat/research.md:curl-auth-header:799
+# Documentation example, identifier or placeholder
+docs/security/BROWSER_STORAGE_SECURITY_FIX.md:generic-api-key:82
+# Documentation example, identifier or placeholder
+docs/tools/functions.md:curl-auth-header:678
+# Public anonymous Supabase key
+scripts/check_admin.js:jwt:4
+# Documentation example, identifier or placeholder
+docs/tools/api_reference.md:curl-auth-header:627
+# Documentation example, identifier or placeholder
+docs/tools/api_reference.md:curl-auth-header:633
+# Documentation example, identifier or placeholder
+docs/tools/api_reference.md:curl-auth-header:677
+# Public anonymous Supabase key
+scripts/test_mcp_simple.js:jwt:10
+# Public anonymous Supabase key
+scripts/test_mcp_tools_discovery.js:jwt:12
+# Public anonymous Supabase key
+scripts/test-check-email.js:jwt:10
+# Public anonymous Supabase key
+scripts/tests/check_getzep_connection.ts:jwt:10
+# Public anonymous Supabase key
+scripts/get-secrets-and-bearer-token.js:jwt:17
+# Public anonymous Supabase key
+scripts/tests/manual_queue_test.ts:jwt:10
+# Public anonymous Supabase key
+scripts/get-secrets-via-edge-function.js:jwt:48
+# Explicit test canary
+scripts/tests/test_vault_final.ts:generic-api-key:64
+# Documentation example, identifier or placeholder
+services/websocket-voice-server/VAULT_SETUP.md:generic-api-key:49
+# Documentation example, identifier or placeholder
+services/websocket-voice-server/VAULT_SETUP.md:generic-api-key:135
+# Key-formatting template with interpolated body
+src/lib/utils/ssh_utils.ts:private-key:55
+# Key-formatting template with interpolated body
+src/lib/utils/ssh_utils.ts:private-key:82
+# Local development curl example using the default demo anon key
+supabase/functions/mcp-server-utils/index.ts:curl-auth-header:132
+# Default local development anon key
+supabase/functions/mcp-server-utils/index.ts:jwt:133

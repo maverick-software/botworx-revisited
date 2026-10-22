@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {readFile,writeFile} from 'node:fs/promises';
+import path from 'node:path';
+import {hash} from './phased-backup-control.mjs';
+import {desktopOperation} from './operation-lock.mjs';
+desktopOperation('record scoped 0.44.51 package and renderer qualification');
+const root=path.resolve(import.meta.dirname,'../..'),json=async file=>JSON.parse(await readFile(file,'utf8'));
+const pointer=await json(path.join(root,'.supabase/desktop-release-04451/current.json')),proof=await json(pointer.proof),controlPointer=await json(path.join(root,'.supabase/desktop-agent-controls51/current.json')),controls=await json(controlPointer.evidence),uiFile=path.join(root,'.supabase/desktop-chat-details/1792554344407/evidence.json'),ui=await json(uiFile),source=await json(proof.sourceQualification);
+assert(proof.success&&proof.version==='0.44.51'&&source.success);assert.equal(await hash(proof.image),proof.imageSha256);assert.equal(controls.imageSha256,proof.imageSha256);assert(controls.success&&controls.actualArchivedModules);assert.equal(controls.passed,684);for(const key of ['failed','skipped','cancelled','liveProviderRequests'])assert.equal(controls[key],0);
+assert(ui.success&&ui.controlledBridge&&ui.actualDesktopApp);assert.equal(path.resolve(ui.delivered),path.join(proof.assets,'ui'));assert.equal(ui.checks.length,15);assert.equal(ui.inferenceRequests,0);
+for(const [name,digest]of Object.entries(proof.resourceFiles))assert.equal(await hash(path.join(proof.assets,name)),digest,'Resource changed: '+name);
+const result={success:true,version:proof.version,at:new Date().toISOString(),imageSha256:proof.imageSha256,sourceQualification:proof.sourceQualification,archivedAgentControls:controlPointer.evidence,packagedRenderer:uiFile,archivedChecks:684,rendererChecks:15,resourcesVerified:Object.keys(proof.resourceFiles).length,liveProviderRequests:0,productionAccess:false,installed:false,eligibleForProductionInstallation:false,remaining:['Packaged startup and selected-source/recovery workflows','Capability-9 restoration in the application','Verified installer, fresh recovery and ordinary installed acceptance']};
+const file=path.join(proof.out,'selected-context-modules-and-renderer.json');await writeFile(file,JSON.stringify(result,null,2),{flag:'wx'});
+const ledger=path.join(root,'.supabase/desktop-recovery-bootstrap/next-acceptance.json'),next=await json(ledger);next.selectedContext51={...next.selectedContext51,status:'packaged-modules-and-renderer-verified',packageQualification:file,remaining:result.remaining};await writeFile(ledger,JSON.stringify(next,null,2));
+console.log(JSON.stringify({success:true,evidence:file,archivedChecks:684,rendererChecks:15,resourcesVerified:result.resourcesVerified,installed:false,eligibleForProductionInstallation:false}));

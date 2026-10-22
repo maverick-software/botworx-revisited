@@ -1,0 +1,21 @@
+# Editing beside chat
+
+Version 0.13.0 extends the right workspace pane with a local text and code editor. The application rail, chat/project sidebar, conversation, editor/browser tabs, and folder navigation remain independently usable and resizable.
+
+Open a granted file in the folder tree and select **Edit**. The bundled CodeMirror editor provides line numbers, syntax highlighting for JavaScript/TypeScript, Markdown, JSON, HTML, CSS, Python and SQL, undo, search and replace, and **Ctrl+S**. Other supported UTF-8 text formats use the same editor without language-specific highlighting. The editor runs inside the isolated renderer with no network access or Node.js access.
+
+The workspace tab's **+** menu offers **New text file** and **Recover local drafts**. New files stay as drafts until Save; their parent folders must exist. Local drafts are associated with the Agentopia account and encrypted by Windows in the application's local storage. They contain the original version and the current draft so a file can be checked before replacement. The limit is 20 drafts and 1.5 million characters across draft/original pairs; each file is limited to 160,000 characters and 256 KB. Credentials, hidden files, linked paths, application data, and paths outside the selected grant remain excluded.
+
+**Save** explicitly writes the file. Typing saves only a protected local draft. Chat and file tools continue to read the saved file from disk; unsaved edits are never included automatically. Original CRLF line endings are retained. Manual writes and reviewed agent writes share the same per-file serialization and current-file checks.
+
+If the file changed elsewhere, Save shows the latest saved contents beside the draft. Keep the draft, reload the latest file, or explicitly replace the reviewed version. Replacement checks that version again, so a second external change requires another review. Reload and Discard ask before removing unsaved work. Discard changes only local draft storage.
+
+Switching tabs and closing the pane flush pending draft writes. Normal application closing asks the renderer to finish draft writes before shutting down the backend. If that cannot finish, the application offers to stay open or close with only its last acknowledged draft. Forced termination can recover acknowledged drafts; keystrokes still waiting for acknowledgment may be lost. A forgotten file grant does not delete its protected draft; recovery can display and copy that draft, and reselecting the original workspace restores the ability to save it.
+
+PDF and Office documents remain read-only text previews. Their original layout, OCR, Office editing, shell execution, and unrestricted filesystem access remain separate work.
+
+All 57 automated tests passed. The source and actual installed desktop regressions passed explicit save, CRLF preservation, tab/reload recovery, repeated conflicts, new files, forgotten-reference recovery/removal, rejected oversized drafts, provider snapshots, and unsaved-text privacy. Separate installed checks covered normal-close flushing and forced-termination recovery. The upgrade fixture preserved its account, project, protected MCP credential, agent, and saved conversation.
+
+A live installed check used real ChatGPT `gpt-6.1-sol` and OpenRouter `openai/gpt-6.1-sol`, both with High thinking. ChatGPT completed `read_file` and returned the saved file's first code while a different local draft remained unsaved. Ctrl+S saved a second code with CRLF retained. OpenRouter completed its own `read_file`, returned the second code, and recalled the first. All four messages and their distinct saved file snapshots reopened. Unsaved draft text did not enter the saved provider context or tool results. Inference and file reads were real. Earlier controlled tests additionally inspected the actual request payloads for both providers.
+
+Evidence is retained in `.supabase/desktop-live-editor/evidence.json`, with the live conversation `09ebb38b-6537-4bd2-883c-376b245b1791`. Original accounts, passwords, previous demonstrations, sixteen applied migrations, and six healthy Supabase services passed final preservation checks. [Implementation status](implementation-status.md) and [remaining parity work](parity-backlog.md).

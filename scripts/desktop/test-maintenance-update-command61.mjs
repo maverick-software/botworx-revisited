@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import path from 'node:path';
+import {maintenanceUpdateCommand,installedUpdater} from './maintenance-update-command61.mjs';
+const pointer=JSON.parse(await readFile(path.resolve(import.meta.dirname,'../../.supabase/desktop-image-attachment-release61/current.json'),'utf8'));
+const releaseDirectory=path.join(path.dirname(pointer.proof),'installer-build-short/output'),temp='F:/Agentopia-Tmp/update61-1792533477486';
+const command=maintenanceUpdateCommand({releaseDirectory,temp,environment:{ELECTRON_RUN_AS_NODE:'1',AGENTOPIA_TEST_PROFILE:'wrong',NODE_OPTIONS:'--inspect',KEEP:'yes'}});
+assert.equal(command.exe,installedUpdater);assert.deepEqual(command.args,['--update',releaseDirectory.replaceAll('/','\\')]);
+assert.equal(command.env.TEMP,temp.replaceAll('/','\\'));assert.equal(command.env.TMP,command.env.TEMP);assert.equal(command.env.SQUIRREL_TEMP,command.env.TEMP);assert.equal(command.env.KEEP,'yes');
+for(const key of ['ELECTRON_RUN_AS_NODE','AGENTOPIA_TEST_PROFILE','NODE_OPTIONS'])assert(!Object.hasOwn(command.env,key));
+for(const invalid of ['C:/temp','F:/Agentopia-Tmp/update61-../bad','F:/Agentopia-Tmp/update61-1792533477486/nested'])assert.throws(()=>maintenanceUpdateCommand({releaseDirectory,temp:invalid}));
+assert.throws(()=>maintenanceUpdateCommand({releaseDirectory:'F:/other-release',temp}));
+console.log(JSON.stringify({success:true,checks:13,installedRootSelectedByUpdaterLocation:true,setupBootstrapperNotUsed:true,shortFDriveScratch:true}));

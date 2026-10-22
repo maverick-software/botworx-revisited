@@ -1,0 +1,17 @@
+Test Document for Knowledge Base
+
+This is a test document to verify that the document knowledge pipeline is working correctly.
+
+Key Information:
+- The quarterly revenue for Q4 2024 was $2.5 million
+- Customer satisfaction increased by 15% this quarter
+- The new product launch generated 500 new subscribers
+- Our support response time improved to 2.3 hours average
+
+Important Metrics:
+- Monthly recurring revenue: $850,000
+- Customer churn rate: 3.2%
+- Net promoter score: 78
+- Active user base: 12,500 users
+
+This document should be processed, chunked, embedded, and stored in the Pinecone vector database so that agents can reference this information when answering questions about company performance.

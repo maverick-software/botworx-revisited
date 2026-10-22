@@ -1,0 +1,13 @@
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import path from 'node:path';
+import {spawn} from 'node:child_process';
+import assert from 'node:assert/strict';
+import {desktopOperation} from './operation-lock.mjs';
+desktopOperation('qualify narrow Google account chooser and inherit unchanged source checks');
+const root=path.resolve(import.meta.dirname,'../..'),read=async file=>JSON.parse(await readFile(file,'utf8')),hash=async file=>createHash('sha256').update(await readFile(file)).digest('hex'),pointer=await read(path.join(root,'.supabase/desktop-google-editor64/current.json')),base=await read(pointer.evidence);assert(base.success&&base.sourceOnly&&!base.installed);
+const allowed=new Set(['desktop/ui/GoogleDocumentDialog.tsx','desktop/ui/ChatLink.tsx','scripts/desktop/test-google-documents64-ui.mjs']);for(const [file,digest]of Object.entries(base.sourceHashes))if(!allowed.has(file))assert.equal(await hash(path.join(root,file)),digest,file);
+const out=path.join(root,'.supabase/desktop-google-editor64',String(Date.now()));await mkdir(out,{recursive:true});const commands=[];
+async function run(name,args){let log='';const child=spawn(process.execPath,args,{cwd:root,windowsHide:true,env:process.env});child.stdout.on('data',bytes=>log+=bytes);child.stderr.on('data',bytes=>log+=bytes);const code=await new Promise((resolve,reject)=>{child.on('error',reject);child.on('close',resolve);});await writeFile(path.join(out,name+'.log'),log);commands.push({name,code});assert.equal(code,0,log.slice(-5000));console.log(JSON.stringify({name,code}));}
+await run('renderer-types',['node_modules/typescript/bin/tsc','-p','desktop/ui/tsconfig.json']);await run('google-ui',['scripts/desktop/test-google-documents64-ui.mjs']);
+const sourceHashes={};for(const file of Object.keys(base.sourceHashes))sourceHashes[file]=await hash(path.join(root,file));const evidence={...base,success:true,at:new Date().toISOString(),out,commands:[...base.commands.map(command=>({...command,inherited:true})),...commands],sourceHashes,inheritedQualification:pointer.evidence,inheritanceReason:'Only Google document account-button layout, canonical file-link action discovery and their UI cases changed. Backend, permissions, recovery and all other previously qualified source files remain byte-identical.',sourceOnly:true,installed:false,realComposioRequests:0,providerRequests:0,productionWrites:0};await writeFile(path.join(out,'evidence.json'),JSON.stringify(evidence,null,2));await writeFile(path.join(root,'.supabase/desktop-google-editor64/current.json'),JSON.stringify({out,evidence:path.join(out,'evidence.json')},null,2));console.log(JSON.stringify({success:true,out,sourceOnly:true,installed:false}));

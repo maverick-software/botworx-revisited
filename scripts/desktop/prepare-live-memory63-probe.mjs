@@ -1,0 +1,3 @@
+import path from 'node:path';
+import {readFile,writeFile} from 'node:fs/promises';
+const source=await readFile(path.join(import.meta.dirname,'launch-live-concurrency62-probe.mjs'),'utf8'),target=source.replace("import {installLiveConcurrencyGuard as installCoordinationGuard} from './install-live-concurrency62-guard.mjs';","import {installLiveMemoryGuard as installCoordinationGuard} from './install-live-memory63-guard.mjs';");if(target===source)throw Error('The qualified probe import was not found');await writeFile(path.join(import.meta.dirname,'launch-live-memory63-probe.mjs'),target,{flag:'wx'});

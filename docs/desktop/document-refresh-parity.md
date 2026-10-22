@@ -1,0 +1,29 @@
+# Active document refresh
+
+October 19, 2026: **Agentopia 0.44.47 document-refresh-12 is installed and accepted.** An open file is now monitored independently of folder navigation. A change offers the reference app's floating **Refresh for latest** action, with dismissal, while retaining the currently displayed document until the user refreshes it. The prompt clears the document toolbar. Folder-based references and individually attached files use the same owned-file resolver.
+
+The previous implementation mounted directory watchers only inside the folder tree. Closing that tree removed notifications, and a directly attached file never mounted a directory watcher. The new file subscription watches its parent for that file's name and polls the selected file's metadata. This detects ordinary writes and atomic replacement saves without reading sibling contents. Every check validates the current account, reference and path; linked or revoked paths cannot remain subscribed. A failed operating-system notification channel retains polling. Switching files, chats or accounts, closing the pane and entering the editor retire the old subscription.
+
+The backend archive differs from office-pane-11 in only `build/broker.js` and `build/workspace-monitor.js`. The broker accepts the explicitly validated file watcher kind. The actual Codex harness, provider adapters, agent definitions, memory, permissions and database schema retain their accepted code. OpenRouter remains supported. No inference request was sent or replayed during this update.
+
+## Evidence
+
+Six backend workflow groups exercise real filesystem edits, atomic saves, polling with a restored modification time, account changes, reference revocation, pending cancellation and unsafe paths, alongside the existing directory behavior. Twelve interface workflows use the actual WorkspacePane; three also connect it to the real file resolver, monitor, document worker and formatted Word viewer. They establish Request edits targeting, notification without premature replacement, refreshed contents and a stable registered file link. Fifteen packaged-renderer navigation workflows and six packaged-renderer agent-selection workflows establish retained drafts, models, modes, controls, plugin context and historical authorship. These are 39 workflow groups with overlapping coverage, not 39 separate product capabilities.
+
+The native reference app opened a generated Word file. Changing its first title produced Refresh for latest, and clicking it displayed the new title. The installed Agentopia opened a byte-identical copy in the existing QA chat with folder navigation closed. Request edits staged the current filename and attachment without sending a message. Two subsequent local edits produced the prompt and refreshed content. Independent package comparison confirms that only `word/document.xml` changed among 18 parts. The installed visual check caught an initial toolbar overlap; a CSS correction was tested and published before acceptance, and native inspection confirms the prompt now sits below the toolbar.
+
+The original user chat, empty draft, PDF attachment, Full access and ChatGPT / GPT-6.1 Sol High selection are restored. The temporary QA attachment, edit draft and document tab were removed from that chat's draft/workspace. Both previously generated Office outputs retain their accepted hashes. The final database comparison preserves all 126 tables, including account/password records, 115 chats, 398 messages and 199 requests. No request is running.
+
+## Delivery and recovery
+
+Immutable candidate, source, layout correction and receipts: `C:/Users/charl/AgentopiaQA/document-refresh/1792471037784/`. The current pointer and accepted receipt are `.supabase/desktop-document-refresh/current.json` and `.supabase/desktop-document-refresh/reopened.json`. The main proof records the backend update; `layout-proof.json` and `layout-installed.json` record the final UI. Accepted source is `layout-source/desktop`; accepted UI is `layout-ui`.
+
+Installed archive SHA-256: `56b6723e0e051afc98bbdf23ad311f5528ce37383dfcf21f355463a41c127787`. Final resource manifest SHA-256: `ea253c329cbc7089253fc9cade58029978030efa09d3c12785e9774072d79235`. All 219 delivered UI files match. The general recovery chain now recognizes this accepted archive, and inspection verifies the actual private profile, selector and registered WSL disk binding.
+
+Fresh protected recovery: `C:/Users/charl/AgentopiaRecovery/document-refresh-12/1792471594097/`. Five logical database/key archives share one exported database snapshot. The closed-profile archive preserves 4,036 files in 42,850,874 compressed bytes. Source inventories, Node's archive reader and an independent Python tar read agree. The previous archive/UI and the retained cold database image remain available. Explicit inactive backup files and completed QA artifacts were compressed in place to retain disk headroom; paths and hashes were rechecked, with no deletion or move. Some long-path inactive files could not be compressed and remain unchanged.
+
+This is a verified focused update to the ordinary installation. It does not establish a new complete installer, Windows reboot, new cold image or clean-machine restoration.
+
+## Remaining goal work
+
+A new paid Request edits execution has not been submitted. The installed staging/refresh/link path is demonstrated locally; the next bounded agent run must be submitted once, retain its request ID and independently verify the resulting Office package. Private scratch exports with content-derived names need a separate changed-output link check. Continue the wider workspace-agent identity, memory, concurrent coordination, cancellation and restart requirements, remaining external context/image capabilities, and full release/reboot/recovery acceptance. The full goal remains active.

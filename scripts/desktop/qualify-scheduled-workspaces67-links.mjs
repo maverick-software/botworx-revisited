@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import {mkdir,writeFile,copyFile} from 'node:fs/promises';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import {desktopOperation} from './operation-lock.mjs';
+import {hash} from './phased-backup-control.mjs';
+
+desktopOperation('saved chat file links and edited output recovery regressions67');
+const root=path.resolve(import.meta.dirname,'../..'),stamp=Date.now(),out=path.join(root,'.supabase/desktop-scheduled-workspaces67','links-'+stamp),fixtures=path.join('F:/Agentopia-Acceptance','schedule67-links-'+stamp),build=path.join(out,'build'),tests=path.join(out,'tests'),exec=promisify(execFile);
+await mkdir(path.join(tests,'fixtures/documents'),{recursive:true});await mkdir(fixtures,{recursive:true});await writeFile(path.join(out,'package.json'),'{"type":"commonjs"}');
+await exec(process.execPath,['node_modules/typescript/bin/tsc','-p','desktop/tsconfig.json','--outDir',build,'--noEmitOnError'],{cwd:root,windowsHide:true,timeout:120000,maxBuffer:1024*1024});
+const names=['chat-output-edits','migrated-chat-output'];for(const name of names)await copyFile(path.join(root,'desktop/tests',name+'.test.cjs'),path.join(tests,name+'.test.cjs'));
+await copyFile(path.join(root,'desktop/tests/fixtures/documents/sample.docx'),path.join(tests,'fixtures/documents/sample.docx'));
+const loader=path.join(out,'no-live.cjs');await writeFile(loader,"global.fetch=()=>{throw Error('No network access in saved chat recovery tests');};");
+const env={...process.env,NODE_PATH:path.join(root,'node_modules'),AGENTOPIA_CHAT_OUTPUT_BUILD:build,AGENTOPIA_MIGRATED_OUTPUT_BUILD:build,TEMP:fixtures,TMP:fixtures,TMPDIR:fixtures};for(const name of ['NODE_OPTIONS','ELECTRON_RUN_AS_NODE','OPENAI_API_KEY','OPENAI_BASE_URL','OPENROUTER_API_KEY','ANTHROPIC_API_KEY'])delete env[name];
+let success=false,output;try{output=(await exec(process.execPath,['--require',loader,'--test','--test-concurrency=1','--test-reporter=tap',...names.map(name=>path.join(tests,name+'.test.cjs'))],{cwd:root,env,windowsHide:true,timeout:120000,maxBuffer:4*1024*1024})).stdout;success=true;}catch(error){output=error.stdout??'';await writeFile(path.join(out,'failure.log'),error.stderr??String(error));}await writeFile(path.join(out,'tests.tap'),output);
+const count=name=>Number(new RegExp('^# '+name+' (\\d+)','m').exec(output)?.[1]),sourceHashes={};for(const file of ['desktop/src/chat-files.ts','desktop/src/workspace-links.ts','desktop/src/source-locations.ts','desktop/src/workspace.ts',...names.map(name=>'desktop/tests/'+name+'.test.cjs'),'desktop/tests/fixtures/documents/sample.docx','scripts/desktop/qualify-scheduled-workspaces67-links.mjs'])sourceHashes[file]=await hash(path.join(root,file));
+const evidence={success:success&&count('fail')===0&&count('skipped')===0&&count('cancelled')===0,at:new Date().toISOString(),out,fixtures,build,passed:count('pass'),failed:count('fail'),skipped:count('skipped'),cancelled:count('cancelled'),sourceHashes,actualChatFiles:true,actualWorkspaceFiles:true,actualFilesystem:true,controlledDatabase:true,networkDisabled:true,providerRequests:0,productionWrites:0,sourceOnly:true,installed:false,limitation:'Generated owned chats and local files verify prior migrated output and edit handling. Real PostgreSQL, packaged recovery and ordinary-profile acceptance remain.'};
+await writeFile(path.join(out,'evidence.json'),JSON.stringify(evidence,null,2));if(evidence.success)await writeFile(path.join(root,'.supabase/desktop-scheduled-workspaces67/current-links.json'),JSON.stringify({out,evidence:path.join(out,'evidence.json')},null,2));console.log(JSON.stringify({success:evidence.success,out,passed:evidence.passed,failed:evidence.failed}));assert(evidence.success);

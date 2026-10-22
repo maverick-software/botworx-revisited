@@ -1,0 +1,8 @@
+import {readFile,writeFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {closed} from './phased-backup-control.mjs';
+const root=path.resolve(import.meta.dirname,'../..'),base=path.join(root,'.supabase/desktop-platform-release'),candidate=path.join(base,'candidate-04446'),previous=path.join(base,'candidate-04446-before-preview-refresh'),json=async file=>JSON.parse(await readFile(file,'utf8'));
+await closed();const pointer=await json(path.join(previous,'upgrade-backup.json')),proof=await json(path.join(candidate,'package-proof.json')),evidence=await json(pointer.evidence),recovery=await json(path.join(pointer.out,'ordinary-recovery-acceptance.json'));assert(pointer.success&&evidence.success&&recovery.success&&proof.success);assert.equal(pointer.imageSha256,proof.imageSha256);assert.equal(evidence.phase,'complete');assert.equal(evidence.runtimeImage.sha256,'1e6d1400e75cab80cb3ad2278f3325764d00989619e238a42a1cfc98737ec585');
+const original=await readFile(pointer.evidence),result={...pointer,reusedAt:new Date().toISOString(),reusedFrom:path.join(previous,'upgrade-backup.json'),backupEvidenceSha256:createHash('sha256').update(original).digest('hex'),reason:'The ordinary 0.44.45 app has remained normally closed since this recovery. Only the uninstalled visual renderer UI changed; the complete profile/database capture and its read-only acceptance remain intact.'};await writeFile(path.join(candidate,'upgrade-backup.json'),JSON.stringify(result,null,2),{flag:'wx'});console.log(JSON.stringify({success:true,out:pointer.out,ordinaryAppRemainsClosed:true}));

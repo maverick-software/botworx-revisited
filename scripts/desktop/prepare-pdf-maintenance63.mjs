@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import {readFile,writeFile} from 'node:fs/promises';
+import {json} from './phased-backup-control.mjs';
+const root=path.resolve(import.meta.dirname,'../..'),folder=path.join(root,'scripts/desktop'),proof=await json((await json(path.join(root,'.supabase/desktop-pdf-pages-release63/current.json'))).proof),base=await json(proof.acceptedBase),oldBase=await json(base.acceptedBase);
+assert(proof.version==='0.44.63'&&base.version==='0.44.62');
+const names=['make-chart-format-installer62.mjs','make-chart-format-installer62-worker.mjs','verify-chart-format-installer62.mjs','squirrel-stub-integrity62.mjs',...['run-normal-maintenance','maintenance-program-rollback','maintenance-update-command','test-maintenance-update-command','qualify-normal-maintenance','audit-agent-health','accept-installed','cleanup-obsolete-build'].map(name=>name+'62.mjs'),'normal-maintenance62-process.mjs','verify-maintenance-installation62.py','audit-agent-health62.py','remove-obsolete-build62.ps1'];
+const mapping=Object.fromEntries(names.map(name=>[name,name.replace('chart-format','pdf-pages').replace('62','63')]));
+for(const [name,suffix]of [['run-normal-maintenance','.mjs'],['normal-maintenance','-process.mjs'],['maintenance-program-rollback','.mjs'],['maintenance-update-command','.mjs'],['verify-maintenance-installation','.py']])mapping[name+'61'+suffix]=name+'62'+suffix;
+Object.assign(mapping,{'0.44.61':'0.44.62','0.44.62':'0.44.63','0\\.44\\.61':'0\\.44\\.62','0\\.44\\.62':'0\\.44\\.63','desktop-chart-format-release62':'desktop-pdf-pages-release63','desktop-agent-health62':'desktop-agent-health63','current-update62':'current-update63','launcher-qualified61':'launcher-qualified62','launcher-qualified62':'launcher-qualified63','installer62-':'installer63-','update62-':'update63-','obsolete-build61':'obsolete-build62','Run-Agentopia-Chart-Format-Update62.cmd':'Run-Agentopia-Pdf-Pages-Update63.cmd'});
+const escaped=value=>value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),pattern=new RegExp(Object.keys(mapping).sort((a,b)=>b.length-a.length).map(escaped).join('|'),'g'),advance=text=>text.replace(pattern,value=>mapping[value]).replaceAll('(?:61|62)','(?:62|63)').replaceAll('exact62','exact63');
+for(const oldName of names){const name=mapping[oldName];let text=advance(await readFile(path.join(folder,oldName),'utf8'));if(name==='run-normal-maintenance63.mjs')text=text.replaceAll(oldBase.imageSha256,base.imageSha256);if(name==='audit-agent-health63.py')text=text.replaceAll(base.imageSha256,proof.imageSha256);await writeFile(path.join(folder,name),text,{flag:'wx'});}
+await writeFile(path.join(root,'Run-Agentopia-Pdf-Pages-Update63.cmd'),advance(await readFile(path.join(root,'Run-Agentopia-Chart-Format-Update62.cmd'),'utf8')),{flag:'wx'});
+console.log(JSON.stringify({helpers:names.length,currentImage:base.imageSha256,candidateImage:proof.imageSha256,installed:false}));

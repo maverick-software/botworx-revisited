@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import {writeFile} from 'node:fs/promises';
+import {createRequire} from 'node:module';
+import {desktopOperation} from './operation-lock.mjs';
+import {json,hash} from './phased-backup-control.mjs';
+desktopOperation('inspect current image endpoint capabilities and prices without credentials or generation');
+const root=path.resolve(import.meta.dirname,'../..'),pointer=await json(path.join(root,'.supabase/desktop-image-readiness59/current.json')),catalog=await json(pointer.evidence),proof=await json((await json(path.join(root,'.supabase/desktop-parent-report-release58/current.json'))).proof);
+assert(catalog.success);const require=createRequire(import.meta.url),{imageRoute}=require(path.join(proof.source,'build/image-models.js'));
+assert.equal(await hash(path.join(proof.source,'build/image-models.js')),proof.compiled['image-models.js']);
+const models=['black-forest-labs/flux.2-klein-4b','google/gemini-3.1-flash-lite-image','qwen/qwen-image-2.1-turbo'];
+const results=await Promise.allSettled(models.map(async model=>{assert(catalog.models.some(row=>row.id===model));const file=path.join(pointer.out,model.replaceAll('/','-')+'-endpoints.json'),calls=[];
+ const route=await imageRoute('openrouter',model,{prompt:'Generated geometric verification fixture',transparentBackground:false,references:[]},AbortSignal.timeout(25000),async(url,options)=>{assert.equal(url,'https://openrouter.ai/api/v1/images/models/'+model+'/endpoints');assert(!options?.headers&&!options?.body);const response=await fetch(url,options);calls.push({url,status:response.status});if(response.ok)await writeFile(file,JSON.stringify(await response.clone().json(),null,2));return response;});return {model,route,calls,file};}));
+const e={success:results.every(row=>row.status==='fulfilled'),at:new Date().toISOString(),credentialReads:0,imageRequests:0,results:results.map((row,index)=>row.status==='fulfilled'?row.value:{model:models[index],error:row.reason.message})};await writeFile(path.join(pointer.out,'routes.json'),JSON.stringify(e,null,2),{flag:'wx'});console.log(JSON.stringify(e));

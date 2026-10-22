@@ -1,0 +1,19 @@
+# Native Codex history paths — 0.44.9 candidate
+
+The actual 0.44.8 packaged sign-in test exposed a native Codex startup failure before inference. Windows redirected its isolated test profile into the Codex package cache, making the native state folder 275 characters long. The bundled Codex 0.163.0 process could initialize a short home, but failed to initialize its internal state database at the long home. A Windows extended-path prefix did not resolve it. Agentopia's application records remain in PostgreSQL/Supabase.
+
+The 0.44.9 correction keeps ordinary native homes in place and uses a compact, account/provider/conversation-bound home when the physical Windows path is too long. Each compact home records and verifies its exact binding. Existing native history is copied and checked before adoption; its original is retained. The copied index receives corrected absolute rollout paths, while rollout bytes and history offsets remain intact. An adopted compact home remains selected after a later move into a shorter profile path.
+
+Both ordinary and compact paths check their directories and refuse links that could redirect state outside the profile. Interrupted copies remain outside the normal native-home tree. Profile recovery accepts folders reserved before their first successful native startup, including cache-only legacy folders retained from a failed startup. Missing indexes alongside retained history stop recovery with the original files preserved.
+
+## Evidence and current scope
+
+The source checks exercised the actual bundled Codex process with a local controlled response, then reopened the saved thread without additional inference. They covered verified copying, original-byte preservation, account isolation, concurrent opens, extended Windows prefixes and uppercase rollout timestamps, complete profile recovery, repeated adoption after a shorter-root move, binding mismatches, and linked paths. The recovery suite also covers a retained failed legacy home beside an initialized compact successor. No production data or real provider credentials were used.
+
+The separate portable candidate is `.supabase/desktop-native-home/candidate-0449`. Its application archive SHA-256 is `49b038580d451693f235ff29449e843d9f6ef5a6541649ab54add9edf479b9f6`. Compared with 0.44.8, it changes `codex-harness.js`, adds `native-home.js` and `native-home-rebase.js`, and updates the profile recovery helper and version metadata. The interface, both provider adapters, bundled executables, and all 58 PostgreSQL migrations remain byte-identical. The exact packaged archive passed 37 native lifecycle/provider/permission checks and 12 native-history/profile-recovery checks with controlled responses. Live acceptance remains unproven.
+
+Installed Agentopia remains 0.43.7/schema45. Its ordinary-profile ChatGPT request `7e1793ed-7290-4957-a738-664719bfa537` completed through Codex 0.163.0. Physical before/after evidence demonstrated renewal of both access and refresh credentials in the correct Windows profile. The failed 0.44.8 fixture requests had zero inference requests and remain saved as failures. See [OAuth recovery](oauth-connection-recovery.md) and [the prior packaged startup check](packaged-startup-0.44.8.md).
+
+Actual corrected-image agent and browser workflows, installer upgrade, installed-session recovery, Windows reboot, and clean-machine acceptance remain pending. The broader desktop parity goal remains active.
+
+The later [continuous history interface update](continuous-chat-history.md) is applied separately to installed 0.43.7. Its three source changes also exist in the shared frontend for incorporation into the next full release. The frozen 0.44.9 candidate retains its original interface and must not overwrite this newer installed layout without incorporating that change.

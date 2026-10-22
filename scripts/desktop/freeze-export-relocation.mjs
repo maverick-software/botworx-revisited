@@ -1,0 +1,47 @@
+import {readFile,writeFile,cp,readdir,lstat} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {Transform} from 'node:stream';
+import {extractFile,listPackage,statFile,createPackageWithOptions} from '@electron/asar';
+import ts from 'typescript';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {desktopOperation} from './operation-lock.mjs';
+desktopOperation('freeze retained edited exports across relocation');
+const root=path.resolve(import.meta.dirname,'../..'),json=async p=>JSON.parse(await readFile(p,'utf8')),sha=b=>createHash('sha256').update(b).digest('hex');
+const records=path.join(root,'.supabase/desktop-export-relocation'),work=(await json(path.join(records,'current.json'))).out;
+assert.equal(path.dirname(path.resolve(work)),path.resolve('C:/Users/charl/AgentopiaQA/export-relocation'));
+const baseReopened=path.join(root,'.supabase/desktop-chat-output-edits/reopened.json'),base=await json(baseReopened),previousPointer=await json(path.join(root,'.supabase/desktop-chat-output-edits/current.json')),previous=await json(previousPointer.proof);
+const installed='C:/Users/charl/AppData/Local/AgentopiaDesktop/app-0.44.47/resources/app.asar';
+assert(base.success&&base.revision==='chat-output-edits-13'&&base.normalReopeningPassed&&base.tablesCompared===126);
+assert.equal(sha(await readFile(installed)),base.imageSha256);
+const log=await readFile(path.join(work,'candidate-tests.log'),'utf8');assert(log.includes('pass 29')&&log.includes('fail 0'));
+const source=path.join(work,'source/desktop'),backend=path.join(work,'candidate-build');
+await cp(previous.source,source,{recursive:true});
+for(const file of ['src/chat-files.ts','tests/chat-output-edits.test.cjs'])await cp(path.join(root,'desktop',file),path.join(source,file));
+async function hashes(dir){const result={};for(const n of(await readdir(dir,{recursive:true})).sort()){const info=await lstat(path.join(dir,n));assert(!info.isSymbolicLink());if(info.isFile())result[n.replaceAll('\\','/')]=sha(await readFile(path.join(dir,n)));}return result;}
+const tested=await readFile(path.join(backend,'chat-files.js'));
+const configFile=ts.readConfigFile(path.join(source,'tsconfig.json'),ts.sys.readFile);assert(!configFile.error);
+const config=ts.parseJsonConfigFileContent(configFile.config,ts.sys,source,{outDir:backend});assert.equal(config.errors.length,0);
+const program=ts.createProgram(config.fileNames,config.options),diagnostics=ts.getPreEmitDiagnostics(program);
+await writeFile(path.join(work,'frozen-compile.log'),ts.formatDiagnosticsWithColorAndContext(diagnostics,{getCanonicalFileName:x=>x,getCurrentDirectory:()=>root,getNewLine:()=> '\n'}),{flag:'wx'});assert.equal(diagnostics.length,0);
+const target=program.getSourceFile(path.join(source,'src/chat-files.ts'));assert(target);let emitted;
+const result=program.emit(target,(file,text)=>{assert.equal(path.basename(file),'chat-files.js');emitted=Buffer.from(text);});
+assert(!result.emitSkipped&&emitted);assert(tested.equals(emitted),'Frozen compiler output differs from tested bytes');
+const sourceHashes=await hashes(source),changed=[];
+for(const [file,digest]of Object.entries(sourceHashes))if(file.startsWith('src/')||file.startsWith('ui/')){assert.equal(sha(await readFile(path.join(root,'desktop',file))),digest);if(previous.sourceHashes[file]!==digest)changed.push(file);}
+assert.deepEqual(changed,['src/chat-files.ts']);
+const stage=path.join(previous.work,'staging'),image=path.join(work,'app.asar');let transforms=0;
+await createPackageWithOptions(stage,image,{transform(file){if(path.resolve(file)!==path.join(stage,'build/chat-files.js'))return;transforms++;return new Transform({transform(_chunk,_encoding,done){done();},flush(done){this.push(emitted);done();}});}});
+assert.equal(transforms,1);
+const entries=file=>listPackage(file).map(n=>n.replaceAll('\\','/').replace(/^\//,'')).filter(n=>!statFile(file,path.normalize(n)).files),old=new Set(entries(installed)),modified=[];
+for(const file of entries(image)){assert(old.delete(file));if(!extractFile(installed,path.normalize(file)).equals(extractFile(image,path.normalize(file))))modified.push(file);}
+assert.equal(old.size,0);assert.deepEqual(modified,['build/chat-files.js']);
+const uiHashes=previous.uiHashes;for(const [file,digest]of Object.entries(uiHashes))assert.equal(sha(await readFile(path.join(path.dirname(installed),'resources/ui',file))),digest);
+const tests={};for(const file of ['chat-output-edits.test.cjs','chat-polish.test.cjs','migrated-chat-output.test.cjs'])tests[file]=sha(await readFile(path.join(work,'candidate-tests',file)));
+const proof={success:true,at:new Date().toISOString(),revision:'export-relocation-14',version:'0.44.47',work,source,sourceHashes,backend,backendHashes:{'chat-files.js':sha(emitted)},image,imageSha256:sha(await readFile(image)),changedSourceFiles:changed,changedArchiveEntries:modified,baseReopened,baseProof:previousPointer.proof,baseImageSha256:base.imageSha256,beforeArchive:previous.image,ui:previous.ui,uiHashes,uiUnchanged:true,backendTests:29,profileRelocationTested:true,testLog:path.join(work,'candidate-tests.log'),testLogSha256:sha(Buffer.from(log)),tests,installed:false,recoveryPrepared:false,providerRequests:0,fullGoalComplete:false};
+assert.equal(sha(await readFile(proof.beforeArchive)),base.imageSha256);
+const proofFile=path.join(work,'proof.json');await writeFile(proofFile,JSON.stringify(proof,null,2),{flag:'wx'});
+const qualificationFile=path.join(work,'qualification.json'),qualification={success:true,at:new Date().toISOString(),checks:29,proofSha256:sha(await readFile(proofFile)),receipts:[{file:proof.testLog,sha256:proof.testLogSha256},{file:path.join(work,'frozen-compile.log'),sha256:sha(await readFile(path.join(work,'frozen-compile.log')))}],profileRelocationTested:true,providerRequests:0,installed:false};
+await writeFile(qualificationFile,JSON.stringify(qualification,null,2),{flag:'wx'});
+await writeFile(path.join(records,'current.json'),JSON.stringify({out:work,work,proof:proofFile,qualification:qualificationFile,source,image,ui:proof.ui},null,2));
+console.log(JSON.stringify({success:true,checks:29,modified,imageSha256:proof.imageSha256,uiFiles:Object.keys(uiHashes).length,installed:false}));

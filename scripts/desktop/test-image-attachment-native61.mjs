@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import {mkdir,writeFile,readFile} from 'node:fs/promises';
+import {spawn} from 'node:child_process';
+import {createRequire} from 'node:module';
+import path from 'node:path';
+import {desktopOperation} from './operation-lock.mjs';
+desktopOperation('actual Electron image decode and encrypted attachment roundtrip');
+const root=path.resolve(import.meta.dirname,'../..'),build=path.join(root,'.supabase/desktop-image-attachment61/build'),stamp=String(Date.now()),out=path.join(root,'.supabase/desktop-image-attachment61','native-'+stamp),home=path.join('F:/Agentopia-Acceptance','image-native61-'+stamp);
+await mkdir(out,{recursive:true});await mkdir(home,{recursive:true});
+const source=path.join(root,'.supabase/desktop-live-image-edit60/1792620802834/edited-shapes.png'),main=path.join(out,'main.cjs');
+await writeFile(main,`const {app,nativeImage}=require('electron'),fs=require('node:fs/promises'),path=require('node:path'),assert=require('node:assert/strict'),{randomUUID,createHash}=require('node:crypto');
+const build=${JSON.stringify(build)},home=${JSON.stringify(home)},source=${JSON.stringify(source)},out=${JSON.stringify(out)},sha=b=>createHash('sha256').update(b).digest('hex');app.setPath('userData',path.join(home,'electron-profile'));app.setPath('temp',home);
+app.whenReady().then(async()=>{const {AttachmentImages}=require(path.join(build,'attachment-images.js')),{WorkspaceFiles}=require(path.join(build,'workspace.js'));const original=await fs.readFile(source);assert.equal(original.length,2681800);assert.equal(sha(original),'82cd40d85e51369f1ad103914dfa210159b610d7629c0560db63e972f5213e9c');
+const owner=randomUUID(),data=new Map(),store={get:k=>data.get(k),set:async(k,v)=>data.set(k,v)},images=new AttachmentImages(path.join(home,'encrypted-images')),files=new WorkspaceFiles(store,{},[],images),copied=path.join(home,'edited-shapes.png');await fs.writeFile(copied,original,{flag:'wx'});
+const selected=await files.attach(owner,[{path:copied}]);assert.equal(sha(Buffer.from((await files.context(owner,selected.selected,'full'))[0].image.split(',')[1],'base64')),sha(original));
+const decoded=nativeImage.createFromBuffer(original),dimensions=decoded.getSize();assert.deepEqual(dimensions,{width:2512,height:1680});
+const variants=[['original.png',original],['original.jpg',decoded.toJPEG(90)]];let checks=2;
+for(const [name,bytes]of variants){const selected=await files.attach(owner,[{name,image:bytes.toString('base64')}]),id=selected.selected[0],reopened=new WorkspaceFiles(store,{},[],new AttachmentImages(path.join(home,'encrypted-images'))),restored=Buffer.from((await reopened.preview(owner,id)).image.split(',')[1],'base64');assert.equal(sha(restored),sha(bytes));assert.equal(reopened.list(owner).find(r=>r.id===id).name,name);const encrypted=await fs.readFile(path.join(home,'encrypted-images',owner,id+'.bin'));assert(!encrypted.includes(bytes));checks++;}
+assert.equal(sha(await fs.readFile(source)),sha(original));await fs.writeFile(path.join(out,'evidence.json'),JSON.stringify({success:true,stage:'actual Electron; source candidate only',checks,originalBytes:original.length,originalSha256:sha(original),dimensions,originalPreserved:true,formats:variants.map(v=>v[0]),windowsEncryptedColdRoundtrip:true,providerRequests:0},null,2));app.exit(0);
+}).catch(async error=>{await fs.writeFile(path.join(out,'error.txt'),String(error.stack));app.exit(1);});`);
+const env={...process.env};for(const key of ['ELECTRON_RUN_AS_NODE','NODE_OPTIONS','NODE_EXTRA_CA_CERTS'])delete env[key];
+const child=spawn(createRequire(import.meta.url)('electron'),[main],{cwd:root,env,windowsHide:true,stdio:['ignore','pipe','pipe']});let log='';for(const stream of [child.stdout,child.stderr])stream.on('data',b=>{log+=b;});
+const code=await new Promise((resolve,reject)=>{child.once('error',reject);child.once('close',resolve);});await writeFile(path.join(out,'process.log'),log);console.log(JSON.stringify({out,code}));if(code!==0)console.log(await readFile(path.join(out,'error.txt'),'utf8').catch(()=>log.slice(-1000)));assert.equal(code,0);

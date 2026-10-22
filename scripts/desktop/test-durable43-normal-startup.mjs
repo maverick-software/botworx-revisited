@@ -1,0 +1,24 @@
+import {mkdir,readFile,writeFile,readdir,link,copyFile,realpath} from 'node:fs/promises';
+import {createReadStream} from 'node:fs';
+import {createHash,randomUUID} from 'node:crypto';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {desktopOperation} from './operation-lock.mjs';
+import {launchDurableProfileProbe} from './launch-durable-profile-probe.mjs';
+desktopOperation('verify exact43 normal startup against an isolated bound profile');
+const root=path.resolve(import.meta.dirname,'../..'),candidate=path.join(root,'.supabase/desktop-platform-release/candidate-04443'),proof=JSON.parse(await readFile(path.join(candidate,'qualification.json'),'utf8')),exec=promisify(execFile),hashFile=async file=>{const hash=createHash('sha256');for await(const bytes of createReadStream(file))hash.update(bytes);return hash.digest('hex');};
+assert(proof.success&&proof.version==='0.44.43');assert.equal(await hashFile(proof.image),proof.imageSha256);
+const out=path.resolve('C:/Users/charl/AgentopiaQA/durable-transition',String(Date.now())),home=path.join(out,'home'),roaming=path.join(home,'AppData/Roaming'),legacy=path.join(roaming,'Agentopia'),program=path.join(home,'AppData/Local/AgentopiaDesktop/app-0.44.43'),exe=path.join(program,'Agentopia.exe'),instance=randomUUID(),binding={format:1,distribution:'AgentopiaRuntime-'+instance,instanceId:instance},testName='dp-'+randomUUID();
+const ordinary=async()=>JSON.parse((await exec('powershell.exe',['-NoProfile','-NonInteractive','-Command',"@(Get-Process Agentopia -ErrorAction SilentlyContinue|Where-Object {$_.Path -eq 'C:\\Users\\charl\\AppData\\Local\\AgentopiaDesktop\\app-0.44.41\\Agentopia.exe'}|Select-Object -ExpandProperty Id)|ConvertTo-Json -Compress"],{windowsHide:true,encoding:'utf8'})).stdout||'[]');
+const distributions=async()=>{const result=await exec('wsl.exe',['--list','--quiet'],{windowsHide:true,encoding:'buffer'});return (result.stdout.includes(0)?result.stdout.toString('utf16le'):result.stdout.toString('utf8')).replace(/^\uFEFF/,'').trim().split(/\r?\n/).filter(Boolean).sort();};
+await mkdir(legacy,{recursive:true});assert.equal((await realpath(out)).toLowerCase(),out.toLowerCase());const before={ordinaryProcesses:await ordinary(),distributions:await distributions()};assert(before.ordinaryProcesses.length>0);assert(!before.distributions.includes(binding.distribution));
+let linked=0;await mkdir(program,{recursive:true});for(const entry of await readdir(proof.portableDirectory,{recursive:true,withFileTypes:true})){assert(!entry.isSymbolicLink());const from=path.join(entry.parentPath,entry.name),relative=path.relative(proof.portableDirectory,from),to=path.join(program,relative);if(entry.isDirectory()){await mkdir(to,{recursive:true});continue;}assert(entry.isFile());await mkdir(path.dirname(to),{recursive:true});if(relative.replaceAll('\\','/')==='resources/resources/runtime/config.toml')await copyFile(from,to);else await link(from,to);linked++;}
+await writeFile(path.join(legacy,'runtime-binding.json'),JSON.stringify(binding),{flag:'wx'});await mkdir(path.join(legacy,'test-profiles',testName),{recursive:true});await writeFile(path.join(legacy,'test-profiles',testName,'runtime-binding.json'),JSON.stringify(binding),{flag:'wx'});
+const cfg={out,home,roaming,legacy,program,exe,testName,instance,binding,imageSha256:proof.imageSha256,linked};await writeFile(path.join(out,'intent.json'),JSON.stringify(cfg,null,2),{flag:'wx'});await copyFile(import.meta.filename,path.join(out,'test-durable43-normal-startup.mjs'));await copyFile(path.join(root,'scripts/desktop/launch-durable-profile-probe.mjs'),path.join(out,'launch-durable-profile-probe.mjs'));
+console.log(JSON.stringify({phase:'isolated-program-ready',out,linked,productionProfileChanged:false}));
+const evidence={at:new Date().toISOString(),out,version:'0.44.43',imageSha256:proof.imageSha256,before,success:false,productionProfileChanged:false,providerRequests:0};
+try{evidence.normalLegacy=await launchDurableProfileProbe(cfg,{testProfile:false,label:'normal-legacy'});assert.equal(evidence.normalLegacy.actual.userData,legacy);assert(evidence.normalLegacy.absentPrivateRuntimeRefused&&evidence.normalLegacy.mainModuleVerified&&evidence.normalLegacy.normalExit===0);assert.equal(await hashFile(path.join(program,'resources/app.asar')),proof.imageSha256);assert.equal(await hashFile(proof.image),proof.imageSha256);evidence.after={ordinaryProcesses:await ordinary(),distributions:await distributions()};assert.deepEqual(evidence.after,before);evidence.success=true;}
+catch(error){evidence.error=error.stack;process.exitCode=1;}
+await writeFile(path.join(out,'evidence.json'),JSON.stringify(evidence,null,2));console.log(JSON.stringify({success:evidence.success,out,normalProfile:!!evidence.normalLegacy?.success,ordinaryProfileChanged:false,providerRequests:0,error:evidence.error}));

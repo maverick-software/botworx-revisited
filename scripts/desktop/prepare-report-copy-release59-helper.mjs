@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {readFile,writeFile} from 'node:fs/promises';
+import path from 'node:path';
+const root=path.resolve(import.meta.dirname,'../..');
+let text=await readFile(path.join(root,'scripts/desktop/prepare-parent-report-release58.mjs'),'utf8');
+const mapping={'desktop-agent-report-release57':'desktop-parent-report-release58','desktop-parent-report-release58':'desktop-report-copy-release59','0.44.57':'0.44.58','0.44.58':'0.44.59'},escape=value=>value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),pattern=new RegExp(Object.keys(mapping).sort((a,b)=>b.length-a.length).map(escape).join('|'),'g');
+text=text.replace(pattern,value=>mapping[value]).replace('visible automatic replies and routed source citations release','complete automatic-response copying release');
+assert(text.includes('assert.deepEqual(backendChanges,[])')&&text.includes('assert.deepEqual(compiledChanges,[])'));
+text=text.replace('assert.deepEqual(backendChanges,[])',"assert.deepEqual(backendChanges,['transcript-presentation.ts'])").replace('assert.deepEqual(compiledChanges,[])',"assert.deepEqual(compiledChanges,['transcript-presentation.js'])");
+await writeFile(path.join(root,'scripts/desktop/prepare-report-copy-release59.mjs'),text,{flag:'wx'});
+let controls=await readFile(path.join(root,'scripts/desktop/qualify-agent-controls-04457.mjs'),'utf8');
+controls=controls.replaceAll('desktop-agent-report-release57','desktop-report-copy-release59').replaceAll('0.44.57','0.44.59').replaceAll('desktop-agent-controls57','desktop-agent-controls59').replaceAll('controls57-','controls59-').replace("'migrated-chat-output','chat-polish'","'transcript-presentation','migrated-chat-output','chat-polish'").replace('assert(evidence.passed>=890)','assert(evidence.passed>=923)');
+await writeFile(path.join(root,'scripts/desktop/qualify-agent-controls-04459.mjs'),controls,{flag:'wx'});
+console.log('Prepared frozen59 response-copy release and exact-archive qualification helpers.');

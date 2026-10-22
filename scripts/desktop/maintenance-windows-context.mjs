@@ -1,0 +1,21 @@
+// These disposable file probes compare the launching process and the .NET
+// known-folder API used by Squirrel with the ordinary physical Windows folder.
+import assert from 'node:assert/strict';import {writeFile,unlink,readFile} from 'node:fs/promises';import {randomBytes,randomUUID} from 'node:crypto';import {spawn} from 'node:child_process';import path from 'node:path';import {run} from './phased-backup-control.mjs';
+const root=path.resolve(import.meta.dirname,'../..'),ordinary='C:/Users/charl/AppData/Local/AgentopiaDesktop',linux='/mnt/c/Users/charl/AppData/Local/AgentopiaDesktop',distribution='AgentopiaRuntime-a91a4800-e08f-4440-a4ec-588762d01bfd';
+export async function probeMaintenanceWindowsContext(){
+ const token=randomBytes(32).toString('hex'),nodeName='.agentopia-context-'+randomUUID().replaceAll('-','')+'.tmp',netName='.agentopia-context-'+randomUUID().replaceAll('-','')+'.tmp',nodeMarker=path.join(ordinary,nodeName);let child,finished,details,readResolve,readReject,output='',errors='',result;
+ try{
+  await writeFile(nodeMarker,token,{flag:'wx'});
+  const first=new Promise((resolve,reject)=>{readResolve=resolve;readReject=reject;});
+  child=spawn('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(root,'scripts/desktop/probe-maintenance-known-folder.ps1'),'-MarkerName',netName,'-MarkerValue',token],{windowsHide:true,stdio:['pipe','pipe','pipe']});
+  finished=new Promise(resolve=>child.once('exit',code=>{if(!details)readReject(Error('Known-folder context probe failed: '+errors.slice(-1500)));resolve(code);}));child.once('error',readReject);child.stderr.on('data',bytes=>errors+=bytes);child.stdout.on('data',bytes=>{output+=bytes;if(!details&&output.includes('\n')){try{details=JSON.parse(output.split(/\r?\n/)[0]);readResolve(details);}catch(error){readReject(error);}}});await first;
+  const code="from pathlib import Path;import json;roots={'ordinary':Path("+JSON.stringify(linux)+"),'store':Path('/mnt/c/Users/charl/AppData/Local/Packages/OpenAI.Codex_2p2nqsd0c76g0/LocalCache/Local/AgentopiaDesktop')};expected="+JSON.stringify(token)+";names="+JSON.stringify([nodeName,netName])+";print(json.dumps({label:{name:(root/name).is_file() and (root/name).read_text()==expected for name in names} for label,root in roots.items()}))",physical=JSON.parse(await run(['-d',distribution,'-u','agentopia','--exec','python3','-c',code],30000));
+  result={at:new Date().toISOString(),nodeExplicitPathVisiblePhysically:physical.ordinary[nodeName]===true,dotNetKnownFolderVisiblePhysically:physical.ordinary[netName]===true,nodeWriteReachedStoreCache:physical.store[nodeName]===true,dotNetWriteReachedStoreCache:physical.store[netName]===true,dotNetLocalApplicationData:details.localApplicationData,ordinaryExpectedLocalApplicationData:'C:\\Users\\charl\\AppData\\Local',productionDataWrites:0,disposableMarkerWrites:2};result.success=result.nodeExplicitPathVisiblePhysically&&result.dotNetKnownFolderVisiblePhysically&&path.resolve(details.localApplicationData).toLowerCase()===path.resolve('C:/Users/charl/AppData/Local').toLowerCase();return result;
+ }finally{
+  if(child?.exitCode===null){child.stdin.end('\n');let timer;await Promise.race([finished,new Promise(resolve=>{timer=setTimeout(resolve,5000);})]);clearTimeout(timer);if(child.exitCode===null)child.kill();}
+  await unlink(nodeMarker).catch(error=>{if(error.code!=='ENOENT')throw error;});
+  const cleanupCode="from pathlib import Path;import json;roots=[Path('/mnt/c/Users/charl/AppData/Local/AgentopiaDesktop'),Path('/mnt/c/Users/charl/AppData/Local/Packages/OpenAI.Codex_2p2nqsd0c76g0/LocalCache/Local/AgentopiaDesktop')];names="+JSON.stringify([nodeName,netName])+";print(json.dumps([str(root/name) for root in roots for name in names if (root/name).exists()]))",remaining=JSON.parse(await run(['-d',distribution,'-u','agentopia','--exec','python3','-c',cleanupCode],30000));assert.deepEqual(remaining,[],'A disposable context marker remains.');if(result)result.disposableMarkersRemoved=true;
+  // The .NET child removes its own marker through the same filesystem view.
+ }
+}
+if(process.argv[1]&&path.resolve(process.argv[1])===path.resolve(import.meta.filename))console.log(JSON.stringify(await probeMaintenanceWindowsContext()));

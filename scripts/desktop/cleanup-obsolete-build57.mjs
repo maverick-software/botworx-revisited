@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import path from 'node:path';
+import {writeFile} from 'node:fs/promises';
+import {desktopOperation} from './operation-lock.mjs';
+import {json,hash} from './phased-backup-control.mjs';
+desktopOperation('remove only the verified retired56 C-drive installed build');
+const root=path.resolve(import.meta.dirname,'../..'),pointer=await json(path.join(root,'.supabase/desktop-normal-maintenance/current-update57.json')),accepted=await json(path.join(pointer.job,'installed-data-accepted.json')),proof=await json((await json(path.join(root,'.supabase/desktop-agent-report-release57/current.json'))).proof),exec=promisify(execFile);
+assert(accepted.success&&accepted.version==='0.44.57'&&accepted.imageSha256===proof.imageSha256);
+const shell=path.join(proof.assets,'code-tools/powershell-7.6.7/pwsh.exe');assert.equal(await hash(shell),proof.resourceFiles['code-tools/powershell-7.6.7/pwsh.exe']);
+const result=JSON.parse((await exec(shell,['-NoProfile','-NonInteractive','-File',path.join(root,'scripts/desktop/remove-obsolete-build57.ps1'),'-Job',pointer.job],{cwd:root,windowsHide:true,encoding:'utf8',timeout:120000,maxBuffer:1024*1024})).stdout);
+assert(result.success&&result.currentAppPreserved&&result.rollbackOnFVerified);
+const check="from pathlib import Path; import hashlib,json; old=Path('/mnt/c/Users/charl/AppData/Local/AgentopiaDesktop/app-0.44.56'); new=Path('/mnt/c/Users/charl/AppData/Local/AgentopiaDesktop/app-0.44.57/resources/app.asar'); assert not old.exists(); assert hashlib.file_digest(new.open('rb'),'sha256').hexdigest()=='"+proof.imageSha256+"'; print(json.dumps({'success':True,'physicalOldBuildAbsent':True,'currentImageUnchanged':True}))";
+const physical=JSON.parse((await exec('wsl.exe',['-d','AgentopiaRuntime-a91a4800-e08f-4440-a4ec-588762d01bfd','-u','agentopia','--exec','python3','-c',check],{cwd:root,windowsHide:true,encoding:'utf8',timeout:30000})).stdout);assert(physical.success);
+await writeFile(path.join(pointer.job,'obsolete-build56-physical.json'),JSON.stringify({...physical,at:new Date().toISOString()},null,2));console.log(JSON.stringify({...result,physical}));

@@ -1,0 +1,15 @@
+import {readFile,writeFile,realpath,stat} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+const root=path.resolve(import.meta.dirname,'../..'),candidate=path.join(root,'.supabase/desktop-platform-release/candidate-04444'),json=async file=>JSON.parse(await readFile(file,'utf8')),hash=bytes=>createHash('sha256').update(bytes).digest('hex');
+const release=await json(path.join(candidate,'release-proof.json')),pointer=await json(path.join(candidate,'upgrade-backup.json')),backup=pointer.out;
+assert(release.success&&release.version==='0.44.44'&&release.installerVerified&&release.actualWindowsWorkflowGroups===19&&release.backendChecks===485&&!release.installed);
+assert.equal(path.dirname(backup),path.resolve('C:/Users/charl/AgentopiaRecovery/before-04444'));assert(/^\d{13}$/.test(path.basename(backup)));assert.equal((await realpath(backup)).toLowerCase(),backup.toLowerCase());
+const e=await json(path.join(backup,'evidence.json')),offline=await json(path.join(backup,'ordinary-recovery-acceptance.json'));
+assert(e.success&&e.phase==='complete'&&e.imageSha256===release.imageSha256&&e.capture.profiles.ordinary&&e.capture.profiles.overlay&&e.capture.runtime.logicalBackupFiles===5);
+assert(e.runtimeImage.bytes>1024**3&&/^[a-f0-9]{64}$/.test(e.runtimeImage.sha256));assert.equal((await stat(e.runtimeImage.file)).size,e.runtimeImage.bytes);
+assert(offline.success&&offline.passwordsPreserved&&offline.previousVisionAnswerAndImagePreserved&&offline.completedSearchAndCitationPreserved&&offline.children.length===2);
+assert(offline.accounts===2&&offline.conversations>=109&&offline.messages>=380);
+const result={success:true,at:new Date().toISOString(),phase:'recovery-verified-ready-for-installation',version:release.version,ordinaryInstalledVersion:'0.44.41',imageSha256:release.imageSha256,installer:release.installer,installerSha256:release.installerSha256,backupOut:backup,backupEvidenceSha256:hash(await readFile(path.join(backup,'evidence.json'))),offlineAcceptanceSha256:hash(await readFile(path.join(backup,'ordinary-recovery-acceptance.json'))),accounts:offline.accounts,chats:offline.conversations,messages:offline.messages,ordinaryRequests:offline.ordinaryRequests,installed:false,productionMigrated:false,providerRequests:0,ordinaryAcceptancePending:true,authorization:'The current five-change request and standing maintenance authorization; no Windows UI installer action is performed by this recorder.'};
+await writeFile(path.join(candidate,'promotion-status.json'),JSON.stringify(result,null,2),{flag:'wx'});console.log(JSON.stringify({success:true,version:result.version,accounts:result.accounts,chats:result.chats,messages:result.messages}));

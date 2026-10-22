@@ -1,1 +1,0 @@
-export { CanvasMode } from './CanvasMode';

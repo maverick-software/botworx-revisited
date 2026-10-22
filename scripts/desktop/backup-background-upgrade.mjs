@@ -1,0 +1,34 @@
+import {mkdir,readFile,writeFile,copyFile,cp,realpath,stat,open} from 'node:fs/promises';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import {desktopOperation} from './operation-lock.mjs';
+import {json,linux,hash,run,list,closed,registration} from './phased-backup-control.mjs';
+const root=path.resolve(import.meta.dirname,'../..'),candidate=path.join(root,'.supabase/desktop-platform-release/candidate-04430'),backupName=process.argv[2],exec=promisify(execFile);
+const refresh=process.argv[3]==='--refresh-after-exa';assert(process.argv.length===(refresh?4:3));
+assert(/^\d{4}-\d{2}-\d{2}T[\d-]+\.\d{3}Z-manual$/.test(backupName??''),'Pass the completed in-application backup name.');
+if(refresh){
+ const previous=await json(path.join(candidate,'upgrade-backup.json'));
+ const search=await json(path.join(root,'.supabase/desktop-native-search/ordinary-1792377323235/evidence.json'));
+ assert(previous.success&&!previous.installed&&search.success&&search.ordinaryAgentSearchVerified);
+ assert.equal(search.requestId,'10e6c0e2-d79e-404f-8a3c-9ff0ea5034d2');
+ assert(new Date(backupName.replace(/T(\d{2})-(\d{2})-(\d{2})\./,'T$1:$2:$3.').replace(/-manual$/,'')).getTime()>Date.parse(search.at),'Refreshed backup must follow the verified live search.');
+}
+const release=await json(path.join(candidate,'release-proof.json'));assert(release.success&&release.installerVerified&&release.liveAcceptancePending===false);const live=await json(release.liveEvidence);assert(live.success&&live.version===release.version&&live.disposableRuntimeRemoved);
+desktopOperation('preserve closed profile and database before verified background command and recovery upgrade');await closed();
+const distribution='AgentopiaRuntime-a91a4800-e08f-4440-a4ec-588762d01bfd',instanceId=distribution.slice('AgentopiaRuntime-'.length),ordinary='C:\\Users\\charl\\AppData\\Roaming\\Agentopia',overlay='C:\\Users\\charl\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Agentopia';
+const before={registered:await list(false),running:await list(true)};assert(!before.running.includes(distribution)&&!before.running.includes('AgentopiaRuntime'));
+// The checked capture below verifies the physical binding and runtime instance through Linux before copying either profile. Export uses the fixed production name and creates a new file.
+const out=path.join(root,'.supabase/desktop-platform-release/candidate-04430/upgrade-backup-'+Date.now());await mkdir(out);assert.equal((await realpath(out)).toLowerCase(),out.toLowerCase());
+const sid=(await exec('powershell.exe',['-NoProfile','-NonInteractive','-Command','[Security.Principal.WindowsIdentity]::GetCurrent().User.Value'],{encoding:'utf8',windowsHide:true})).stdout.trim();assert(/^S-1-5-[0-9-]+$/.test(sid));await exec('icacls.exe',[out,'/inheritance:r','/grant:r','*'+sid+':(OI)(CI)F','*S-1-5-18:(OI)(CI)F','/Q'],{windowsHide:true});
+const config={format:2,at:new Date().toISOString(),out,instanceId,distribution,backupName,roots:{ordinary:{windows:ordinary,linux:linux(ordinary)},overlay:{windows:overlay,linux:linux(overlay)}}},evidence={at:config.at,phase:'prepared',out,version:release.version,imageSha256:release.imageSha256,distribution,before,providerRequests:0,installed:false,productionMigrated:false};
+await writeFile(path.join(out,'intent.json'),JSON.stringify(config,null,2),{flag:'wx'});const save=()=>writeFile(path.join(out,'evidence.json'),JSON.stringify(evidence,null,2));await save();
+for(const name of ['phased_backup.py','profile_archive.py'])await copyFile(path.join(root,'scripts/desktop',name),path.join(out,name));
+const program=`from pathlib import Path\nimport json,sys,os,shutil\nsys.path.insert(0,str(Path(sys.argv[1])))\nfrom phased_backup import runtime_capture,capture_profile_data,save,stopped\nos.umask(0o077)\nout=Path(sys.argv[1]);config=json.loads((out/'intent.json').read_text())\nassert Path('/opt/agentopia/runtime-instance').read_text().strip()==config['instanceId']\nstopped()\nruntime=runtime_capture(out,config)\nassert runtime['logicalBackupRoot']=='ordinary'\nprofiles={}\nfor label in ('ordinary','overlay'):\n result,deferred=capture_profile_data(config['roots'][label]['linux'],out,label)\n save(out/('private-profile-'+label+'.json'),result)\n save(out/('private-exclusions-'+label+'.json'),deferred)\n profiles[label]=result['counts']\ninstalled=Path('/mnt/c/Users/charl/AppData/Local/AgentopiaDesktop/app-0.44.24/resources')\nassert __import__('hashlib').sha256((installed/'app.asar').read_bytes()).hexdigest()=='c8e56cf33466a7e5e3e531780d64df6bb5f1d5ff19bd2c732ad630279a5716b6'\nshutil.copyfile(installed/'app.asar',out/'baseline-0.44.24.asar')\nshutil.copytree(installed/'resources/ui',out/'previous-ui')\nshutil.copyfile(installed/'resources/version.json',out/'previous-version.json')\nprint(json.dumps({'success':True,'runtime':runtime,'profiles':profiles}))\n`;
+await writeFile(path.join(out,'capture.py'),program);let started=false;
+try{started=true;evidence.phase='capturing-private-data';await save();evidence.capture=JSON.parse(await run(['-d',distribution,'-u','agentopia','--exec','python3',linux(path.join(out,'capture.py')),linux(out)],300000));await closed();await run(['--terminate',distribution]);started=false;
+ evidence.phase='exporting-cold-database';await save();assert.deepEqual(await list(true),before.running);if(before.running.length===0){await run(['--shutdown']);assert.deepEqual(await list(true),[]);evidence.idleVmStoppedBeforeExport=true;await save();}const image=path.join(out,'runtime.vhdx');await run(['--export',distribution,image,'--format','vhd'],600000);const file=await open(image,'r');try{const bytes=Buffer.alloc(8);await file.read(bytes,0,8,0);assert.equal(bytes.toString('ascii'),'vhdxfile');}finally{await file.close();}evidence.runtimeImage={file:image,bytes:(await stat(image)).size,sha256:await hash(image)};
+ assert(evidence.runtimeImage.bytes>1024**3);
+ assert.deepEqual(await list(false),before.registered);assert.deepEqual(await list(true),before.running);evidence.phase='complete';evidence.success=true;evidence.refreshAfterOrdinaryExa=refresh;await save();await writeFile(path.join(candidate,refresh?'upgrade-backup-after-exa.json':'upgrade-backup.json'),JSON.stringify({success:true,at:new Date().toISOString(),out,evidence:path.join(out,'evidence.json'),imageSha256:release.imageSha256,installed:false,productionMigrated:false},null,2),{flag:'wx'});console.log(JSON.stringify({success:true,out,profiles:evidence.capture.profiles,databaseFiles:evidence.capture.runtime.logicalBackupFiles,coldImageBytes:evidence.runtimeImage.bytes},null,2));
+}catch(error){evidence.success=false;evidence.error=error.message;await save();throw error;}finally{if(started)await run(['--terminate',distribution]);}

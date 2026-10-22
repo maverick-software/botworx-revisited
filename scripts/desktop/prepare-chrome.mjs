@@ -1,0 +1,4 @@
+import {readFileSync,lstatSync} from 'node:fs';import {createHash} from 'node:crypto';import path from 'node:path';
+const root=path.resolve(import.meta.dirname,'../..'),manifest=JSON.parse(readFileSync(path.join(root,'desktop/src/chrome-runtime-manifest.json'),'utf8')),directory=path.join(root,'desktop/resources/chrome-mcp');
+for(const [name,digest] of Object.entries(manifest.files)){const file=path.resolve(directory,name);if(!file.startsWith(directory+path.sep)||!lstatSync(file).isFile()||lstatSync(file).isSymbolicLink()||createHash('sha256').update(readFileSync(file)).digest('hex')!==digest)throw new Error('The pinned Chrome DevTools MCP runtime differs from its verified package: '+name);}
+console.log('Verified Chrome DevTools MCP '+manifest.version+' ('+Object.keys(manifest.files).length+' pinned files).');

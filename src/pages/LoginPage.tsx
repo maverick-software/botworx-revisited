@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { X, Eye, EyeOff } from 'lucide-react';
 
 function LoginPage() {
+  const googleAuthEnabled = import.meta.env.VITE_GOOGLE_AUTH_ENABLED !== 'false';
   const [step, setStep] = useState<'email' | 'password' | 'name' | 'create-password'>('email');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -210,6 +211,8 @@ function LoginPage() {
               </Button>
             </form>
 
+            {googleAuthEnabled && (
+              <>
             {/* Divider */}
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
@@ -250,6 +253,8 @@ function LoginPage() {
                 Continue with Google
               </Button>
             </div>
+              </>
+            )}
           </>
         ) : step === 'password' ? (
           <>

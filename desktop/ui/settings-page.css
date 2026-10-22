@@ -1,0 +1,25 @@
+.settings-page{position:fixed;inset:32px 0 0 49px;z-index:90;display:flex;overflow:hidden;background:var(--bg);color:var(--text);outline:none}
+.settings-page .backup-progress{position:absolute;left:274px;right:24px;top:18px;z-index:1;padding:12px 16px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text);font-size:14px;box-shadow:0 4px 16px #0002}
+.settings-page .settings-layout[inert]{opacity:.55}
+.settings-page .settings-layout{display:grid;grid-template-columns:254px minmax(0,1fr);width:100%;height:100%;min-height:0}
+.settings-page .settings-nav{width:auto;min-width:0;overflow:auto;padding:16px 10px 24px;background:var(--sidebar);border-right:1px solid var(--border);gap:3px;display:flex;flex-direction:column}
+.settings-nav-heading{display:flex;align-items:center;gap:7px;margin:0 0 16px;padding:0 4px}.settings-nav-heading h2{font-size:18px;font-weight:650;margin:0}.settings-nav-heading .icon-button{flex:none}
+.settings-page .settings-nav>input{flex:none;border:0;border-radius:24px;height:36px;margin:0 0 12px;padding:8px 14px;font-size:13px;background:var(--hover);width:100%}
+.settings-page .settings-nav>button{min-height:34px;flex:none;padding:7px 12px;border-radius:9px;gap:10px;font-size:14px;text-align:left;display:flex;align-items:center}
+.settings-page .settings-nav>button svg{width:16px;height:16px}.settings-page .settings-nav>button.active{background:var(--hover);color:var(--text)}
+.settings-page .settings-nav-group{margin:12px 12px 8px;font-size:12px;font-weight:600;color:var(--muted)}
+.settings-page .settings-content{overflow:auto;width:100%;max-width:none;padding:64px max(32px,calc((100% - 760px)/2)) 80px;min-width:0;scrollbar-gutter:stable}
+.settings-page .settings-content>h2{margin:10px 0 38px;font-size:30px;line-height:1.2;font-weight:650;letter-spacing:-.6px}
+.settings-page .settings-content h3{font-size:15px;margin:30px 0 14px}.settings-page .pane-intro{font-size:14px;line-height:1.6;color:var(--muted);margin:0 0 22px}
+.settings-page .setting-row{padding:18px 16px;gap:20px;font-size:14px;min-height:72px}.settings-page .setting-row strong{font-size:14px;font-weight:550}.settings-page .setting-row p{font-size:13px;line-height:1.5;margin:5px 0 0;color:var(--muted)}
+.settings-page .setting-row select,.settings-page .setting-row button{font-size:13px;max-width:50%;flex-shrink:0}.settings-page .secondary{border-radius:20px;padding:8px 13px;font-size:13px}
+.settings-page .settings-card{background:var(--surface);border:1px solid var(--border);border-radius:18px;overflow:hidden}.settings-page .settings-card .setting-row{margin:0;border:0}.settings-page .settings-card .setting-row+.setting-row{border-top:1px solid var(--border)}
+.settings-page .theme-options{padding:14px;border-radius:18px;border:1px solid var(--border);background:var(--surface)}.settings-page .theme-option{font-size:13px;border-radius:12px}
+.settings-page .info-card{border-radius:18px;margin-top:24px;padding:20px}.settings-page .hint{font-size:13px;line-height:1.6;color:var(--muted);margin:16px 0 24px}
+.settings-page .settings-list-row{padding:16px;border-bottom:1px solid var(--border)}.settings-page .shortcut-list>div{font-size:14px;padding:16px}.usage-menu-symbol{font-size:20px;width:18px;line-height:1;display:inline-block}
+@media(max-width:1000px){.settings-page .settings-layout{grid-template-columns:220px minmax(0,1fr)}.settings-page .settings-content{padding:40px 28px 60px}}
+@media(max-width:650px){.settings-page{left:0}.settings-page .settings-layout{grid-template-columns:166px minmax(0,1fr)}.settings-page .settings-nav{padding-inline:5px}.settings-page .settings-nav>button{font-size:12px;padding:8px}.settings-page .settings-content{padding:28px 16px 50px}.settings-page .settings-content>h2{font-size:24px}.settings-page .setting-row{flex-wrap:wrap;gap:12px}.settings-page .setting-row button,.settings-page .setting-row select{max-width:100%}}
+
+.settings-page .settings-content>.setting-row{background:var(--surface);border:1px solid var(--border);border-radius:16px;margin:12px 0}.settings-page .shortcut-search{height:38px;border-radius:22px;width:100%;padding:8px 16px;margin:0 0 24px;font-size:14px}.settings-page .shortcut-list{background:var(--surface);border:1px solid var(--border);border-radius:18px;overflow:hidden}
+
+.settings-page .settings-nav{overflow-x:hidden;scrollbar-width:thin}.settings-page .settings-nav-heading .icon-button{width:28px;min-width:28px;height:28px;flex:0 0 28px;padding:0;justify-content:center}.settings-page .settings-nav-heading h2{min-width:0;white-space:nowrap;text-align:left}

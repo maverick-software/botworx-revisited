@@ -1,0 +1,27 @@
+# Restricted workspace recovery during upgrades
+
+Source67 now has a separate recovery startup when a verified unfinished workspace import prevents a complete pre-upgrade backup. The installed backend remains 0.44.66. This work is source-only and does not authorize delivery before the remaining recovery acceptance gates pass.
+
+The closed-profile reader checks every account present in the current database snapshot. It also detects original graph data whose owner has never completed an initial import. A valid current unfinished checkpoint raises a dedicated review condition. Malformed records and unrelated unfinished checkpoints continue to hold startup with an error, preserving their retained bytes.
+
+Runtime responds to the review condition by checking the local authentication service and returning a recovery-only state. It does not provision migrations, update the schema-release receipt or complete startup. The incomplete automatic backup remains retained. Main loads the protected local credentials and constructs `UpgradeRecoverySession` before any Broker, Providers, browser credential attachment or normal voice recovery initialization.
+
+The restricted controller signs in existing local accounts through Supabase authentication. It verifies the current user, suspension and session continuity without querying application roles or application tables that may still use the older schema. Its account list comes from the current local authentication database. It exposes only that signed-in owner's recovery status, file inspection, retained-folder opening and explicitly reviewed finish/separate-copy operations. Errors involving another owner's recovery metadata use a generic message. Normal chats, schedules, tools and provider actions remain unavailable. Sign-out remains available after status failures so a suspended or invalid saved session does not strand the account chooser.
+
+Recovery calls run one at a time. Account switching is refused during admitted file work. Guard checks detect a changed account or closure, and normal shutdown waits for the admitted operation before stopping the runtime. Finishing retained copies does not construct or activate agent queues, tick the scheduler or replay requests.
+
+Continue upgrade requires an authenticated current account and zero pending imports across all current accounts. It seals further restricted calls, closes that session and starts Runtime again. Runtime must create a fresh complete backup before provisioning. A removed original account does not block an upgrade merely because its old owner identifier remains in the original checkpoint; malformed data belonging to a current account still holds it.
+
+## Validation
+
+The dedicated backend qualification runs 21 cases. It includes actual Runtime startup and automatic backup ordering with controlled WSL transport, actual Git/files/Python recovery, Windows-encrypted credential round trips, eight restricted-controller cases with controlled authentication clients, and two original-graph admission cases. The first run passed 19; the two failures were fixtures that omitted `recoveryStartup` extraction before owner import. The corrected run passed all 21 without changing production logic for those failures.
+
+The desktop admission/close qualification passes 40 cases, including four new actual-Main cases for the restricted route, saved-session initialization, refused/successful continuation and close ordering. Recovery IPC waits until the saved sign-in has finished restoring. The account service, Electron surfaces and engine constructors are controlled in those Main tests. These cases establish routing and ordering; they do not establish a real PostgreSQL migration or a packaged cold restart.
+
+The full-renderer qualification uses the actual DesktopApp and restricted controller with actual retained-file inspection, publication finishing and separate-copy recovery. Authentication is controlled and all generated files stay on F:. Its first attempt reached sign-in and inspection, then failed because a generated edit targeted an unpublished destination. The corrected edit scenario uses the after-publication interruption. The recovery screen was also given an explicit viewport-height scroll container so actions stay reachable in a smaller window.
+
+All seven full-renderer workflows pass. The dark wide and light narrow screenshots were visually reviewed, including scrolling to the separate-copy action. Current evidence is recorded in `.supabase/desktop-scheduled-workspaces67/upgrade-review-qualified.json`. Counts from overlapping suites are not added together. The recorder checks each executed component against the appropriate proof: Main against desktop controls, the renderer against rendered workflows, and Runtime/profile/controller modules against their backend cases. Earlier compile-only hashes of Main or renderer files are historical when a later component qualification supersedes them.
+
+## Remaining delivery gates
+
+Verify the closed-profile maintenance driver against a matching source67 archive, then real PostgreSQL/password/account/agent/memory/provider recovery and whole-app cold reopening with images disabled and no request replay. Complete combined packaged multi-project scheduled Git/local workspace execution, source revocation, cancellation and cold no-replay acceptance. Preserve completed goal68 and its saved request identities. Source67 must not be installed from these isolated qualifications alone.

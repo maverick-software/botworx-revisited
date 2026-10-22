@@ -1,0 +1,21 @@
+import {readFile,writeFile,stat,statfs,readdir} from 'node:fs/promises';
+import {createReadStream} from 'node:fs';
+import {createHash} from 'node:crypto';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {closed} from './phased-backup-control.mjs';
+await closed();
+const root=path.resolve(import.meta.dirname,'../..'),candidate=path.join(root,'.supabase/desktop-platform-release/candidate-04447'),json=async file=>JSON.parse(await readFile(file,'utf8'));
+const named=async name=>json(path.join(candidate,name)),delivery=await named('delivery-qualification.json'),made=await named('installer-proof.json'),backup=await named('upgrade-backup.json'),evidence=await json(backup.evidence),recovery=await json(path.join(backup.out,'ordinary-recovery-acceptance.json'));
+assert(delivery.success&&made.success&&backup.success&&evidence.success&&evidence.phase==='complete'&&recovery.success&&recovery.passwordsPreserved&&recovery.children.length===2);
+for(const row of [made,backup,evidence])assert.equal(row.imageSha256,delivery.imageSha256);
+assert.equal((await stat(evidence.runtimeImage.file)).size,evidence.runtimeImage.bytes);
+const hash=async file=>{const h=createHash('sha256');for await(const bytes of createReadStream(file))h.update(bytes);return h.digest('hex');};
+assert.equal(await hash(evidence.runtimeImage.file),evidence.runtimeImage.sha256);assert.equal(await hash(made.installer),made.installerSha256);
+const packaged=await named('package-proof.json');let payloadBytes=0;for(const entry of await readdir(packaged.portableDirectory,{recursive:true,withFileTypes:true})){if(entry.isFile())payloadBytes+=(await stat(path.join(entry.parentPath,entry.name))).size;assert(!entry.isSymbolicLink());}
+const installVolume=await statfs('C:/Users/charl/AppData/Local/AgentopiaDesktop'),installFree=installVolume.bavail*installVolume.bsize,requiredInstallBytes=payloadBytes*2+(await stat(made.fullPackage)).size+1536*1024**2;assert(installFree>requiredInstallBytes,'Preserve installation staging and remaining disk headroom');
+const at=new Date().toISOString(),phase='verified-ready-for-normal-windows-installation',release={...delivery,at,phase,installerVerified:true,recovery:backup.out,recoveryVerified:true,freshStoppedFullRecoveryPending:false,installed:false,ordinaryAcceptanceComplete:false,standingInstallationAuthorization:true,providerRequests:0,installationCapacity:{payloadBytes,freeBytes:installFree,requiredBytes:requiredInstallBytes}};
+await writeFile(path.join(candidate,'release-proof.json'),JSON.stringify(release,null,2),{flag:'wx'});
+await writeFile(path.join(candidate,'promotion-status.json'),JSON.stringify({success:true,at,version:'0.44.47',phase,installed:false,imageSha256:delivery.imageSha256,resourceManifestSha256:delivery.resourceManifestSha256,permissionQuestionPending:false},null,2),{flag:'wx'});
+await writeFile(path.join(candidate,'installation-authorization.json'),JSON.stringify({authorized:true,version:'0.44.47',source:'Direct user authorization of verified Agentopia updates, retained in AGENTS.md',permissionQuestionPending:false},null,2),{flag:'wx'});
+console.log(JSON.stringify({success:true,version:'0.44.47',phase,recovery:backup.out,accounts:recovery.accounts,chats:recovery.conversations,messages:recovery.messages,requests:recovery.ordinaryRequests}));
