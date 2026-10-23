@@ -125,7 +125,7 @@ if(ownsInstance)app.whenReady().then(async()=>{
  await mkdir(app.getPath('userData'),{recursive:true});
  Menu.setApplicationMenu(null);
  const savedWindow=await loadWindow(app.getPath('userData'),[screen.getPrimaryDisplay(),...screen.getAllDisplays().filter(d=>d.id!==screen.getPrimaryDisplay().id)].map(d=>d.workArea));
- window=new BrowserWindow({...savedWindow.bounds,minWidth:960,minHeight:640,title:'Agentopia',backgroundColor:'#ffffff',show:false,autoHideMenuBar:true,titleBarStyle:'hidden',titleBarOverlay:{color:'#f7f7f8',symbolColor:'#202123',height:32},
+ window=new BrowserWindow({...savedWindow.bounds,minWidth:960,minHeight:640,title:'Agentopia',backgroundColor:'#ffffff',show:false,autoHideMenuBar:true,titleBarStyle:'hidden',titleBarOverlay:{color:'#eef1f4',symbolColor:'#202123',height:32},
   webPreferences:{preload:path.join(__dirname,'preload.js'),contextIsolation:true,nodeIntegration:false,sandbox:true,webviewTag:false}});
  window.webContents.setWindowOpenHandler(()=>({action:'deny'}));
  computer=new ComputerService(resources);computer.shortcut=globalShortcut.register('Control+Alt+Backspace',()=>{void broker?.tools.stopComputer().catch(()=>{});window?.webContents.send('agentopia:command','computer-stopped');});
@@ -150,7 +150,7 @@ if(ownsInstance)app.whenReady().then(async()=>{
  ipcMain.handle('agentopia:call',async(event,action:unknown,args:unknown)=>{
   if(event.senderFrame!==window?.webContents.mainFrame||!event.senderFrame?.url.startsWith('agentopia://app/'))throw new Error('Untrusted desktop caller.');
   if(typeof action!=='string'||action.length>80||args===null||(args!==undefined&&(typeof args!=='object'||Array.isArray(args)))||JSON.stringify(args??{}).length>(action==='voice.transcribe'?5500000:action==='runtime.backup'?4*1024**2+64:action.startsWith('workspace.editor.')?1000000:desktopRequestLimit(action)))throw new Error('Invalid desktop request.');
-  if(action==='window.theme'){const dark=(args as Record<string,unknown>)?.dark;if(typeof dark!=='boolean')throw new Error('Invalid window theme.');window!.setTitleBarOverlay({color:dark?'#171717':'#f7f7f8',symbolColor:dark?'#ececec':'#202123',height:32});return;}
+  if(action==='window.theme'){const dark=(args as Record<string,unknown>)?.dark;if(typeof dark!=='boolean')throw new Error('Invalid window theme.');window!.setTitleBarOverlay({color:dark?'#1c2429':'#eef1f4',symbolColor:dark?'#ececec':'#202123',height:32});return;}
   if(action==='window.menu'){
    const kind=(args as Record<string,unknown>)?.kind;
    const command=(name:string)=>()=>window?.webContents.send('agentopia:command',name);
