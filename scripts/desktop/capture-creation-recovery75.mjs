@@ -1,0 +1,51 @@
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import {mkdir,writeFile} from 'node:fs/promises';
+import {desktopOperation} from './operation-lock.mjs';
+import {json,hash,list} from './phased-backup-control.mjs';
+import {launchDurableProfileProbe} from './launch-durable-profile-probe.mjs';
+
+desktopOperation('capture exact75 whole-profile avatar and starter recovery with zero inference');
+const root=path.resolve(import.meta.dirname,'../..');
+const pointer=await json(path.join(root,'.supabase/desktop-agent-creation75-packaged/current.json'));
+const cfg=await json(pointer.sourceIntent),candidate=await json(pointer.candidateFile);
+const packaged=await json(path.join(cfg.out,'creation-accepted.json'));
+const fixtureFile=path.join(cfg.out,'creation-fixture.json'),f=await json(fixtureFile);
+assert(packaged.success&&cfg.role==='source'&&f.finished&&!f.recoveryBundle);assert((await json(path.join(cfg.out,'creation-cold-accepted.json'))).success);
+assert.equal(await hash(path.join(cfg.program,'resources/app.asar')),candidate.imageSha256);
+assert(!(await list(true)).includes(cfg.distribution));
+const out=path.join(cfg.out,'recovery-capture-'+Date.now());await mkdir(out);
+const backupParent=path.resolve('F:/Agentopia-Acceptance','creation-recovery75-'+Date.now());await mkdir(backupParent);
+const e={success:false,at:new Date().toISOString(),out,imageSha256:candidate.imageSha256,productionAccess:false,realProviderRequests:0};
+try{
+ const result=await launchDurableProfileProbe(cfg,{label:path.relative(cfg.out,path.join(out,'app')),testProfile:false,
+  initialProfile:cfg.profile,expectedProfile:cfg.profile,expectedRuntime:'ready',resumeDebugWorkers:true,isolateOsHome:true,
+  evaluationTimeoutMs:15*60000,normalCloseTimeoutMs:120000,runReady:async({application,page})=>{
+   const call=(action,args)=>page.evaluate(({action,args})=>window.agentopia.call(action,args),{action,args});
+   assert.equal((await call('auth.state')).identity?.id,f.owner);
+   await application.evaluate((_,parent)=>{globalThis.__durableProbeElectron.dialog.showOpenDialog=async()=>({canceled:false,filePaths:[parent]});},backupParent);
+   const capture=await call('runtime.backup',{display:{}});assert(capture?.destination&&capture.accounts===2);
+   const descriptor=await json(path.join(capture.destination,'desktop-recovery.json'));assert.equal(descriptor.requiresDesktopRecoveryFormat,12);
+   f.recoveryBundle=capture.destination;await writeFile(fixtureFile,JSON.stringify(f,null,2));
+   const saved=await application.evaluate(async(_,f)=>{
+    const b=globalThis.__coordination.broker,must=result=>{if(result.error)throw Error(result.error.message);return result.data;};
+    const tables={};for(const name of ['agents','desktop_agent_profiles','desktop_agent_memories','media_library','agent_media_assignments',
+     'agent_mcp_connections','desktop_plugin_connections','desktop_agent_plugins','desktop_requests','chat_messages_v2','conversation_sessions','desktop_scheduled_tasks','desktop_scheduled_runs','desktop_codex_turns','desktop_media_revisions']){
+     tables[name]=must(await b.admin.from(name).select('*'));
+    }
+    tables.desktop_media_files=must(await b.admin.from('desktop_media_files').select('media_id,user_id,sha256'));
+    return {tables,network:{calls:globalThis.__coordination.calls,blocked:globalThis.__coordination.blocked,errors:globalThis.__coordination.errors}};
+   },f);
+   assert.deepEqual(saved.network,{calls:[],blocked:[],errors:[]});
+   assert.equal(saved.tables.desktop_requests.length,3);assert.equal(saved.tables.desktop_requests.filter(row=>row.status==='completed').length,2);assert.equal(saved.tables.desktop_requests.find(row=>row.id===f.failedRouterRequest)?.status,'failed');for(const id of [f.agent,f.routerAgent,f.envelopeAgent,f.foreign.agent])assert(saved.tables.agents.some(row=>row.id===id));assert(saved.tables.agents.every(row=>[f.owner,f.foreign.owner].includes(row.user_id)));assert.equal(saved.tables.agent_mcp_connections.length,0);assert.equal(saved.tables.agents.find(row=>row.id===f.agent).system_instructions,f.instructions);
+   const own=saved.tables.agents.find(row=>row.id===f.agent),router=saved.tables.agents.find(row=>row.id===f.routerAgent),envelope=saved.tables.agents.find(row=>row.id===f.envelopeAgent);assert.equal(router.metadata.desktop_creation_id,f.routerCreationPayload.creationId);assert.equal(envelope.system_instructions.length,100000);assert.equal(own.metadata.desktop_creation_id,f.creationPayload.creationId);assert.equal(own.avatar_url,f.image);assert.deepEqual(own.metadata.desktop_presentation,{version:1,icon:f.saved.icon,color:f.saved.color,starters:f.saved.starters});const savedFile=path.join(out,'saved-records.json');await writeFile(savedFile,JSON.stringify(saved,null,2),{flag:'wx',mode:0o600});
+   Object.assign(e,{capture,bundle:capture.destination,savedRecords:savedFile,tableCounts:Object.fromEntries(Object.entries(saved.tables).map(([name,rows])=>[name,rows.length]))});
+   return {captured:true,savedRequests:3,inferenceRequests:0};
+  }});
+ assert.equal(result.normalExit,0);assert.equal(result.controlledNetwork.calls.length,0);
+ assert(!(await list(true)).includes(cfg.distribution));
+ Object.assign(e,{success:true,normalExit:0,runtimeStopped:true,controlledResponses:0});
+ const evidence=path.join(out,'evidence.json');await writeFile(evidence,JSON.stringify(e,null,2));
+ await writeFile(path.join(cfg.out,'creation-recovery-source-accepted.json'),JSON.stringify({success:true,evidence,bundle:e.bundle,checkpoint:fixtureFile},null,2),{flag:'wx'});
+ console.log(JSON.stringify({success:true,evidence,savedRequests:3,controlledResponses:0}));
+}catch(error){e.error=error.cause?.stack??error.stack;await writeFile(path.join(out,'evidence.json'),JSON.stringify(e,null,2));console.error('Inspect presentation recovery capture at '+out);process.exitCode=1;}
