@@ -12,6 +12,10 @@ function fixture(){
 const snapshot=async(f,options,ref)=>await(await f.service.prepare(owner,options,'computer_snapshot',{window_id:ref.id},guard)).run(signal());
 const click=(ref,snap)=>({window_id:ref.id,snapshot_id:snap.snapshot_id,ref:null,x:100,y:100,button:'left',count:1});
 
+test('the purple indicator follows owned shared context and is cleared by completion, revocation, stop and helper loss',async()=>{
+ const f=fixture(),events=[];f.service.indicator={show:async(...args)=>events.push(['show',...args]),end:(...args)=>events.push(['end',...args]),revoke:(...args)=>events.push(['revoke',...args]),stop:(...args)=>events.push(['stop',...args])};const {ref,options}=await f.grant();await f.service.indicate(owner,options,'request',{window_id:ref.id});assert.deepEqual(events[0],['show',owner.id,'request',ref.id,box]);await assert.rejects(f.service.indicate(other,options,'foreign',{window_id:ref.id}),/no longer available/);await assert.rejects(f.service.indicate(owner,{...options,windows:[]},'unshared',{window_id:ref.id}),/not shared/);f.service.finishRequest(owner.id,'request');assert.deepEqual(events.at(-1),['end',owner.id,'request']);f.client.unavailable('helper failed');assert.deepEqual(events.at(-1),['stop']);f.service.revoke(owner.id,ref.id);assert.deepEqual(events.at(-1),['revoke',owner.id,ref.id]);await f.service.stop(owner.id);assert(events.some(row=>row[0]==='stop'&&row[1]===owner.id));
+});
+
 test('computer tools require administrator, explicit sharing and input permissions; Plan remains read-only',()=>{
  const options={thinking:'high',permission:'ask',mode:'chat',files:[],windows:[randomUUID()]};assert.equal(computerDefinitions(owner,options).length,7);
  for(const value of [{...options,windows:[]},{...options,permission:'chat'},{...options,permission:'files'}])assert.equal(computerDefinitions(owner,value).length,0);

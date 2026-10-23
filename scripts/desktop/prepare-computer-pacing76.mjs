@@ -1,0 +1,16 @@
+// A private one-variable experiment; production helper sources/resources are read-only.
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import {mkdir,readFile,writeFile,readdir,copyFile} from 'node:fs/promises';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import {createHash} from 'node:crypto';
+import {desktopOperation} from './operation-lock.mjs';
+desktopOperation('build isolated character-pacing experiment without changing installed computer helper');
+const root=path.resolve(import.meta.dirname,'../..'),out=path.join(root,'.supabase/desktop-computer-pacing76',String(Date.now())),source=path.join(out,'source'),resources=path.join(out,'resources'),helper=path.join(resources,'computer-helper'),sdk=path.join(root,'.supabase/desktop-computer-sdk/sdk/dotnet.exe'),exec=promisify(execFile),hash=b=>createHash('sha256').update(b).digest('hex');await mkdir(source,{recursive:true});await mkdir(helper,{recursive:true});
+const original={};for(const name of(await readdir(path.join(root,'desktop/native/computer'))).filter(n=>/\.(?:cs|csproj)$/.test(n))){const bytes=await readFile(path.join(root,'desktop/native/computer',name));original[name]=hash(bytes);let next=bytes;if(name==='Program.cs'){const text=bytes.toString(),needle='Win.Send(Win.Key(0,scan:letter,unicode:true),Win.Key(0,true,letter,true));}';assert.equal(text.split(needle).length,2);next=Buffer.from(text.replace(needle,'Win.Send(Win.Key(0,scan:letter,unicode:true),Win.Key(0,true,letter,true));if(cancellation.WaitHandle.WaitOne(25))cancellation.ThrowIfCancellationRequested();}'));}await writeFile(path.join(source,name),next);}
+assert.equal((await exec(sdk,['--version'],{windowsHide:true,encoding:'utf8'})).stdout.trim(),'10.0.402');
+const built=await exec(sdk,['publish',path.join(source,'Agentopia.Computer.csproj'),'-c','Release','-o',helper],{cwd:root,windowsHide:true,encoding:'utf8',timeout:180000,maxBuffer:1024*1024,env:{...process.env,DOTNET_CLI_TELEMETRY_OPTOUT:'1',DOTNET_NOLOGO:'1',DOTNET_CLI_HOME:path.join(root,'.supabase/desktop-computer-sdk/home')}});await writeFile(path.join(out,'build.log'),built.stdout+built.stderr);
+for(const name of['LICENSE.txt','ThirdPartyNotices.txt'])await copyFile(path.join(path.dirname(sdk),name),path.join(helper,name));const files={};for(const entry of await readdir(helper,{recursive:true,withFileTypes:true}))if(entry.isFile()){const file=path.join(entry.parentPath,entry.name);files[path.relative(helper,file).replaceAll('\\','/')]=hash(await readFile(file));}
+for(const[name,digest]of Object.entries(original))assert.equal(hash(await readFile(path.join(root,'desktop/native/computer',name))),digest);
+const evidence={success:true,at:new Date().toISOString(),out,source,resources,originalSourceHashes:original,changedVariable:'25ms cancellation-aware pause after each UTF-16 input pair',installedResourcesChanged:false,manifest:{version:'1.0.1-pacing-experiment',entry:'Agentopia.Computer.exe',files}};await writeFile(path.join(out,'evidence.json'),JSON.stringify(evidence,null,2));await writeFile(path.join(root,'.supabase/desktop-computer-pacing76/current.json'),JSON.stringify({out,evidence:path.join(out,'evidence.json')},null,2));console.log(JSON.stringify({success:true,out,files:Object.keys(files).length,installedResourcesChanged:false}));
