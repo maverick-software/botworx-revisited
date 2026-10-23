@@ -1,0 +1,18 @@
+// Bind source, archive and renderer evidence before provisioning an isolated runtime.
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import {writeFile} from 'node:fs/promises';
+import {desktopOperation} from './operation-lock.mjs';
+import {json,hash} from './phased-backup-control.mjs';
+desktopOperation('bind frozen69 archive and interface qualification');
+const root=path.resolve(import.meta.dirname,'../..'),pointer=await json(path.join(root,'.supabase/desktop-recovery69-candidate/current.json')),candidate=await json(pointer.proof),archiveFile=(await json(path.join(root,'.supabase/desktop-recovery69-controls/current.json'))).evidence,archive=await json(archiveFile),appFile=path.resolve(process.argv[2]??''),app=await json(appFile),draftFile=path.resolve(process.argv[3]??''),draft=await json(draftFile),source=await json(candidate.sourceRecoveryQualification),database=await json(candidate.realDatabaseQualification);
+assert(candidate.success&&candidate.version==='0.44.69');assert.equal(await hash(candidate.image),candidate.imageSha256);assert.equal(await hash(candidate.exe),candidate.exeSha256);
+assert(source.success&&source.filter===null&&source.passed>=122);assert(database.success&&database.clientChecks.length===8&&database.productionUnchanged&&database.disposableDatabaseRemoved);
+assert(archive.success&&archive.actualArchivedModules&&archive.passed>=1046&&archive.failed===0&&archive.cancelled===0&&archive.skipped===0);assert.equal(archive.imageSha256,candidate.imageSha256);
+assert(app.success&&app.checks.length===20&&app.rendererErrors.length===0&&app.providerRequests===0);assert.equal(app.proofSha256,await hash(pointer.proof));
+assert(draft.success&&draft.checks.length===8&&draft.inferenceRequests===0&&draft.actualDesktopApp&&draft.rendererFromPackagedResources);assert.equal(path.resolve(draft.rendererResources),path.resolve(candidate.assets,'ui'));
+for(const[file,digest]of Object.entries(draft.sourceSha256))assert.equal(candidate.sourceHashes[file.replace(/^desktop\//,'')],digest,file);
+for(const[file,digest]of Object.entries(candidate.sourceHashes))assert.equal(await hash(path.join(root,'desktop',file)),digest,file);
+for(const[file,digest]of Object.entries(candidate.uiFiles))assert.equal(await hash(path.join(candidate.assets,'ui',file)),digest,file);
+const e={success:true,at:new Date().toISOString(),version:candidate.version,proof:pointer.proof,proofSha256:await hash(pointer.proof),imageSha256:candidate.imageSha256,sourceRecovery:candidate.sourceRecoveryQualification,sourceRecoveryCases:source.passed,realDatabase:candidate.realDatabaseQualification,realDatabaseCases:8,archiveEvidence:archiveFile,archiveCases:archive.passed,wholeInterface:appFile,wholeInterfaceWorkflows:20,draftEvidence:draftFile,draftWorkflows:8,checksNotSummed:true,eligibleForGeneratedRuntime:true,eligibleForInstallerConstruction:false,eligibleForProductionInstallation:false,installed:false,currentVersionWholeProfileRestoreVerified:false,ordinaryVisualInspectionPending:true,providerRequests:0,productionAccess:false,fullGoalComplete:false,pending:['Exact packaged warm and cold saved-account/private-file acceptance.','Evaluate current-version whole-profile restoration for the changed recovery modules.','Construct and independently verify the installer payload.','Fresh recoverable ordinary upgrade, data verification and native visual acceptance.']};
+const file=path.join(candidate.out,'candidate-qualification.json');await writeFile(file,JSON.stringify(e,null,2),{flag:'wx'});console.log(JSON.stringify({success:true,qualification:file,archiveCases:e.archiveCases,eligibleForGeneratedRuntime:true,eligibleForProductionInstallation:false}));

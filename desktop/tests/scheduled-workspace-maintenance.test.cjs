@@ -17,8 +17,8 @@ class MemorySecrets{
  scheduledWorkspaceRecoveryIds(owner){return Secrets.prototype.scheduledWorkspaceRecoveryIds.call(this,owner);}
  workspaceImportIds(owner){return Secrets.prototype.workspaceImportIds.call(this,owner);}
 }
-async function fixture({partial,beforeCapture,objectFormat='sha1',publicWorkspace=false}={}){
- const root=path.join(fixtures,'maintenance-'+randomUUID()),source=path.join(root,'project'),profile=path.join(root,'protected-profile'),outputs=publicWorkspace?path.join(root,'Agentopia Files','c'.repeat(12),'scheduled-workspaces'):path.join(root,'copies');await fs.mkdir(source,{recursive:true});await fs.mkdir(profile);
+async function fixture({partial,beforeCapture,objectFormat='sha1',publicWorkspace=false,privatePadding=0}={}){
+ const root=path.join(fixtures,'maintenance-'+randomUUID()),source=path.join(root,'project'),profile=path.join(root,'protected-profile'+(privatePadding?'-'+'p'.repeat(privatePadding):'')),outputs=publicWorkspace?path.join(root,'Agentopia Files','c'.repeat(12),'scheduled-workspaces'):path.join(root,'copies');await fs.mkdir(source,{recursive:true});await fs.mkdir(profile);
  const env={...process.env};for(const key of Object.keys(env))if(/^GIT_/i.test(key))delete env[key];Object.assign(env,{GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:process.platform==='win32'?'NUL':'/dev/null',GIT_CONFIG_SYSTEM:process.platform==='win32'?'NUL':'/dev/null',GIT_AUTHOR_NAME:'Generated maintenance test',GIT_AUTHOR_EMAIL:'maintenance@example.invalid',GIT_COMMITTER_NAME:'Generated maintenance test',GIT_COMMITTER_EMAIL:'maintenance@example.invalid',GIT_OPTIONAL_LOCKS:'0'});
  const git=async(args,where=source)=>(await execute(binary,['--no-replace-objects','-c','core.longpaths=true','-c','core.hooksPath=/dev/null','-c','core.fsmonitor=false','-C',where,...args],{env,encoding:'utf8',windowsHide:true,timeout:30000,maxBuffer:1024*1024})).stdout;
  await git(['init','-b','main','--object-format='+objectFormat]);await git(['config','core.autocrlf','false']);await fs.writeFile(path.join(source,'seed.txt'),'original committed seed');await git(['add','--','.']);await git(['commit','-m','generated initial state']);
@@ -73,8 +73,9 @@ async function recoveredChatFixture(){
 }
 
 test('Long private recovery paths restore committed history and dirty files with the selected Git',async()=>{
- const f=await fixture();await fs.writeFile(path.join(f.checkout,'long-path-draft.txt'),'KEEP THIS DRAFT');
+ const f=await fixture({privatePadding:35});await fs.writeFile(path.join(f.checkout,'long-path-draft.txt'),'KEEP THIS DRAFT');
  const head=(await f.git(['rev-parse','HEAD'],f.checkout)).trim(),sourceHead=(await f.git(['rev-parse','HEAD'])).trim(),review=await f.maintenance.prepare(f.owner,f.run.id),op=f.operation(review.id);
+ assert(op.git.extras.find(file=>file.name==='history.bundle').path.length>260);
  await f.maintenance.commit(f.owner,review.id);const restored=await f.maintenance.restore(f.owner,review.id);
  const privateBundle=path.join(f.recovery,f.owner,review.id,'restore-'+f.operation(review.id).restoration.id,'history.bundle');assert(privateBundle.length>260);assert.equal(sha(await fs.readFile(privateBundle)),op.git.extras.find(file=>file.name==='history.bundle').sha256);
  assert.equal(restored.phase,'restored');assert.equal((await f.git(['rev-parse','HEAD'],restored.path)).trim(),head);assert.equal(await fs.readFile(path.join(restored.path,'long-path-draft.txt'),'utf8'),'KEEP THIS DRAFT');

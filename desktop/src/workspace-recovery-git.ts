@@ -4,6 +4,7 @@ import {copyFile, lstat, readFile,writeFile} from 'node:fs/promises';
 import {constants} from 'node:fs';
 import {storageDirectory, storageUuid, storageWithin} from './storage-files';
 import {readGitRecoveryPolicy,gitRecoveryPolicyId,type GitRecoveryPolicy} from './workspace-git-policy';
+import {workspaceBundlePack} from './workspace-git-bundle';
 import {
  recoveryFile, workspaceRecoveryInventory, writeWorkspaceRecovery, verifyWorkspaceRecovery,
  type RecoveryArtifact, type RecoveryExtra,
@@ -126,8 +127,12 @@ export async function captureWorkspaceGit(
  const bundle=path.join(output,'history.bundle');
  try{await lstat(bundle);throw Error('The recovery bundle destination is occupied.');}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;}
  await guard();signal.throwIfAborted();await git(['bundle','create',bundle,reference,'--']);
- await git(['bundle','verify',bundle]);
- const heads=(await git(['bundle','list-heads',bundle])).trim();
+ // Git for Windows cannot open some long bundle filenames. Both commands
+ // inspect only the bounded header; the independent import verifies the pack.
+ const pack=await workspaceBundlePack(bundle,head.length===64?32:20,guard,signal);
+ if(pack.commit!==commit||pack.reference!==reference)throw Error('The recovery bundle contains another history.');
+ await git(['bundle','verify','-'],{input:pack.header});
+ const heads=(await git(['bundle','list-heads','-'],{input:pack.header})).trim();
  if(heads!==commit+' '+reference)throw Error('The recovery bundle contains another history.');
  extra.push({name:'history.bundle',path:bundle,...await recoveryFile(bundle,guard,signal)});
  await progress({phase:'bundled',reference,commit});

@@ -21,6 +21,6 @@ export async function workspaceBundlePack(file:string,hashBytes:20|32,guard:()=>
   if(!reference||size<offset+12+hashBytes||prefix.length<offset+8||prefix.subarray(offset,offset+4).toString('ascii')!=='PACK'||![2,3].includes(prefix.readUInt32BE(offset+4)))throw Error('The private Git recovery bundle has an incomplete or invalid pack.');
   const trailer=Buffer.alloc(hashBytes);await read(trailer,size-hashBytes);await guard();signal.throwIfAborted();
   if(identity(await handle.stat({bigint:true}))!==identity(before)||identity(await lstat(file,{bigint:true}))!==identity(before))throw Error('The private Git recovery bundle changed while inspecting it.');
-  return {file,start:offset,end:size-1,bytes:size-offset,checksum:trailer.toString('hex'),commit:reference[1],reference:reference[2]};
+  return {file,start:offset,end:size-1,bytes:size-offset,checksum:trailer.toString('hex'),commit:reference[1],reference:reference[2],header:prefix.subarray(0,offset).toString('utf8')};
  }finally{await handle.close();}
 }
