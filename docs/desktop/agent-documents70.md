@@ -1,0 +1,26 @@
+# Persistent agent documents — source qualification for 0.44.70
+
+The Documents section now supports adding local PDF, Word, Excel, PowerPoint and UTF-8 text files, extracting their content, and assigning library files to a saved agent. Upload adds a durable library record; Save settings commits the selected assignments. An upload refresh preserves unsaved selections. Partial failures and incomplete extraction are reported. An uncertain upload refreshes the library without retrying or automatically assigning an unconfirmed result.
+
+Ordinary Agentopia remains on verified 0.44.69. This feature has passed source acceptance and has not been packaged or installed.
+
+Original bytes are stored in PostgreSQL's new `desktop_media_files` table, alongside the existing `media_library` registry. Both the original and extracted text therefore enter the existing database backup. Reads do not depend on the source file remaining at its upload location. Migration71 applies to the complete restored schema. This adds no external extraction service or provider connection. Upload supports ten files at a time, 20 MB for Office/PDF or 2 MB for text, with 200 active library records and 256 MB of retained originals per account.
+
+Each response receives a catalog of the current agent's assigned files and four scoped tools: list, text search, paged extracted-text reading, and PDF page-image reading. Catalog and content hashes are checked during execution. Assignment removal, account changes, document changes and cancellation prevent further reads. Named agents receive their own catalog; generic native children inherit their parent's scope. Chat only mode excludes document tools. File content remains untrusted reference material and cannot grant permissions.
+
+Both the native Codex path and legacy provider path contain the integration. The actual pinned Codex harness passes a controlled catalog/prompt check through the ChatGPT and OpenRouter adapters and discovers both document readers through its native MCP connection. Changing the catalog creates a different native scope. That test completes three controlled responses, makes no live provider calls, and does not establish that a model has read the new tools' contents end to end.
+
+Current combined qualification: `.supabase/desktop-agent-documents70/qualified-1792740757752/evidence.json`.
+
+| Verification | What passed |
+| --- | --- |
+| Twelve focused source cases | Durable original bytes, explicit assignments, text pagination, case-insensitive Unicode search with original offsets, literal query punctuation, assignment revocation during reads, account isolation, cancellation, protected/linked/oversized/binary inputs, reference-text handling, real PDF/Office extraction and bounded PDF page dispatch. |
+| Fifty-seven related cases | Existing agent policies, saved references, native reporting, child recovery, steering, goals, document handling and agent integration checks. |
+| Six real database checks | Migration on the full restored schema; authenticated-client restrictions; actual Supabase/PostgREST upload and reads for five file types; removal of upload files; original-byte table backup, emptying and restoration; fresh reader process; foreign-account/hash rejection; revocation and reassignment. Generated records and migration objects were removed, prior QA rows/schema match, and QA services stopped normally. The ordinary runtime was never selected. |
+| Six editor workflows | Saved selections, cancellation, preservation of unsaved changes, partial errors, explicit save/reopening, uncertain-result handling, and controls within 1460px light and 520px dark layouts. These use an owned controlled renderer. |
+
+Source evidence: `.supabase/desktop-agent-documents70/1792740555868/evidence.json`. Database evidence: `postgres-1792740607219/evidence.json` in the same family. Interface evidence and screenshots: `ui-1792740522026/`. Existing mixed line endings were normalized in the edited sources; the qualifier retains their tested preimages and proves that the five relevant compiled modules remain byte-identical to the passing build.
+
+Earlier failed attempts are retained. They exposed an incorrect expected PDF fixture marker, missing build-path settings for two older test suites, an ambiguous status selector, and a hidden renderer that had not painted screenshots. The native fixture initially expected every host tool in the model's initial catalog; the corrected check inspects the actual runtime's MCP inventory. The first database attempt stopped at an overly specific QA port assertion before applying the migration. None made live provider requests.
+
+The next gates are a frozen 0.44.70 package with schema71, actual packaged document reads through the native tool bridge, real PDF page rendering through the new tool, named-agent/background/scheduled use, exact-version whole-profile recovery, and recoverable ordinary installation/data/UI acceptance. Office/PDF extraction remains bounded by the existing reader and reports incomplete text; original bytes are retained. Library organization, replacement and archival controls still need completion. Native ordinary-window/reference comparisons, physical reboot and different-Windows-user recovery also remain open. The full parity goal remains active.
