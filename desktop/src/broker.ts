@@ -505,12 +505,21 @@ export class Broker {
    if(action==='agentSettings.mcp.oauth.connect')return this.mcpOAuth.connect(scope,{clientId:args.clientId===undefined?undefined:text(args.clientId),clientMetadataUrl:args.clientMetadataUrl===undefined?undefined:text(args.clientMetadataUrl)});
    throw Error('Unsupported MCP sign-in operation.');
   }
-  if(action==='agentSettings.documents.pick'){
-   const agent=uuid(args.agentId),guard=async()=>{if(this.closing||(await this.identity()).id!==user.id)throw Error('Your Agentopia account changed.');must(await this.admin.from('agents').select('id').eq('id',agent).eq('user_id',user.id).eq('active',true).single());};await guard();
-   const picked=await dialog.showOpenDialog({title:'Add documents to the agent library',properties:['openFile','multiSelections'],filters:[{name:'Documents',extensions:['txt','md','markdown','csv','json','html','pdf','docx','xlsx','pptx']}]});await guard();
-   if(picked.canceled)return {uploaded:[],errors:[]};if(picked.filePaths.length>10)throw Error('Add up to ten documents at a time.');
-   const uploaded=[],errors=[];for(const file of picked.filePaths){try{uploaded.push(await this.agentDocuments.import(user.id,agent,file,guard,AbortSignal.timeout(60000)));}catch(error){await guard();errors.push(path.basename(file)+': '+(error as Error).message);}}
-   return {uploaded,errors};
+  if(action.startsWith('agentSettings.documents.')){
+   const agent=uuid(args.agentId),guard=async()=>{await this.attachmentOwner(user.id);must(await this.admin.from('agents').select('id').eq('id',agent).eq('user_id',user.id).eq('active',true).single());};
+   this.nativeControls++;try{
+    await guard();
+    if(action==='agentSettings.documents.versions')return await this.agentDocuments.versions(user.id,agent,uuid(args.id),guard);
+    if(action==='agentSettings.documents.update')return await this.agentDocuments.mutate(user.id,agent,args,guard,AbortSignal.timeout(60000));
+    if(action!=='agentSettings.documents.pick'&&action!=='agentSettings.documents.replace')throw Error('Unsupported document operation.');
+    const replacing=action==='agentSettings.documents.replace';
+    const picked=await dialog.showOpenDialog({title:replacing?'Replace the library document file':'Add documents to the agent library',properties:replacing?['openFile']:['openFile','multiSelections'],filters:[{name:'Documents',extensions:['txt','md','markdown','csv','json','html','pdf','docx','xlsx','pptx']}]});await guard();
+    if(picked.canceled)return replacing?{cancelled:true}:{uploaded:[],errors:[]};
+    if(replacing){if(picked.filePaths.length!==1)throw Error('Choose one replacement file.');return await this.agentDocuments.replace(user.id,agent,uuid(args.id),args.expected as any,picked.filePaths[0],guard,AbortSignal.timeout(60000));}
+    if(picked.filePaths.length>10)throw Error('Add up to ten documents at a time.');
+    const uploaded=[],errors=[];for(const file of picked.filePaths){try{uploaded.push(await this.agentDocuments.import(user.id,agent,file,guard,AbortSignal.timeout(60000)));}catch(error){await guard();errors.push(path.basename(file)+': '+(error as Error).message);}}
+    return {uploaded,errors};
+   }finally{this.nativeControls--;}
   }
   if(action.startsWith('settings.')||action.startsWith('agentSettings.')){
    const changedMcp=['agentSettings.mcp.save','agentSettings.mcp.remove','agentSettings.mcp.enable'].includes(action)&&args.id?{owner:user.id,agent:uuid(args.agentId),connection:uuid(args.id)}:undefined;

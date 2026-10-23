@@ -38,7 +38,7 @@ export class ProjectSettings {
     db.from('agents').select('id,name,personality,email_enabled,sms_enabled,slack_enabled,discord_enabled,telegram_enabled,whatsapp_enabled,metadata').eq('id',agent).single().then(data),
     this.all(()=>db.from('datastores').select('id,name,type').eq('user_id',user.id).order('id')),
     db.from('agent_datastores').select('datastore_id').eq('agent_id',agent).then(data),
-    this.all(()=>db.from('media_library').select('id,display_name,file_name,processing_status').eq('user_id',user.id).order('id')),
+    this.all(()=>db.from('media_library').select('id,display_name,file_name,processing_status,file_extension,file_size,version,is_archived,category,tags,description,updated_at,storage_bucket').eq('user_id',user.id).order('id')),
     db.from('agent_media_assignments').select('media_id').eq('agent_id',agent).eq('user_id',user.id).eq('is_active',true).then(data),
     this.connections(user),
     db.from('agent_integration_permissions').select('user_oauth_connection_id').eq('agent_id',agent).eq('granted_by_user_id',user.id).eq('is_active',true).then(data),

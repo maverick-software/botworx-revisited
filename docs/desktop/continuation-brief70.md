@@ -1,5 +1,7 @@
 # Agentopia continuation — installed document release 0.44.70
 
+Current source-work continuation: continuation-brief71.md. This file retains the delivered70 installation history.
+
 F:/Agentopia is authoritative. Read its AGENTS.md and preserve the full objective in active-goal-objective.json. The goal remains active and incomplete. No assistant subagents are authorized. Use F: for all new build, test and recovery output. Serialize runtime, build, test and maintenance through scripts/desktop/operation-lock.mjs. Do not replay completed or uncertain provider requests.
 
 ## Ordinary installation is now 0.44.70
@@ -34,6 +36,6 @@ Installer construction, independent payload verification, normal69-to70 installa
 
 Library organization/replacement/archive controls, inline app mentions, avatars/starters, builder assistance/unsaved preview, organization/sharing/external channels, Chrome reference and keyboard/scaling comparisons, extended unattended/default-window acceptance, physical reboot and different-Windows-user recovery remain. Keep the complete parity scope in parity-requirements57.md. The architecture discussion did not authorize replacing PostgreSQL/Supabase or adding a graph/vector migration. Live Composio still requires a valid protected per-user project key; do not ask repeatedly for the rejected key.
 
-Before the next upgrade, adapt the logical-data auditor for a schema71 source snapshot: audit-production-logical.py currently expects the126 tables from the pre70 snapshot. A fresh70 snapshot has127 tables including desktop_media_files. Keep the accepted69/70 maintenance helpers and their historical hashes intact. Use a schema-aware audit and bounded row fingerprints so retained bytea originals do not require buffering the complete decoded dump in memory. This was not needed for the completed69-to70 comparison, whose pre-update snapshot correctly has126 tables and whose new empty table is separately audited.
+The next source phase now supplies a qualified schema-aware streaming auditor; see logical-audit71.md. Historical context before that work: audit-production-logical.py currently expects the126 tables from the pre70 snapshot. A fresh70 snapshot has127 tables including desktop_media_files. Keep the accepted69/70 maintenance helpers and their historical hashes intact. Use a schema-aware audit and bounded row fingerprints so retained bytea originals do not require buffering the complete decoded dump in memory. This was not needed for the completed69-to70 comparison, whose pre-update snapshot correctly has126 tables and whose new empty table is separately audited.
 
 Git origin is the user-selected maverick-software/botworx-revisited, branch main. Commit/push authorized changes and verify the remote commit plus every physical tracked blob. Keep profiles, credentials, recovery, builds and generated QA evidence ignored. The pre-commit hook runs scripts/desktop/check-staged-secrets.mjs with verified Gitleaks. Source sync evidence belongs under F:/Agentopia-Tmp/git-sync-1792708271942. Never force-push.

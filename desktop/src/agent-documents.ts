@@ -10,6 +10,7 @@ import type {DocumentReader} from './documents';
 import {documentTypes,maxDocumentBytes} from './document-contracts';
 import {fileIdentity,sameFilePath} from './file-snapshot';
 import {safeName} from './workspace';
+import {libraryExpected,libraryMutation,type LibraryExpected} from './agent-library-contracts';
 
 const types:Record<string,string>={'.txt':'text/plain','.md':'text/markdown','.markdown':'text/markdown','.csv':'text/csv','.json':'application/json','.html':'text/html','.pdf':'application/pdf','.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document','.xlsx':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','.pptx':'application/vnd.openxmlformats-officedocument.presentationml.presentation'};
 const sha=(bytes:string|Buffer)=>createHash('sha256').update(bytes).digest('hex');
@@ -21,7 +22,7 @@ type Guard=()=>Promise<void>;
 
 export class AgentDocuments{
  constructor(private db:SupabaseClient,private reader:DocumentReader,private checkPath:(file:string)=>void){}
- async import(owner:string,agent:string,filename:string,guard:Guard,signal:AbortSignal){
+ private async prepare(owner:string,agent:string,filename:string,guard:Guard,signal:AbortSignal){
   agentId(owner);agentId(agent);await guard();signal.throwIfAborted();
   if(!path.isAbsolute(filename)||filename.length>4000)throw Error('Choose a local document.');
   this.checkPath(filename);const source=await realpath(filename);this.checkPath(source);
@@ -41,11 +42,27 @@ export class AgentDocuments{
   await guard();signal.throwIfAborted();
   const extracted=documentTypes.has(extension)?await this.reader.read(owner,bytes,extension,{signal}):{text:new TextDecoder('utf-8',{fatal:true}).decode(bytes),truncated:false,notice:undefined};
   if(extracted.text.includes('\0'))throw Error('Choose a UTF-8 text document without binary data.');
-  await guard();signal.throwIfAborted();const id=randomUUID();
-  value(await this.db.rpc('desktop_import_agent_document',{p_user:owner,p_agent:agent,p_id:id,p_value:{name,extension,mime:types[extension],base64:bytes.toString('base64'),sha256:sha(bytes),text:extracted.text,truncated:extracted.truncated,notice:extracted.notice??null}}));
+  await guard();signal.throwIfAborted();return {name,extension,mime:types[extension],base64:bytes.toString('base64'),sha256:sha(bytes),text:extracted.text,truncated:extracted.truncated,notice:extracted.notice??null};
+ }
+ async import(owner:string,agent:string,filename:string,guard:Guard,signal:AbortSignal){
+  const prepared=await this.prepare(owner,agent,filename,guard,signal),id=randomUUID();
+  value(await this.db.rpc('desktop_import_agent_document',{p_user:owner,p_agent:agent,p_id:id,p_value:prepared}));
   // The database call may have committed before an account switch. Do not
   // replay it automatically or remove the durable original on uncertain return.
-  await guard();signal.throwIfAborted();return {id,name,notice:extracted.notice??null,truncated:extracted.truncated};
+  await guard();signal.throwIfAborted();return {id,name:prepared.name,notice:prepared.notice,truncated:prepared.truncated};
+ }
+ async replace(owner:string,agent:string,id:string,expected:LibraryExpected,filename:string,guard:Guard,signal:AbortSignal){
+  agentId(id);const token=libraryExpected(expected),prepared=await this.prepare(owner,agent,filename,guard,signal);
+  const result=value(await this.db.rpc('desktop_update_library_document',{p_user:owner,p_agent:agent,p_id:id,p_expected_version:token.version,p_expected_updated_at:token.updatedAt,p_operation:'replace',p_value:prepared}));
+  await guard();signal.throwIfAborted();return {...result,notice:prepared.notice,truncated:prepared.truncated};
+ }
+ async mutate(owner:string,agent:string,input:unknown,guard:Guard,signal:AbortSignal){
+  const mutation=libraryMutation(input);agentId(owner);agentId(agent);await guard();signal.throwIfAborted();
+  const result=value(await this.db.rpc('desktop_update_library_document',{p_user:owner,p_agent:agent,p_id:mutation.id,p_expected_version:mutation.expected.version,p_expected_updated_at:mutation.expected.updatedAt,p_operation:mutation.operation,p_value:mutation.value}));
+  await guard();signal.throwIfAborted();return result;
+ }
+ async versions(owner:string,agent:string,id:string,guard:Guard){
+  await guard();const result=value(await this.db.rpc('desktop_library_document_versions',{p_user:agentId(owner),p_agent:agentId(agent),p_id:agentId(id)}));await guard();return result;
  }
  async snapshot(owner:string,agent:string):Promise<AgentDocumentSnapshot>{
   const documents=value(await this.db.rpc('desktop_agent_document_catalog',{p_user:agentId(owner),p_agent:agentId(agent)})) as AgentDocument[];

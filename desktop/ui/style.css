@@ -547,3 +547,21 @@ body{padding-top:32px}.desktop-bar{position:fixed;inset:0 0 auto;height:32px;z-i
 /* Keep transcript scrolling available without a visible scrollbar. */
 .app-shell .messages{scrollbar-width:none;scrollbar-gutter:auto}
 .app-shell .messages::-webkit-scrollbar{display:none;width:0;height:0}
+/* Library management stays within the editor and the responsive dialog. */
+.document-library-toolbar{display:flex;flex-wrap:wrap;gap:8px}
+.document-library-filters{display:grid;grid-template-columns:minmax(160px,1.4fr) minmax(120px,1fr) minmax(120px,1fr);gap:12px;margin:18px 0}
+.document-library-filters label{display:flex;flex-direction:column;gap:6px;min-width:0;margin:0}
+.document-library-filters input,.document-library-filters select{min-width:0;width:100%}
+.document-library-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)}
+.document-library-identity{flex:1;min-width:0}
+.document-library-identity .checkbox span,.document-library-version strong{overflow-wrap:anywhere}
+.document-library-identity small,.document-library-version small{display:block;overflow-wrap:anywhere;opacity:.7;margin-top:5px}
+.document-library-row>button{flex:none}
+.document-library-modal{width:min(720px,calc(100vw - 24px));max-height:calc(100dvh - 32px);overflow:auto}
+.document-library-modal form{display:flex;flex-direction:column;gap:12px}
+.document-library-modal form label{display:flex;flex-direction:column;gap:6px;min-width:0;margin:0}
+.document-library-modal input,.document-library-modal textarea{min-width:0;width:100%}
+.document-library-modal .form-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.document-library-modal section,.document-library-modal details{margin-top:20px}
+.document-library-version{padding:12px 0;border-bottom:1px solid var(--border)}
+@media(max-width:650px){.document-library-filters{grid-template-columns:1fr 1fr}.document-library-filters>label:first-child{grid-column:1 / -1}.document-library-row{align-items:flex-start}.document-library-modal{max-height:calc(100dvh - 16px)}}
