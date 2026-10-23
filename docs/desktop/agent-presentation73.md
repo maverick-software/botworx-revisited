@@ -1,6 +1,6 @@
 # Saved agent appearance and conversation starters
 
-Source for the next desktop candidate adds icons, colors, local profile images and ordered conversation starters to saved agents. The installed application remains 0.44.72. Root package versions remain 0.44.72, the database schema remains 72 and recovery format remains 12. This is implementation and source qualification; PostgreSQL integration, packaged qualification, recovery and installation for 73 remain pending.
+Version0.44.73 is now installed and visually accepted, with icons, colors, local profile images and ordered conversation starters for saved agents. Root package versions are0.44.73, the database schema remains72 and recovery format remains12. This document records the original source qualification; agent-presentation73-runtime.md and release73-preparation.md describe the subsequent actual PostgreSQL, packaged, recovery and installed evidence. The full parity goal remains active.
 
 ## Resulting behavior
 
@@ -35,8 +35,8 @@ The renderer tests use controlled account records and bridge responses. They est
 
 Two failed attempts are retained. The first raster run exposed missing native WebP decoding and led to the isolated Chromium fallback. An earlier UI run exposed a textarea accessible-label problem, which was corrected. The last shortcut failure came from the fixture issuing a keypress before React rendered its changed preference; the fixture now synchronously commits that change, and all ten workflows pass without changing product shortcut behavior.
 
-## Remaining delivery work
+## Delivery and remaining gaps
 
-Freeze a 73 candidate from accepted 72, independently compare every archived module and the complete renderer, and verify the actual owned PostgreSQL/Broker path. Required checks include save/reload, foreign-account exclusion, concurrent writes, local image persistence and exact starter context through the native adapter. Perform exact-version whole-profile restoration of the avatar bytes and starter records, then installer verification, fresh ordinary recovery, authorized normal update and installed acceptance. The current source receipt does not authorize installation by itself; standing user authorization applies once the update is verified and recoverable.
+The frozen73 candidate passed archive and complete-renderer comparison, actual owned PostgreSQL/Broker save/reload and account/concurrency guards, image persistence and exact native starter context. Independent whole-profile restoration preserved avatar bytes and starters. Installer verification, fresh ordinary recovery/program rollback, authorized normal update, complete saved-data/protected-setting comparisons and installed native visual acceptance now pass. The historical source-only receipt remains limited to source qualification; the combined delivery receipt is .supabase/desktop-recovery73-release/1792763635729/installed-final-qualified.json.
 
-Ordinary native visual acceptance remains pending the previously observed locked Windows desktop. Do not repeat the unlock question or interact through LockApp. Physical reboot and another Windows user's recovery remain untested. Full parity remains active, including initial-creation appearance, legacy avatar resolution, builder assistance, unsaved preview, organization/sharing/external channels and the remaining requirements in parity-requirements57.md.
+The user confirmed Windows was unlocked, and supported computer use inspected the actual installed73 General and Identity pages. Sidebar/header top edges align and the appearance/starter controls are visible without changing agent fields or submitting a message. Physical reboot and another Windows user's recovery remain untested. Full parity remains active, including initial-creation appearance, legacy avatar resolution, builder assistance, unsaved preview, organization/sharing/external channels and the remaining requirements in parity-requirements57.md.
