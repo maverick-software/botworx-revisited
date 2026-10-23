@@ -71,6 +71,15 @@ async function recoveredChatFixture(){
  };
  f.args=href=>({conversationId:f.conversation,href:href??f.href});return f;
 }
+
+test('Long private recovery paths restore committed history and dirty files with the selected Git',async()=>{
+ const f=await fixture();await fs.writeFile(path.join(f.checkout,'long-path-draft.txt'),'KEEP THIS DRAFT');
+ const head=(await f.git(['rev-parse','HEAD'],f.checkout)).trim(),sourceHead=(await f.git(['rev-parse','HEAD'])).trim(),review=await f.maintenance.prepare(f.owner,f.run.id),op=f.operation(review.id);
+ await f.maintenance.commit(f.owner,review.id);const restored=await f.maintenance.restore(f.owner,review.id);
+ const privateBundle=path.join(f.recovery,f.owner,review.id,'restore-'+f.operation(review.id).restoration.id,'history.bundle');assert(privateBundle.length>260);assert.equal(sha(await fs.readFile(privateBundle)),op.git.extras.find(file=>file.name==='history.bundle').sha256);
+ assert.equal(restored.phase,'restored');assert.equal((await f.git(['rev-parse','HEAD'],restored.path)).trim(),head);assert.equal(await fs.readFile(path.join(restored.path,'long-path-draft.txt'),'utf8'),'KEEP THIS DRAFT');
+ assert.equal((await f.git(['rev-parse','HEAD'])).trim(),sourceHead);assert(await exists(op.artifact.path));
+});
 test('Owned restored file opens internal document links using its current folder grant without a chat message',async()=>{
  const f=await recoveredChatFixture(),before=f.files.list(f.owner),result=await f.service('unrelated.txt').resolve(f.owner,{href:f.href},noop);assert.equal(result.referenceId,f.restored.referenceId);assert.equal(result.path,'résumé # notes.txt');assert.deepEqual(f.files.list(f.owner),before);assert.equal(f.secrets.get(f.key).phase,'archived');
  const relative=await f.service('unrelated.txt').resolve(f.owner,{referenceId:f.restored.referenceId,path:result.path,href:'seed.txt'},noop);assert.equal(relative.referenceId,f.restored.referenceId);assert.equal(relative.path,'seed.txt');assert.deepEqual(f.files.list(f.owner),before);

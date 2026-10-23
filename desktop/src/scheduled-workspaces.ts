@@ -236,7 +236,12 @@ export class ScheduledWorkspaces{
  }
  private async importBundle(root:string,directory:''|'.git',bundle:string,head:string,command:BundleCommand,guard:Guard,signal:AbortSignal,expected?:GitRecoveryValidationInput){
   const before=await recoveryFile(bundle,guard,signal);if(expected&&expected.bundleSha256!==before.sha256)throw Error('The independent recovery bundle checksum changed.');
-  await command(['bundle','verify',bundle]);const pack=await workspaceBundlePack(bundle,head.length===64?32:20,guard,signal),prefix=(directory?directory+'/':'')+'objects/pack/pack-'+pack.checksum;
+  // Stream the verified private file: Git for Windows 2.56 cannot open some
+  // long bundle paths itself, even with core.longpaths enabled.
+  const pack=await workspaceBundlePack(bundle,head.length===64?32:20,guard,signal),prefix=(directory?directory+'/':'')+'objects/pack/pack-'+pack.checksum;
+  // bundle verify reads only the header. Supplying its exact range avoids a
+  // broken pipe when Git finishes before a large pack has been streamed.
+  await command(['bundle','verify','-'],{file:bundle,start:0,end:pack.start-1});
   if(expected&&(pack.commit!==expected.commit||pack.reference!==expected.reference||head!==expected.head))throw Error('The independent recovery bundle describes another workspace.');
   for(const suffix of ['.pack','.idx','.rev'])try{await lstat(path.join(root,prefix+suffix));throw Error('The recovery pack destination is occupied. Keep this partial copy for inspection.');}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;}
   // Supplying explicit names avoids the observed long-path finalization bug
@@ -292,7 +297,11 @@ export class ScheduledWorkspaces{
   if(await this.canonical(path.join(root,'.git'),'folder',true)!==gitIdentity)throw Error('The restored Git directory changed.');
   await writeFile(path.join(root,'.git','packed-refs'),'# pack-refs with: peeled fully-peeled sorted\n'+pack.commit+' refs/agentopia/restored\n',{flag:'wx',mode:0o600});
   if((await command(['rev-parse','--verify','refs/agentopia/restored^{commit}'])).trim()!==pack.commit)throw Error('The restored recovery reference did not verify.');
-  await command(['cat-file','-e',head+'^{commit}']);await command(['update-ref','--no-deref','HEAD',head,'0'.repeat(head.length)]);
+  await command(['cat-file','-e',head+'^{commit}']);
+  // The destination is a new, exclusively owned repository. Git 2.56 rejects
+  // the null-old-value form while its initial symbolic HEAD is still dangling.
+  if((await command(['symbolic-ref','HEAD'])).trim()!=='refs/heads/recovered')throw Error('The initial restored HEAD changed.');
+  await command(['update-ref','--no-deref','HEAD',head]);
   if(hasIndex){await guard();await recoveryFile(path.join(privateCopy,'index.bin'),guard,signal);if(await this.canonical(path.join(root,'.git'),'folder',true)!==gitIdentity)throw Error('The restored Git directory changed.');await copyFile(path.join(privateCopy,'index.bin'),path.join(root,'.git','index'),constants.COPYFILE_EXCL);}
   await guard();signal.throwIfAborted();if(await this.canonical(root,'folder')!==identity)throw Error('The restored workspace changed.');
  }
