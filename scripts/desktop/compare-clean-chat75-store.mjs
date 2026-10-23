@@ -1,0 +1,26 @@
+import assert from 'node:assert/strict';
+import {mkdir,readFile,writeFile,copyFile} from 'node:fs/promises';
+import {createRequire} from 'node:module';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import path from 'node:path';
+import {desktopOperation} from './operation-lock.mjs';
+import {json,hash} from './phased-backup-control.mjs';
+desktopOperation('read-only semantic comparison of directory update protected store');
+const require=createRequire(import.meta.url),root=path.resolve(import.meta.dirname,'../..'),job=path.resolve(process.argv[2]??''),proof=await json(path.join(path.dirname(job),'proof.json')),profile='F:/Agentopia-Data/profiles/a91a4800-e08f-4440-a4ec-588762d01bfd/profile';
+assert(proof.success&&proof.version==='0.44.75');
+assert.equal(path.dirname(job),proof.out);assert(path.basename(job).startsWith('installation-'));const evidence=await json(path.join(job,'evidence.json'));assert(evidence.installed&&evidence.after&&evidence.coreServicesHealthy===6);
+const before=path.join(job,'profile'),out=path.join(job,'store-comparison-'+Date.now()),isolated=path.join(out,'isolated-profile'),currentHash=await hash(path.join(profile,'credentials.bin'));await mkdir(isolated,{recursive:true});
+assert.equal(await hash(path.join(profile,'Local State')),await hash(path.join(before,'Local State')));await copyFile(path.join(profile,'Local State'),path.join(isolated,'Local State'));
+const script=path.join(out,'compare.cjs'),result=path.join(out,'result.json');
+await writeFile(script,`const {app,safeStorage}=require('electron'),fs=require('node:fs'),crypto=require('node:crypto');app.setPath('userData',${JSON.stringify(isolated)});app.whenReady().then(()=>{try{
+const previous=JSON.parse(safeStorage.decryptString(fs.readFileSync(${JSON.stringify(path.join(before,'credentials.bin'))}))),current=JSON.parse(safeStorage.decryptString(fs.readFileSync(${JSON.stringify(path.join(profile,'credentials.bin'))})));
+const changed=[...new Set([...Object.keys(previous),...Object.keys(current)])].filter(key=>JSON.stringify(previous[key])!==JSON.stringify(current[key]));
+const paths=(a,b,p='')=>{if(JSON.stringify(a)===JSON.stringify(b))return [];if(a&&b&&typeof a==='object'&&typeof b==='object'&&!Array.isArray(a)&&!Array.isArray(b))return [...new Set([...Object.keys(a),...Object.keys(b)])].flatMap(key=>paths(a[key],b[key],p+'/'+key));return [p||'/'];};
+const account=JSON.parse(Buffer.from(current.session.access_token.split('.')[1],'base64url').toString('utf8')).sub;if(!/^[a-f0-9-]{36}$/i.test(account)||JSON.stringify(previous.session)!==JSON.stringify(current.session))throw Error('The protected account session changed.');const homeKey='panes:'+account+':home';const allowed=changed.every(key=>key==='desktop-location:'+account||(key===homeKey&&current[key]?.open===false&&current[key]?.tabs?.length===0&&current[key]?.active===null&&current[key]?.referenceId===null));
+const report={success:true,changedEntryCount:changed.length,changedEntries:changed.map(key=>({namespace:key.split(':')[0],keySha256:crypto.createHash('sha256').update(key).digest('hex'),fields:paths(previous[key],current[key])})),allNonNavigationValuesEqual:allowed,encryptedKeyAvailable:safeStorage.isEncryptionAvailable(),sourceWrites:0,networkRequests:0,plaintextCredentialValuesReturned:false};
+fs.writeFileSync(${JSON.stringify(result)},JSON.stringify(report,null,2),{flag:'wx'});app.exit(0);
+}catch(error){console.error('Protected store comparison failed: '+error.name);app.exit(1);}});`);
+const env={...process.env};delete env.ELECTRON_RUN_AS_NODE;await promisify(execFile)(require('electron'),[script],{cwd:root,env,windowsHide:true,timeout:30000,maxBuffer:20000});
+const compared=await json(result);assert(compared.success&&compared.encryptedKeyAvailable);assert.equal(await hash(path.join(profile,'credentials.bin')),currentHash,'The live store changed during the read-only comparison; inspect before repeating.');
+console.log(JSON.stringify({...compared,result}));

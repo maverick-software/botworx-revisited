@@ -1,6 +1,8 @@
 import type {FileReference,PaneState,WorkspaceTab} from './contracts';
 import type {WorkspaceFileChange} from './file-operation-contracts';
 import {emptyTreeView,maximumExpandedFolders} from './workspace-organization';
+/** A new unsent chat keeps pane sizing, while starting with no open context. */
+export function freshChatWorkspace(previous:PaneState):PaneState{return {open:false,width:previous.width??620,treeWidth:previous.treeWidth??210,tree:previous.tree??true,tabs:[],active:null,referenceId:null,...(previous.fileRevision!==undefined?{fileRevision:previous.fileRevision}:{})};}
 const normalized=(value:string)=>value.replace(/\\/g,'/').replace(/\/+$/,'');
 const inside=(root:string,value:string)=>{root=normalized(root).toLowerCase();value=normalized(value).toLowerCase();return root===value||value.startsWith(root+'/');};
 const absolute=(reference:FileReference,relative:string)=>normalized(reference.kind==='file'?reference.path:reference.path+'/'+relative);

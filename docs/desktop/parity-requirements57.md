@@ -1,5 +1,7 @@
 # Current requirements and evidence — installed0.44.75
 
+October23 installed75 interface repair: New chat now clears and closes its shared workspace instead of restoring an earlier document/browser. Five targeted,23 complete-interface and eight queue/steering checks pass on the frozen UI. Fresh recovery, all1809 saved rows/128 comparisons, protected settings, normal reopening and supported ordinary native inspection pass. The backend remains75/schema73; the separate draft-preview source is uninstalled. See [clean new chats](clean-new-chat75.md).
+
 October23 current delivery: verified75 includes the rounded joined blue-gray shell and initial appearance/starters with atomic retry-safe agent creation. The exact package, independent whole-profile restoration, installer, ordinary recovery/upgrade, complete saved-row/protected-setting comparisons and native inspection pass. Both accounts/passwords/roles,120 chats,410 messages, four agent profiles/two memories and both AI connections are preserved; images remain disabled. See [completed work and remaining scope](handoff-brief83.md), [delivery evidence](agent-creation75.md) and [technical checkpoint](continuation-brief82.md). Full parity stays active. The matrix below retains earlier evidence scopes; the handoff brief records the current remaining work.
 
 The earlier dated evidence below remains historical and retains its original scope.
