@@ -1,4 +1,4 @@
-# Agentopia continuation — library source qualified, ordinary70 unchanged
+# Agentopia continuation — frozen71 qualified, ordinary70 unchanged
 
 F:/Agentopia is authoritative. Read its AGENTS.md. Keep the entire active-goal-objective.json objective intact; the goal remains active and incomplete. No assistant subagents are authorized. Serialize builds/tests/runtime/maintenance through operation-lock.mjs and keep all new output on F:. Do not reload old chat history or replay completed/uncertain provider requests.
 
@@ -8,7 +8,7 @@ Read release70-preparation.md and continuation-brief70.md for delivered70 detail
 
 Native ordinary-window visual acceptance remains pending at the last observed Windows lock. The earlier unlock request is pending; do not repeat it or interact through the lock. Use the computer-use skill/node_repl @oai/sky after unlock. Never automate ChatGPT/Codex native Windows UI or attach a debugger to the ordinary profile. Physical reboot and different-user recovery remain untested.
 
-## Completed this turn: source only
+## Completed: source and frozen candidate
 
 Read agent-library71.md and logical-audit71.md. Migration72 adds retained file revisions, broker-only management/history RPCs, optimistic version/timestamp checks, quota accounting across originals/history, archive/restore and assignment guards. Names/collections/tags/descriptions, search, replacement, file history, restore/delete and responsive accessible controls are implemented. Models still get only scoped read tools. Archive revokes all assignments; restore grants none. Unknown operations are not replayed. Saved assignment state and external revocation are reconciled without discarding other draft choices.
 
@@ -22,7 +22,9 @@ The new logical auditor is qualified against fresh production data and the owned
 
 ## Next work
 
-Freeze 0.44.71 from the accepted installed70 base. Include the new agent-library-contracts.js module, updated agent-documents/broker/settings modules, current UI and migration72. Verify changed compiled bytes, complete archived-module controls, full frozen interface and draft/queue workflows. Then use an independently owned candidate runtime for actual packaged lifecycle and native scope checks on the controlled provider adapters. Verify archive revocation, replacement/type changes, prior-version restoration and original/history bytes across exact-version whole-profile recovery. Construct/verify the installer, then perform fresh ordinary70-to71 recovery/rollback, normal update/reopening and preserved-data/credential checks. Standing update/restart authorization remains valid; do not ask again merely because the version changes.
+The frozen candidate is complete. Read release71-preparation.md and .supabase/desktop-agent-library71-candidate/1792751946586/candidate-qualification.json. Its exact archive passes 1,093 cases across 128 fixture files, its full packaged interface passes 20 general and 15 library workflows, and eight draft/queue/steering cases pass. Four changed compiled modules match the source-qualified bytes; schema72/recovery12 and 7,466 supporting resources are recorded. Wide editor and narrow dark library-dialog pixels were inspected. These use owned developer fixtures and controlled bridge/model replies. Do not rerun passing archive/interface suites without a new reason.
+
+Next use an independently owned candidate runtime for actual packaged lifecycle and native scope checks on the controlled provider adapters. Verify archive revocation, replacement/type changes, prior-version restoration and original/history bytes across exact-version whole-profile recovery. Construct/verify the installer, then perform fresh ordinary70-to71 recovery/rollback, normal update/reopening and preserved-data/credential checks. Standing update/restart authorization remains valid; do not ask again merely because the version changes.
 
 Keep image generation disabled and preserve OpenRouter. Prefer ChatGPT OAuth for live tests, use paid OpenRouter sparingly and never replay uncertain/completed paid requests. The current turn made no live provider requests. Live Composio still needs a valid protected per-user project key; do not request the rejected key repeatedly. Earlier architecture discussion did not authorize replacing PostgreSQL/Supabase or adding graph/vector migration.
 
