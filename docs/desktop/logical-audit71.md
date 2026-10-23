@@ -14,3 +14,6 @@ Qualification pointer: `.supabase/desktop-logical-audit71/qualified-current.json
 
 
 Exact-schema72 recovery now matches all 128 compared tables and 112 saved rows in the generated71 runtime. For the ordinary70-to71 update, the pre-upgrade archive contains127 tables and migration72 adds an empty revisions table. This strict auditor intentionally requires equal table coverage. Qualify a separate transition comparison that verifies every prior row and the explicitly authorized new empty table, while retaining this qualified implementation unchanged. See agent-library71-runtime.md.
+
+
+Installed 0.44.71 delivery now passes independently verified installer/physical files, fresh recovery and actual70 rollback, normal update/reopening, all 1,808 prior saved rows plus the new empty protected revisions table, and all 106 protected settings/both AI connections. Native ordinary-window acceptance remains pending at the lock; no production fixture or paid model call was introduced. Continue from continuation-brief72.md.

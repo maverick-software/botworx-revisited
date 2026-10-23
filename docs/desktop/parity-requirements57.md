@@ -1,6 +1,6 @@
-# Current requirements and evidence — 0.44.70
+# Current requirements and evidence — 0.44.71
 
-Current installed delivery: verified0.44.70 with schema71/recovery12. Installer, physical files, same-user whole-profile recovery, normal upgrade/reopening and saved-data checks pass. All1,808 prior rows and106 protected settings remain unchanged. Documents retain originals in PostgreSQL and use scoped native tools; actual packaged checks cover both controlled provider adapters, PDF images, named-agent reporting, scheduling and cold persistence. Native ordinary70 visual acceptance, physical reboot, different-Windows-user recovery and the full remaining parity scope stay open. See release70-preparation.md and continuation-brief70.md.
+Current installed delivery: verified 0.44.71 with schema 72/recovery 12. Installer, physical files, same-user whole-profile recovery, ordinary upgrade/reopening, the complete schema-transition comparison and protected settings pass. All 1,808 prior rows and all 106 protected settings/both AI connections agree. Library organization, replacement/history, archive revocation and restoration are delivered. Actual native checks cover both controlled provider adapters, PDF pages, specialist/report, scheduling, scope changes and cold persistence. Ordinary native visual acceptance, physical reboot, different-user recovery, live Composio authentication and the remaining full parity scope stay open. See release71-preparation.md and continuation-brief72.md.
 
 Earlier68 feature evidence follows; later dated entries record subsequent deliveries.
 

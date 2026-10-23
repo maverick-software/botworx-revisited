@@ -27,3 +27,6 @@ The frozen 0.44.71 candidate now passes 1,093 archived-module cases, 20 full-int
 
 
 Actual packaged71 library lifecycle and exact-version whole-profile recovery now pass: both provider adapters, in-flight archive/replacement revocation, specialist/report and paused task, three current originals, two prior versions, original-password sign-in and a complete128-table/112-row snapshot comparison. Changed document scope starts a fresh native thread; unchanged scope resumes its original thread. See agent-library71-runtime.md. Ordinary installation remains70; installer and schema-transition/update acceptance remain pending.
+
+
+Installed 0.44.71 delivery now passes independently verified installer/physical files, fresh recovery and actual70 rollback, normal update/reopening, all 1,808 prior saved rows plus the new empty protected revisions table, and all 106 protected settings/both AI connections. Native ordinary-window acceptance remains pending at the lock; no production fixture or paid model call was introduced. Continue from continuation-brief72.md.

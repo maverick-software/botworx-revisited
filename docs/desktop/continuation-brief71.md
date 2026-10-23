@@ -1,3 +1,5 @@
+Historical source/recovery checkpoint. Verified 0.44.71 delivery is complete; use [continuation-brief72.md](continuation-brief72.md) for current state and next work.
+
 # Agentopia continuation — packaged71 recovery qualified, ordinary70 unchanged
 
 F:/Agentopia is authoritative. Read its AGENTS.md. Keep the entire active-goal-objective.json objective intact; the goal remains active and incomplete. No assistant subagents are authorized. Serialize builds/tests/runtime/maintenance through operation-lock.mjs and keep all new output on F:. Do not reload old chat history or replay completed/uncertain provider requests.
