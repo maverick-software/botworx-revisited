@@ -1,5 +1,7 @@
 # Agentopia continuation — installed 0.44.69, visual acceptance pending
 
+Current continuation: see continuation-brief70.md for the frozen document candidate and fresh recovery qualification. This file retains the installed69 history.
+
 Use **F:/Agentopia** as authoritative source and for all new build/test/recovery output. Read its AGENTS.md. Preserve the entire persistent objective in active-goal-objective.json; the goal remains active and incomplete. Do not reload old chat transcripts. No subagents are authorized.
 
 ## Completed current release: do not repeat

@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import {writeFile} from 'node:fs/promises';
+import {desktopOperation} from './operation-lock.mjs';
+import {json,hash} from './phased-backup-control.mjs';
+desktopOperation('bind frozen70 archive, complete interface and draft qualification');
+const root=path.resolve(import.meta.dirname,'../..'),pointer=await json(path.join(root,'.supabase/desktop-agent-documents70-candidate/current.json')),proof=await json(pointer.proof),archiveFile=(await json(path.join(root,'.supabase/desktop-agent-documents70-controls/current.json'))).evidence,archive=await json(archiveFile),uiFile=path.resolve(process.argv[2]),ui=await json(uiFile),draftFile=path.resolve(process.argv[3]),draft=await json(draftFile),source=await json(proof.sourceDocumentQualification);
+assert(proof.success&&proof.version==='0.44.70'&&proof.runtimeVersion.schema===71&&proof.runtimeVersion.desktopRecovery===12);assert.equal(await hash(proof.image),proof.imageSha256);
+assert(archive.success&&archive.completeSuite&&archive.actualArchivedModules&&archive.passed>=1085&&archive.failed===0&&archive.cancelled===0&&archive.skipped===0);assert.equal(archive.imageSha256,proof.imageSha256);
+assert(ui.success&&ui.checks.length===20&&ui.rendererErrors.length===0);assert.equal(ui.proofSha256,await hash(pointer.proof));
+assert(draft.success&&draft.checks.length===8&&draft.inferenceRequests===0&&draft.rendererFromPackagedResources);assert.equal(path.resolve(draft.rendererResources),path.resolve(proof.assets,'ui'));
+assert(source.success&&source.sourceCases===12&&source.regressionCases===57&&source.realDatabaseChecks===6&&source.interfaceWorkflows===6);
+for(const [name,digest]of Object.entries(proof.sourceHashes).filter(([name])=>!name.startsWith('tests/')))assert.equal(await hash(path.join(root,'desktop',name)),digest,name);
+for(const [name,digest]of Object.entries(proof.uiFiles))assert.equal(await hash(path.join(proof.assets,'ui',name)),digest,name);
+const e={success:true,at:new Date().toISOString(),version:proof.version,imageSha256:proof.imageSha256,proof:pointer.proof,proofSha256:await hash(pointer.proof),sourceDocumentQualification:proof.sourceDocumentQualification,archiveEvidence:archiveFile,archiveCases:archive.passed,explicitTestFixtureCorrections:archive.fixtureCorrections,wholeInterface:uiFile,wholeInterfaceWorkflows:20,draftEvidence:draftFile,draftWorkflows:8,checksNotSummed:true,eligibleForGeneratedRuntime:true,eligibleForInstallerConstruction:false,eligibleForProductionInstallation:false,installed:false,providerRequests:0,productionAccess:false,fullGoalComplete:false,pending:['Packaged native document reads, PDF images and both provider adapters.','Named specialist, scheduled and cold document use.','Whole-profile restoration with migration71 and retained original bytes.','Verified installer and recoverable ordinary installation/data/UI acceptance.']};
+const file=path.join(proof.out,'candidate-qualification.json');await writeFile(file,JSON.stringify(e,null,2),{flag:'wx'});console.log(JSON.stringify({success:true,qualification:file,archiveCases:e.archiveCases,eligibleForGeneratedRuntime:true,installed:false}));
