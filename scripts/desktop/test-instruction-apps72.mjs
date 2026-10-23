@@ -1,0 +1,19 @@
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import {mkdir,writeFile} from 'node:fs/promises';
+import {spawn} from 'node:child_process';
+import {desktopOperation} from './operation-lock.mjs';
+import {json,hash} from './phased-backup-control.mjs';
+desktopOperation('compile and qualify instruction app identity references and policy regressions');
+const root=path.resolve(import.meta.dirname,'../..'),out=path.join(root,'.supabase/desktop-instruction-apps72',String(Date.now())),build=path.join(out,'build'),temp=path.join(out,'temp');await mkdir(temp,{recursive:true});
+const e={success:false,at:new Date().toISOString(),out,build,sourceOnly:true,installedVersion:'0.44.71',productionAccess:false,providerRequests:0,sourceHashes:{},commands:[]};
+const files=['desktop/src/instruction-app-references.ts','desktop/src/broker.ts','desktop/ui/AgentInstructions.tsx','desktop/ui/InstructionAppControls.tsx','desktop/ui/instruction-app-extension.ts','desktop/ui/AgentSettings.tsx','desktop/ui/AgentEditorResources.tsx','desktop/ui/agent-instructions.css','desktop/tests/instruction-app-references.test.cjs'];for(const file of files)e.sourceHashes[file]=await hash(path.join(root,file));
+const env={...process.env,TEMP:temp,TMP:temp,AGENTOPIA_INSTRUCTION_BUILD:build};for(const name of ['NODE_OPTIONS','ELECTRON_RUN_AS_NODE','OPENAI_API_KEY','OPENROUTER_API_KEY'])delete env[name];
+async function run(name,args){let text='';const child=spawn(process.execPath,args,{cwd:root,env,windowsHide:true});for(const stream of [child.stdout,child.stderr])stream.on('data',bytes=>text+=bytes);const code=await new Promise((resolve,reject)=>{child.once('error',reject);child.once('close',resolve);});await writeFile(path.join(out,name+'.log'),text);e.commands.push({name,code});if(code)console.log(text.slice(-4500));assert.equal(code,0,name);return text;}
+try{
+ await run('backend-types',['node_modules/typescript/bin/tsc','-p','desktop/tsconfig.json','--outDir',build,'--noEmitOnError']);await writeFile(path.join(build,'package.json'),'{"type":"commonjs"}');await run('interface-types',['node_modules/typescript/bin/tsc','-p','desktop/ui/tsconfig.json']);
+ const tests=await run('reference-tests',['--test','--test-timeout=120000','--test-concurrency=1','--test-reporter=tap','desktop/tests/instruction-app-references.test.cjs']);e.focusedCases=Number(tests.match(/^# pass (\d+)/m)?.[1]);
+ const loader=path.join(out,'loader.cjs');await writeFile(loader,'const Module=require("node:module"),path=require("node:path"),resolve=Module._resolveFilename,source='+JSON.stringify(path.join(root,'desktop/build')+path.sep)+';Module._resolveFilename=function(request,parent,...args){if(typeof request==="string"&&(request.startsWith(".")||path.isAbsolute(request))){const absolute=path.resolve(parent?.filename?path.dirname(parent.filename):process.cwd(),request);if(absolute.startsWith(source))request=path.join('+JSON.stringify(build)+',absolute.slice(source.length));}return resolve.call(this,request,parent,...args)};');
+ const regression=await run('policy-regressions',['--require',loader,'--test','--test-timeout=120000','--test-concurrency=1','--test-reporter=tap','desktop/tests/agent-policy.test.cjs','desktop/tests/agent-native-policy.test.cjs','desktop/tests/backup-broker-barrier.test.cjs']);e.regressionCases=Number(regression.match(/^# pass (\d+)/m)?.[1]);for(const[file,digest]of Object.entries(e.sourceHashes))assert.equal(await hash(path.join(root,file)),digest,file);e.success=true;
+}catch(error){e.error=error.stack;process.exitCode=1;}
+const evidence=path.join(out,'evidence.json');await writeFile(evidence,JSON.stringify(e,null,2));await writeFile(path.join(root,'.supabase/desktop-instruction-apps72/current.json'),JSON.stringify({success:e.success,evidence},null,2));console.log(JSON.stringify({success:e.success,evidence,focusedCases:e.focusedCases,regressions:e.regressionCases}));
