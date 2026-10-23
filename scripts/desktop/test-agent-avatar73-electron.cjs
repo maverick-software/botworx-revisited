@@ -1,0 +1,14 @@
+const {app,BrowserWindow,nativeImage}=require('electron'),fs=require('node:fs/promises'),path=require('node:path'),assert=require('node:assert/strict'),{createHash}=require('node:crypto');
+const cfg=JSON.parse(require('node:fs').readFileSync(process.argv[2],'utf8'));assert(path.resolve(cfg.out).toLowerCase().startsWith('f:\\agentopia\\.supabase\\desktop-agent-presentation73\\'));
+app.setPath('userData',path.join(cfg.out,'profile'));app.setPath('temp',path.join(cfg.out,'temp'));
+app.whenReady().then(async()=>{
+ const {normalizeAgentAvatar}=require(path.join(cfg.build,'agent-avatar-image.js')),{avatarDimensions,AgentPresentationStore}=require(path.join(cfg.build,'agent-presentation.js')),{defaultAgentAppearance}=require(path.join(cfg.build,'agent-presentation-contracts.js'));
+ const e={success:false,actualElectron:true,actualRasterDecoder:true,actualPostgres:false,productionAccess:false,providerRequests:0,checks:[]};let window;
+ try{
+  const bitmap=Buffer.alloc(200*100*4);for(let y=0;y<100;y++)for(let x=0;x<200;x++){const offset=(y*200+x)*4;bitmap[offset]=x<50?255:0;bitmap[offset+1]=x>=50&&x<150?255:0;bitmap[offset+2]=x>=150?255:0;bitmap[offset+3]=255;}const image=nativeImage.createFromBitmap(bitmap,{width:200,height:100});
+  window=new BrowserWindow({show:false,webPreferences:{sandbox:true,contextIsolation:true}});window.webContents.session.webRequest.onBeforeRequest((details,callback)=>callback({cancel:!details.url.startsWith('about:')}));await window.loadURL('about:blank');const webp=await window.webContents.executeJavaScript("(()=>{const canvas=document.createElement('canvas');canvas.width=200;canvas.height=100;canvas.getContext('2d').fillRect(0,0,200,100);return canvas.toDataURL('image/webp');})()");
+  for(const [format,bytes]of [['png',image.toPNG()],['jpeg',image.toJPEG(95)],['webp',Buffer.from(webp.split(',')[1],'base64')]]){assert.equal(avatarDimensions(bytes).format,format);const output=await normalizeAgentAvatar(bytes);assert.deepEqual(avatarDimensions(output),{width:128,height:128,format:'png'});assert(output.length<96000);if(format==='png'){const result=nativeImage.createFromBuffer(output).toBitmap();assert.equal(result[1],255);assert.equal(result[(64*128+64)*4+1],255);}e.checks.push(format+' is center-cropped, resized and encoded as a bounded128-square PNG by the actual decoder');}
+  await assert.rejects(normalizeAgentAvatar(Buffer.from('<svg><script>bad</script></svg>')));
+  e.checks.push('unsupported markup cannot become an image thumbnail');e.success=true;
+ }catch(error){e.error=error.stack;process.exitCode=1;}finally{window?.destroy();await fs.writeFile(path.join(cfg.out,'raster-evidence.json'),JSON.stringify(e,null,2));console.log(JSON.stringify(e));app.exit(e.success?0:1);}
+}).catch(error=>{console.error(error.message);app.exit(1)});

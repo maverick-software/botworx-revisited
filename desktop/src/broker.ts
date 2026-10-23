@@ -1,3 +1,5 @@
+import {normalizeAgentAvatar} from './agent-avatar-image';
+import {AgentPresentationStore,agentPresentationRow} from './agent-presentation';
 import {withInstructionApps} from './instruction-app-references';
 import {AgentReportQueue,AgentReportDeferred,AgentReportNotSubmitted,type AgentReportDelivery} from './agent-report-queue';
 import {readNamedAgentReportSources,namedAgentResultSettled,namedResultFingerprint} from './agent-report-source';
@@ -115,6 +117,7 @@ export class Broker {
  readonly fileOperations:FileOperations;
  readonly terminal:Terminal;
  private drafts:ChatDrafts;
+ readonly presentation:AgentPresentationStore;
  readonly chatQueue:ChatQueue;
  readonly deliveryQueue:ChatDeliveryQueue;
   readonly scheduled:ScheduledTasks;
@@ -155,6 +158,7 @@ export class Broker {
   this.auth.auth.onAuthStateChange((event,session)=>this.sessionPersistence.capture(event,session));
   this.files=new WorkspaceFiles(secrets,undefined,protectedPaths,attachmentDirectory?new AttachmentImages(attachmentDirectory):undefined);
   this.agentDocuments=new AgentDocuments(this.admin,this.files.documents,file=>this.files.checkPath(file));
+  this.presentation=new AgentPresentationStore(this.admin,file=>this.files.checkPath(file),normalizeAgentAvatar);
   const nativeDirectory=attachmentDirectory?path.dirname(attachmentDirectory):path.resolve(__dirname,'../.native-data');
   this.recoveredLayouts=attachmentDirectory?new RestoredLayouts(nativeDirectory,secrets,this.files):undefined;
   this.recoveredSettings=attachmentDirectory?new RestoredSettings(nativeDirectory,secrets):undefined;
@@ -506,6 +510,15 @@ export class Broker {
    if(action==='agentSettings.mcp.oauth.connect')return this.mcpOAuth.connect(scope,{clientId:args.clientId===undefined?undefined:text(args.clientId),clientMetadataUrl:args.clientMetadataUrl===undefined?undefined:text(args.clientMetadataUrl)});
    throw Error('Unsupported MCP sign-in operation.');
   }
+  if(action.startsWith('agents.presentation.')){
+   if(args.owner!==user.id)throw Error('This appearance belongs to another account.');const agent=uuid(args.agentId),guard=async()=>{if(this.backingUp)throw Error('Wait for the backup before changing appearance.');await this.attachmentOwner(user.id);};this.nativeControls++;try{
+    await guard();if(action==='agents.presentation.get'){const result=await this.presentation.get(user.id,agent);await guard();return result;}
+    if(action==='agents.presentation.image')return await this.presentation.image(user.id,agent,args.digest,guard);
+    if(action==='agents.presentation.save')return await this.presentation.save(user.id,agent,args,guard);
+    if(action==='agents.presentation.pick'){await this.presentation.get(user.id,agent);await guard();const picked=await dialog.showOpenDialog({title:'Choose an agent profile image',properties:['openFile'],filters:[{name:'Profile images',extensions:['png','jpg','jpeg','webp']}]});await guard();if(picked.canceled)return {cancelled:true};if(picked.filePaths.length!==1)throw Error('Choose one profile image.');return await this.presentation.pick(user.id,agent,picked.filePaths[0],guard);}
+    throw Error('Unsupported appearance action.');
+   }finally{this.nativeControls--;}
+  }
   if(action.startsWith('agentSettings.documents.')){
    const agent=uuid(args.agentId),guard=async()=>{await this.attachmentOwner(user.id);must(await this.admin.from('agents').select('id').eq('id',agent).eq('user_id',user.id).eq('active',true).single());};
    this.nativeControls++;try{
@@ -603,9 +616,9 @@ export class Broker {
     await this.secrets.set('preferences:'+user.id,{theme:value.theme,textSize:value.textSize,sendWith:value.sendWith,sidebarCollapsed:value.sidebarCollapsed,sidebarWidth:value.sidebarWidth??244});return;
    }
    case 'agents.list':{
-    const rows=must(await this.admin.from('agents').select('id,name,description,active,system_instructions,agent_llm_preferences(provider,model)').eq('user_id',user.id).order('created_at',{ascending:false}));
+    const rows=must(await this.admin.from('agents').select('id,name,description,active,system_instructions,avatar_url,metadata,updated_at,agent_llm_preferences(provider,model)').eq('user_id',user.id).order('created_at',{ascending:false}));
     const profiles=must(await this.admin.from('desktop_agent_profiles').select('agent_id,handle,role').eq('user_id',user.id));
-    return rows.map((a:any)=>({...a,...profiles.find(p=>p.agent_id===a.id),...(Array.isArray(a.agent_llm_preferences)?a.agent_llm_preferences[0]:a.agent_llm_preferences)}));
+    return rows.map((a:any)=>{const {metadata,avatar_url,updated_at,...publicAgent}=a;return {...publicAgent,presentation:agentPresentationRow(a),...profiles.find(p=>p.agent_id===a.id),...(Array.isArray(a.agent_llm_preferences)?a.agent_llm_preferences[0]:a.agent_llm_preferences)};});
    }
    case 'agents.profile':return this.tools.agents.profile(user.id,uuid(args.agentId));
    case 'agents.profile.save':return this.mutateAgent(user.id,uuid(args.agentId),()=>this.tools.agents.save(user.id,uuid(args.agentId),args.value));
