@@ -1,4 +1,12 @@
-# Current requirements and evidence — 0.44.71
+# Current requirements and evidence — installed0.44.74, source75
+
+October23 current delivery: verified0.44.74 provides the rounded joined sidebar/workspace, seamless header and cool blue-gray surfaces. Ordinary native visual inspection, exact installer/files, fresh recovery/rollback and complete saved-row/protected-setting comparisons pass. Both accounts/passwords/roles,120 chats,410 messages, four agent profiles/two memories and both AI connections are preserved; images remain disabled. See [delivery and limits](rounded-shell74.md) and [current checkpoint](continuation-brief80.md).
+
+Source75 now adds appearance/starters during initial creation and atomic owner-scoped, retry-safe persistence.42 source cases,40 interface workflows,eight draft cases and eight actual generated Broker/PostgreSQL workflows pass, including forced rollback and cold persistence. It is source-only and targets schema73; the installed app remains74/schema72. Frozen package/native IPC/first-starter/recovery/installer/ordinary update gates remain. See [creation evidence and limits](agent-creation75.md). Full parity remains active, including builder assistance, unsaved previews, legacy image resolution, organization/sharing/channels and broader unattended/reboot/reference acceptance.
+
+The earlier dated evidence below remains historical and retains its original scope.
+
+## Earlier requirements and evidence — 0.44.71
 
 Current installed delivery: verified 0.44.71 with schema 72/recovery 12. Installer, physical files, same-user whole-profile recovery, ordinary upgrade/reopening, the complete schema-transition comparison and protected settings pass. All 1,808 prior rows and all 106 protected settings/both AI connections agree. Library organization, replacement/history, archive revocation and restoration are delivered. Actual native checks cover both controlled provider adapters, PDF pages, specialist/report, scheduling, scope changes and cold persistence. Ordinary native visual acceptance, physical reboot, different-user recovery, live Composio authentication and the remaining full parity scope stay open. See release71-preparation.md and continuation-brief72.md.
 

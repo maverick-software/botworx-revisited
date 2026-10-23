@@ -511,11 +511,11 @@ export class Broker {
    throw Error('Unsupported MCP sign-in operation.');
   }
   if(action.startsWith('agents.presentation.')){
-   if(args.owner!==user.id)throw Error('This appearance belongs to another account.');const agent=uuid(args.agentId),guard=async()=>{if(this.backingUp)throw Error('Wait for the backup before changing appearance.');await this.attachmentOwner(user.id);};this.nativeControls++;try{
-    await guard();if(action==='agents.presentation.get'){const result=await this.presentation.get(user.id,agent);await guard();return result;}
-    if(action==='agents.presentation.image')return await this.presentation.image(user.id,agent,args.digest,guard);
-    if(action==='agents.presentation.save')return await this.presentation.save(user.id,agent,args,guard);
-    if(action==='agents.presentation.pick'){await this.presentation.get(user.id,agent);await guard();const picked=await dialog.showOpenDialog({title:'Choose an agent profile image',properties:['openFile'],filters:[{name:'Profile images',extensions:['png','jpg','jpeg','webp']}]});await guard();if(picked.canceled)return {cancelled:true};if(picked.filePaths.length!==1)throw Error('Choose one profile image.');return await this.presentation.pick(user.id,agent,picked.filePaths[0],guard);}
+   if(args.owner!==user.id)throw Error('This appearance belongs to another account.');const agent=action==='agents.presentation.prepare'?null:uuid(args.agentId),guard=async()=>{if(this.backingUp)throw Error('Wait for the backup before changing appearance.');await this.attachmentOwner(user.id);};this.nativeControls++;try{
+    await guard();if(action==='agents.presentation.get'){const result=await this.presentation.get(user.id,agent!);await guard();return result;}
+    if(action==='agents.presentation.image')return await this.presentation.image(user.id,agent!,args.digest,guard);
+    if(action==='agents.presentation.save')return await this.presentation.save(user.id,agent!,args,guard);
+    if(action==='agents.presentation.pick'||action==='agents.presentation.prepare'){if(agent)await this.presentation.get(user.id,agent);await guard();const picked=await dialog.showOpenDialog({title:'Choose an agent profile image',properties:['openFile'],filters:[{name:'Profile images',extensions:['png','jpg','jpeg','webp']}]});await guard();if(picked.canceled)return {cancelled:true};if(picked.filePaths.length!==1)throw Error('Choose one profile image.');return agent?await this.presentation.pick(user.id,agent,picked.filePaths[0],guard):await this.presentation.prepare(user.id,picked.filePaths[0],guard);}
     throw Error('Unsupported appearance action.');
    }finally{this.nativeControls--;}
   }
@@ -637,12 +637,16 @@ export class Broker {
    }
    case 'conversations.agent':return must(await this.admin.rpc('desktop_select_chat_agent',{p_user:user.id,p_conversation:uuid(args.conversationId),p_agent:uuid(args.agentId)}));
    case 'agents.save':{
-    const selectedProvider=provider(args.provider),model=text(args.model,200);
-    const id=args.id?uuid(args.id):null;
-    let allowed=false;
-    if(id){const old=must(await this.admin.from('agents').select('agent_llm_preferences(provider,model)').eq('id',id).eq('user_id',user.id).single()) as any;const pref=Array.isArray(old.agent_llm_preferences)?old.agent_llm_preferences[0]:old.agent_llm_preferences;allowed=pref?.provider===selectedProvider&&pref?.model===model;}
-    if(!allowed){const models=await this.catalog(selectedProvider,user.id);if(!models.some((m:any)=>m.id===model))throw new Error('Select an available provider model.');}
-    const save=async()=>{const saved=must(await this.admin.rpc('desktop_save_agent',{p_user:user.id,p_id:id,p_name:text(args.name,100),p_description:text(args.description,4000),p_instructions:text(args.instructions,100000),p_provider:selectedProvider,p_model:model}));await this.tools.agents.profile(user.id,saved);return saved;};return id?this.mutateAgent(user.id,id,save):save();
+    const guard=async()=>{if(this.backingUp||this.closing)throw Error('Wait until Agentopia is ready before saving an agent.');await this.attachmentOwner(user.id);};this.nativeControls++;
+    try{
+     await guard();const selectedProvider=provider(args.provider),model=text(args.model,200),id=args.id?uuid(args.id):null;
+     if(args.presentation!==undefined&&(id||args.owner!==user.id))throw Error('This creation draft belongs to another account or an already saved agent.');
+     const creation=args.presentation===undefined?null:{id:uuid(args.creationId),...await this.presentation.creation(user.id,args.presentation,guard)};
+     let allowed=false;
+     if(id){const old=must(await this.admin.from('agents').select('agent_llm_preferences(provider,model)').eq('id',id).eq('user_id',user.id).single()) as any;const pref=Array.isArray(old.agent_llm_preferences)?old.agent_llm_preferences[0]:old.agent_llm_preferences;allowed=pref?.provider===selectedProvider&&pref?.model===model;}
+     if(!allowed){const models=await this.catalog(selectedProvider,user.id);if(!models.some((m:any)=>m.id===model))throw new Error('Select an available provider model.');}
+     await guard();const save=async()=>{await guard();const common={p_user:user.id,p_name:text(args.name,100),p_description:text(args.description,4000),p_instructions:text(args.instructions,100000),p_provider:selectedProvider,p_model:model},saved=must(await this.admin.rpc(creation?'desktop_create_agent_presentation':'desktop_save_agent',creation?{...common,p_creation:creation.id,p_appearance:creation.appearance,p_avatar:creation.avatar}:{...common,p_id:id}));await guard();await this.tools.agents.profile(user.id,saved);await guard();return saved;};return await (id?this.mutateAgent(user.id,id,save):save());
+    }finally{this.nativeControls--;}
    }
    case 'agents.delete':return this.mutateAgent(user.id,uuid(args.id),async()=>{const id=uuid(args.id);must(await this.admin.from('agents').update({active:false}).eq('id',id).eq('user_id',user.id).select('id').single());must(await this.admin.from('desktop_goals').update({status:'paused',note:'The assigned agent was retired.'}).eq('agent_id',id).eq('user_id',user.id).eq('status','running'));await this.tools.agents.profile(user.id,id);});
    case 'conversations.source':{if(args.owner!==user.id)throw new Error('This conversation source belongs to another account.');const result=await new ProjectMemory(this.admin).preview(user.id,text(args.href,300));await this.attachmentOwner(user.id);return result;}
