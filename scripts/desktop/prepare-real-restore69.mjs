@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import {writeFile} from 'node:fs/promises';
+import {desktopOperation} from './operation-lock.mjs';
+import {json,list,hash} from './phased-backup-control.mjs';
+import {prepareOwnedRuntime69} from './prepare-owned-runtime69.mjs';
+desktopOperation('prepare real PostgreSQL portable recovery target69');
+const root=path.resolve(import.meta.dirname,'../..'),pointerFile=path.join(root,'.supabase/desktop-recovery69-real/current.json'),pointer=await json(pointerFile),source=await json(pointer.sourceIntent),accepted=await json(path.join(source.out,'source-accepted.json')),proof=await json(accepted.evidence),candidate=await json(pointer.candidateFile);
+assert(accepted.success&&proof.success&&proof.actualPostgres&&proof.sourceRuntimeStopped&&proof.normalExit===0);assert.equal(proof.imageSha256,candidate.imageSha256);assert.equal(await hash(candidate.image),candidate.imageSha256);assert(!(await list(true)).includes(source.distribution));assert(!pointer.restoredIntent,'Inspect the existing target before preparing another.');
+pointer.restoredIntent=path.join(pointer.parent,'restored/intent.json');await writeFile(pointerFile,JSON.stringify(pointer,null,2));const result=await prepareOwnedRuntime69({parent:pointer.parent,role:'restored',candidateFile:pointer.candidateFile,bundle:accepted.bundle});assert.equal(result.intent,pointer.restoredIntent);console.log(JSON.stringify({success:true,restoredIntent:result.intent,sourceDatabaseActual:true,sourceRuntimeStopped:true,installed:false}));
