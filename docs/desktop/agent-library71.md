@@ -29,3 +29,6 @@ Ordinary Agentopia remains verified 0.44.70, schema 71/recovery 12. Package71 co
 
 
 The frozen 0.44.71 candidate now passes 1,093 archived-module cases, 20 full-interface workflows, 15 packaged library workflows and eight draft/queue checks. See release71-preparation.md for evidence and limits. Actual packaged-runtime lifecycle/recovery and ordinary installation remain pending; the installed version is 0.44.70 and the full goal remains active.
+
+
+Actual packaged71 library lifecycle and exact-version whole-profile recovery now pass: both provider adapters, in-flight archive/replacement revocation, specialist/report and paused task, three current originals, two prior versions, original-password sign-in and a complete128-table/112-row snapshot comparison. Changed document scope starts a fresh native thread; unchanged scope resumes its original thread. See agent-library71-runtime.md. Ordinary installation remains70; installer and schema-transition/update acceptance remain pending.
