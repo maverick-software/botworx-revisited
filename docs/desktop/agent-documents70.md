@@ -1,8 +1,8 @@
-# Persistent agent documents — packaged qualification for 0.44.70
+# Persistent agent documents — installed 0.44.70
 
 The Documents section now supports adding local PDF, Word, Excel, PowerPoint and UTF-8 text files, extracting their content, and assigning library files to a saved agent. Upload adds a durable library record; Save settings commits the selected assignments. An upload refresh preserves unsaved selections. Partial failures and incomplete extraction are reported. An uncertain upload refreshes the library without retrying or automatically assigning an unconfirmed result.
 
-Ordinary Agentopia remains on verified 0.44.69. A frozen 0.44.70 candidate has passed source, archived-module and actual packaged acceptance. It has not been installed.
+Ordinary Agentopia now runs verified 0.44.70. Source, archive, packaged, whole-profile recovery, installer and installed-data acceptance pass. Native ordinary-window visual acceptance remains pending.
 
 Original bytes are stored in PostgreSQL's new `desktop_media_files` table, alongside the existing `media_library` registry. Both the original and extracted text therefore enter the existing database backup. Reads do not depend on the source file remaining at its upload location. Migration71 applies to the complete restored schema. This adds no external extraction service or provider connection. Upload supports ten files at a time, 20 MB for Office/PDF or 2 MB for text, with 200 active library records and 256 MB of retained originals per account.
 
@@ -23,7 +23,7 @@ Source evidence: `.supabase/desktop-agent-documents70/1792740555868/evidence.jso
 
 Earlier failed attempts are retained. They exposed an incorrect expected PDF fixture marker, missing build-path settings for two older test suites, an ambiguous status selector, and a hidden renderer that had not painted screenshots. The native fixture initially expected every host tool in the model's initial catalog; the corrected check inspects the actual runtime's MCP inventory. The first database attempt stopped at an overly specific QA port assertion before applying the migration. None made live provider requests.
 
-Exact-version whole-profile recovery now passes. The remaining release gates are an independently verified installer and recoverable ordinary installation/data/UI acceptance. Office/PDF extraction remains bounded by the existing reader and reports incomplete text; original bytes are retained. Library organization, replacement and archival controls still need completion. Native ordinary-window/reference comparisons, physical reboot and different-Windows-user recovery also remain open. The full parity goal remains active.
+Exact-version whole-profile recovery, independent installer verification and recoverable ordinary installation/data acceptance now pass. Native ordinary-window visual acceptance remains pending. Office/PDF extraction remains bounded by the existing reader and reports incomplete text; original bytes are retained. Library organization, replacement and archival controls still need completion. Native ordinary-window/reference comparisons, physical reboot and different-Windows-user recovery also remain open. The full parity goal remains active.
 
 ## Frozen package and actual runtime verification
 
@@ -46,3 +46,9 @@ Portable recovery correctly required new AI credentials. After setting only the 
 The first restore verifier used the wrong key for the native-turn table; it closed normally before any model request. A retry exposed that direct API sign-out leaves the renderer auth context stale. The verifier now refreshes the login page. The intervening diagnostic attempt made zero provider requests; its normal cleanup failed, and the already exited, idle QA runtime was explicitly stopped and terminated before the final successful run. All attempt evidence is retained. No ordinary profile was accessed.
 
 Recovery source: `.supabase/desktop-agent-documents70-real/1792742810015/source/recovery-capture-1792744945781/evidence.json`. Successful restoration: `restored/acceptance-1792745492786/evidence.json` in the same family. Combined gate: candidate `whole-profile-recovery-qualified.json`. This allows installer construction and does not claim installation or ordinary visual acceptance.
+
+## Installed delivery
+
+Release70-preparation.md records the verified installer, normal69-to70 update and ordinary reopening. All 1,808 saved rows across126 prior tables match fresh recovery; both accounts/passwords/roles,120 chats,410 messages,191 readable encrypted records, four agent profiles and two memories are preserved. Independent checks verify7,539 installed files and schema71’s broker-only original storage. The new table remains empty; no test document was added to the ordinary account. Fresh recovery and the actual69 program/root launchers are retained on F:. Native visual acceptance, reboot/different-user recovery and remaining library/parity work remain open.
+
+The encrypted credential file was rewritten during ordinary startup. A separate isolated Windows-encryption helper compared its protected contents against the fresh closed-profile copy: all 106 saved settings, including both AI connection records, match. Image generation remains disabled. Only ciphertext was copied to a protected audit folder; secret values stayed in memory and were neither exported nor sent. The helper had an intentionally absent runtime and exited normally without a database or provider request. Credential receipt: release folder installed-credentials-verified.json.
