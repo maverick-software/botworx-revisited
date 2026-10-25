@@ -1,5 +1,7 @@
 # Local Composio MCP implementation and qualification
 
+Follow-up: [live verification165](composio-live165.md) confirms real Composio sign-in and authenticated discovery/account-list calls. The user requested pausing broader work at that point. Earlier pending statements below describe the delivery checkpoint.
+
 October 24, 2026. The previous turn made progress by correcting and pushing the integration plan. This turn implements its first local connection path. Follow-up [delivery162](continuation-brief162.md) now installs this source in ordinary0.44.78/schema84 after complete installer, recovery and data verification. No real Composio user consent, Google operation or new model inference has occurred in these checks.
 
 ## Implemented behavior

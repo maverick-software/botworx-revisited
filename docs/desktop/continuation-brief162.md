@@ -1,5 +1,7 @@
 # Installed 0.44.78: local Composio connection and version menu
 
+Follow-up: [live verification165](composio-live165.md) confirms real Composio sign-in and authenticated discovery/account-list calls. The user requested pausing broader work at that point. Earlier pending statements below describe the delivery checkpoint.
+
 October 24, 2026. The full desktop parity goal remains active. The previous goal turn made progress by correcting and pushing the local Composio plan. This turn implements, qualifies and installs its first local OAuth/MCP connection path, together with the parallel chat's requested account-menu version heading. The ordinary app is now **0.44.78/schema84**. Actual Composio consent and authenticated app operations remain pending; Google editor upload/conversion still needs its separate migration.
 
 ## What the user can use
