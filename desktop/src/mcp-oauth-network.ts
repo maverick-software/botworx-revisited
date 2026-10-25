@@ -26,7 +26,7 @@ export function oauthNetwork(resource:string,signal:AbortSignal){
   const body=init.body===undefined||init.body===null?undefined:typeof init.body==='string'?init.body:init.body instanceof URLSearchParams?init.body.toString():undefined;
   if(init.body!=null&&body===undefined)throw Error('Unsupported OAuth request body.');
   return new Promise<Response>((resolve,reject)=>{
-   const req=(url.protocol==='https:'?httpsRequest:httpRequest)(url,{method:init.method??'GET',headers:outgoing,signal:deadline,lookup:((_host:any,_options:any,callback:any)=>callback(null,selected.address,selected.family)) as any},res=>{
+   const req=(url.protocol==='https:'?httpsRequest:httpRequest)(url,{method:init.method??'GET',headers:outgoing,signal:deadline,lookup:((_host:any,options:any,callback:any)=>options.all?callback(null,[selected]):callback(null,selected.address,selected.family)) as any},res=>{
     const responseHeaders=new Headers();for(const [key,value]of Object.entries(res.headers))if(value!==undefined)responseHeaders.set(key,Array.isArray(value)?value.join(', '):value);
     if(headersOnly){resolve(new Response(null,{status:res.statusCode??500,headers:responseHeaders}));res.destroy();return;}
     const chunks:Buffer[]=[];let bytes=0;res.on('data',(chunk:Buffer)=>{bytes+=chunk.length;if(bytes>1024*1024)res.destroy(Error('OAuth response exceeds 1 MB.'));else chunks.push(chunk);});

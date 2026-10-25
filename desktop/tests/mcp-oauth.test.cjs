@@ -106,6 +106,7 @@ test('plugin schemas preserve supported public OAuth declarations and reject sec
  for(const auth of [{type:'oauth',clientSecret:'secret'},{type:'oauth',tokenUrl:'https://ignored.example/token'},{type:'oauth',client:{mode:'provided',clientId:'id',tokenEndpointAuthMethod:'client_secret_basic'}},{type:'oauth',client:{mode:'dcr',clientId:'ignored'}},{type:'oauth',baseScopes:['two scopes']},{type:'none',defaultScopes:['read']}]){const invalid=structuredClone(original);invalid.mcp.mcpServers[name].extensions={'com.openai':{auth}};assert.throws(()=>validatePluginPackage(invalid));}
 });
 test('the SQL-facing adapter enforces ownership and reviewed assignments before remote tool discovery',async t=>{
+ const scope={owner:'11111111-1111-4111-8111-111111111111',agent:'22222222-2222-4222-8222-222222222222',connection:'33333333-3333-4333-8333-333333333333'};
  const f=await fixture(t),{McpOAuthConnections}=require(path.join(build,'mcp-oauth-connections.js')),{RemoteTools}=require(path.join(build,'remote-tools.js')),{validatePluginPackage,examplePluginPackage,pluginDigest}=require(path.join(build,'plugin-validation.js'));
  const pkg=structuredClone(examplePluginPackage),name=Object.keys(pkg.mcp.mcpServers)[0];pkg.mcp.mcpServers[name].url=f.base+'/mcp';pkg.mcp.mcpServers[name].extensions={'com.openai':{auth:{type:'oauth',client:{mode:'provided',clientId:'declared-public-id',tokenEndpointAuthMethod:'none'}}}};validatePluginPackage(pkg);
  const rows={agents:[{id:scope.agent,user_id:scope.owner,active:true}],agent_mcp_connections:[{id:scope.connection,agent_id:scope.agent,vault_server_url_id:'url-secret',is_active:true,auth_config:{},connection_name:'Reviewed OAuth'}],desktop_plugin_connections:[{user_id:scope.owner,agent_id:scope.agent,connection_id:scope.connection,plugin_name:pkg.manifest.name,server_name:name}],desktop_plugins:[{user_id:scope.owner,name:pkg.manifest.name,package:pkg,digest:pluginDigest(pkg),source:'imported',enabled:true}],desktop_agent_plugins:[{user_id:scope.owner,agent_id:scope.agent,plugin_name:pkg.manifest.name,enabled:true}]};
@@ -127,4 +128,11 @@ test('OAuth network isolates public connections from private destinations and bo
  await assert.rejects(oauthNetwork('https://public.example/mcp',new AbortController().signal)('https://127.0.0.1/token'),/private network/);
  assert.equal((await network(f.base+'/redirect')).status,302);assert(!f.requests.some(r=>r.path==='/unexpected'));
  await assert.rejects(network(f.base+'/oversized'),/1 MB/);
+});
+test('OAuth discovery reaches a DNS hostname with address-list lookup enabled',async t=>{
+ const server=createServer((req,res)=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify({resource:'hostname fixture'}));});
+ await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,resolve);});
+ t.after(()=>new Promise(resolve=>server.close(resolve)));
+ const address='http://localhost:'+server.address().port+'/mcp',response=await oauthNetwork(address,AbortSignal.timeout(5000))(address);
+ assert.equal(response.status,200);assert.deepEqual(await response.json(),{resource:'hostname fixture'});
 });
