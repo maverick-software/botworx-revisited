@@ -13,7 +13,7 @@ export async function installAssistedCommand145(application){
    const c=s.cases[record.request.id]??s.goalCases[record.options.goalId],helper=c?.nativeHelper,p=rpc.params;
    if(helper&&['item/commandExecution/requestApproval','item/fileChange/requestApproval'].includes(rpc.method)){
     if(!s.leaseActive||record.owner!==s.owner||record.request.agent_id!==c.agent||rpc.method!=='item/commandExecution/requestApproval'||path.resolve(p.cwd).toLowerCase()!==path.resolve(helper.cwd).toLowerCase())return refuse('Only the owned read-only calculation helper in its selected folder is authorized.');
-    let command=p.command;for(const quote of ['"',"'"]){const prefix=helper.shellPrefix+' -Command '+quote;if(command.startsWith(prefix)&&command.endsWith(quote))command=command.slice(prefix.length,-1);}
+    let command=p.command;for(const flags of ['', ' -NoProfile'])for(const quote of ['"',"'"]){const prefix=helper.shellPrefix+flags+' -Command '+quote;if(command.startsWith(prefix)&&command.endsWith(quote))command=command.slice(prefix.length,-1);}
     const match=/^python reconcile145\.py ([1-9]\d?) (\d{1,4}) (\d{1,4})$/.exec(command);if(!match)return refuse('Only the supplied helper and three bounded numeric arguments are authorized.');const stage=Number(match[1]);
     if(stage>helper.count||s.helperCommands145.some(row=>row.agent===c.agent&&row.stage===stage))return refuse('A confirmed or uncertain helper invocation cannot be repeated.');
     const rows=s.tools.filter(row=>row.requestId===record.request.id),opened=rows.filter(row=>row.name==='browser_open'&&row.status==='completed').at(-1),snapshot=rows.findLast(row=>row.name==='browser_snapshot'&&row.status==='completed'&&row.arguments.tab_id===c.tabs.at(-1));

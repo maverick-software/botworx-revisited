@@ -1,0 +1,9 @@
+# Composio trusted-backend finding
+
+The running desktop authenticates against its owned local Supabase runtime. The broker uses that runtime's API_URL and verifies the active user with auth.getUser. The repository also has an old linked cloud Supabase project and cloud environment settings. Its actual management API returns404, “Resource has been removed.” A successful read-only project-list request confirms that the linked project is absent; this is not an inferred login failure. No other project names or credential values were exported.
+
+The inspected environment files have no Composio project credential. No cloud function was deployed, credential provisioned or app account created. The active local users and installed149 application were left unchanged.
+
+For the recommended Platform-session MCP integration, the trusted hosted service needs an actual target and verified user identities. A central service cannot accept arbitrary locally issued desktop sign-in tokens as proof of an existing cloud user. It also cannot distribute a vendor-wide Composio project key inside the desktop/local WSL runtime. Existing customer-controlled self-hosted deployments can hold their own operator-configured key, but that is a different deployment boundary. The current [implementation plan](composio-account-integration-plan148.md) records these choices.
+
+The user has been asked for the intended existing project/deployment name or URL, without credentials. No alternative cloud project was selected automatically. While this specific decision is pending, the full parity goal remains active. Independent OpenRouter runs145 and152 are now terminal and retained without replay; the [run152 report](tool-assisted-endurance152.md) records the successful calculator execution and failed autonomous continuation. No Composio deployment or end-user authorization has been performed.
