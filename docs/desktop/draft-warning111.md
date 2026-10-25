@@ -1,0 +1,15 @@
+# Installed draft-warning investigation111
+
+The full parity goal remains active. This check follows the user's draft-saving warning screenshot and request to retry Computer Use. The previous implementation and remaining work remain in continuation-brief110.md. No product source, installed package, migration, account connection, model default or permission was changed.
+
+The supported Computer Use skill and @oai/sky returned the ordinary installed Agentopia 0.44.75 window. The app was on a blank new chat with the workspace closed; the warning was absent. Inventory, capture, coordinate/indexed access, keyboard navigation and targeted editable-value entry worked. Accessibility reported focus on the document container even while keyboard navigation visibly moved focus; literal typing was therefore not tested in this retry.
+
+A generated unsent draft, `CU111 draft recovery check — café 東京 ✅`, was entered with set_value. Alt+F4 requested normal closure. The app exited with no warning and without Close anyway, and independent process inspection confirmed all Agentopia processes had exited. The supported registered app launcher initially reported no targetable window; refreshed inventory found the actual installed executable's new window during startup. After runtime readiness, the visible composer value matched the generated text exactly. Only that generated text was cleared, restoring the originally empty composer. The app remains open and signed in with the workspace closed.
+
+A capture attempted after shutdown returned `foreground window did not report a process id`; refreshed inventory and independent process inspection established that the target had exited normally. No stale coordinates or identifiers were reused across reopening.
+
+The close handler's warning covers an error or missing acknowledgement within five seconds while flushing composer, editor, workspace and location state. The original failure did not reproduce, so its cause and repair remain unconfirmed. This result establishes one successful installed unsent-draft recovery path. It does not establish every editor/storage failure is resolved, rerun Agentopia's purple indicator, rerun either provider's inference, or establish longer autonomous behavior.
+
+Final evidence: `F:/Agentopia/.supabase/desktop-computer-retry111/1792819702873/final-evidence.json`. Before and after read-only audits are `F:/Agentopia/.supabase/desktop-agent-health75/1792819589319/evidence.json` and `F:/Agentopia/.supabase/desktop-agent-health75/1792819703264/evidence.json`. Both pass, retaining two owners, four profiles,121 chats,414 messages,207 requests and20 instances, with exact matching profile and request/instance status summaries. The installed archive SHA256 remains `4d23a8ff456bc44061a658e42864b987f25b5ae20130517f1743f2675670b7d4`. Zero provider requests or replays occurred. The operation lock was held throughout ordinary UI maintenance and released before the final audit.
+
+Continue the full outstanding parity work from continuation-brief110.md. This bounded investigation does not complete or pause the goal.

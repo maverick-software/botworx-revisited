@@ -12,6 +12,18 @@ function fixture(){
 const snapshot=async(f,options,ref)=>await(await f.service.prepare(owner,options,'computer_snapshot',{window_id:ref.id},guard)).run(signal());
 const click=(ref,snap)=>({window_id:ref.id,snapshot_id:snap.snapshot_id,ref:null,x:100,y:100,button:'left',count:1});
 
+test('control overlays are unavailable even with an older helper, and cannot be selected or reached through a changed grant',async()=>{
+ for(const app of ['codex-computer-use','CODEX-COMPUTER-USE','Agentopia.Computer']){
+  const f=fixture();f.window.app=app;
+  const choices=await f.service.choicesFor(owner,[],guard);assert.equal(choices[0].available,false);assert.match(choices[0].reason,/control and overlay/);
+  await assert.rejects(f.service.select(owner,[choices[0].id],[],guard),/control and overlay/);assert.equal(f.service.status(owner.id).selected,0);assert.equal(f.captures,0);await f.service.stop();
+  const changed=fixture(),{ref,options}=await changed.grant(),observed=await snapshot(changed,options,ref),prepared=await changed.service.prepare(owner,options,'computer_click',click(ref,observed),guard);
+  changed.window.app=app;await assert.rejects(prepared.run(signal()),/control and overlay/);assert.equal(changed.client.calls.filter(c=>c.method==='action').length,0);await changed.service.stop();
+ }
+ // Document titles are data: a harmless note about the helper remains usable.
+ const note=fixture();note.window.app='Notepad';note.window.title='codex-computer-use notes';const {ref,options}=await note.grant();await snapshot(note,options,ref);await note.service.stop();
+});
+
 test('the purple indicator follows owned shared context and is cleared by completion, revocation, stop and helper loss',async()=>{
  const f=fixture(),events=[];f.service.indicator={show:async(...args)=>events.push(['show',...args]),end:(...args)=>events.push(['end',...args]),revoke:(...args)=>events.push(['revoke',...args]),stop:(...args)=>events.push(['stop',...args])};const {ref,options}=await f.grant();await f.service.indicate(owner,options,'request',{window_id:ref.id});assert.deepEqual(events[0],['show',owner.id,'request',ref.id,box]);await assert.rejects(f.service.indicate(other,options,'foreign',{window_id:ref.id}),/no longer available/);await assert.rejects(f.service.indicate(owner,{...options,windows:[]},'unshared',{window_id:ref.id}),/not shared/);f.service.finishRequest(owner.id,'request');assert.deepEqual(events.at(-1),['end',owner.id,'request']);f.client.unavailable('helper failed');assert.deepEqual(events.at(-1),['stop']);f.service.revoke(owner.id,ref.id);assert.deepEqual(events.at(-1),['revoke',owner.id,ref.id]);await f.service.stop(owner.id);assert(events.some(row=>row[0]==='stop'&&row[1]===owner.id));
 });

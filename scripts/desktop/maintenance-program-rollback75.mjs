@@ -5,13 +5,16 @@ import {hash} from './phased-backup-control.mjs';
 
 export async function captureMaintenanceProgram({job,proof}){
  const root=path.resolve(import.meta.dirname,'../..');
- const source=path.resolve('C:/Users/charl/AppData/Local/AgentopiaDesktop/app-0.44.74');
+ const preview=proof.version==='0.44.76',source=path.resolve('C:/Users/charl/AppData/Local/AgentopiaDesktop/app-0.44.'+(preview?'75':'74'));
  const base=JSON.parse(await readFile(proof.acceptedBase,'utf8'));
- assert(base.success&&base.version==='0.44.74'&&proof.version==='0.44.75');
+ assert(base.success&&(preview?base.version==='0.44.75'&&base.navigationSkillsOnly:base.version==='0.44.74'&&proof.version==='0.44.75'));
  assert.equal(path.dirname(job),path.join(root,'.supabase/desktop-normal-maintenance'));assert(/^\d{13}$/.test(path.basename(job)));
  assert.equal((await realpath(job)).toLowerCase(),job.toLowerCase());assert.equal((await realpath(source)).toLowerCase(),source.toLowerCase());
  assert.equal(await hash(path.join(source,'resources/app.asar')),base.imageSha256);
- const expected={...base.programFiles,...Object.fromEntries(Object.entries(base.resourceFiles).map(([name,digest])=>['resources/resources/'+name,digest]))};
+ const original=preview?JSON.parse(await readFile(base.baseProof,'utf8')):base;
+ assert(original.success&&original.version===(preview?'0.44.75':'0.44.74'));
+ const resourceFiles=preview?{...Object.fromEntries(Object.entries(original.resourceFiles).filter(([name])=>!name.startsWith('ui/')&&!name.startsWith('computer-helper/'))),...Object.fromEntries(Object.entries(base.uiFiles).map(([name,digest])=>['ui/'+name,digest])),...Object.fromEntries(Object.entries(base.helperManifest.files).map(([name,digest])=>['computer-helper/'+name,digest]))}:base.resourceFiles;
+ const expected={...original.programFiles,'resources/app.asar':base.imageSha256,...Object.fromEntries(Object.entries(resourceFiles).map(([name,digest])=>['resources/resources/'+name,digest]))};
  const destination=path.join(job,'rollback/program'),files={};await mkdir(destination,{recursive:true});let reused=0,copied=0;
  for(const [name,digest]of Object.entries(expected)){
   assert(!path.isAbsolute(name)&&!name.includes('..')&&!name.includes('\\'));
@@ -22,9 +25,9 @@ export async function captureMaintenanceProgram({job,proof}){
   if(reusable){await link(candidate,to);reused++;}else{await copyFile(from,to);copied++;}
   assert.equal(await hash(to),digest);files[name]=digest;
  }
- const priorInstaller=JSON.parse(await readFile(path.join(path.dirname(proof.acceptedBase),'installer-verification/evidence.json'),'utf8'));
- assert(priorInstaller.success&&priorInstaller.version==='0.44.74');
- const rootFiles={};for(const [name,expectedSha256]of [['Agentopia.exe',priorInstaller.generatedLauncher.launcherSha256],['Update.exe',base.programFiles['squirrel.exe']]]){
+ const priorInstaller=JSON.parse(await readFile(path.join(preview?original.out:path.dirname(proof.acceptedBase),'installer-verification/evidence.json'),'utf8'));
+ assert(priorInstaller.success&&priorInstaller.version===(preview?'0.44.75':'0.44.74'));
+ const rootFiles={};for(const [name,expectedSha256]of [['Agentopia.exe',priorInstaller.generatedLauncher.launcherSha256],['Update.exe',original.programFiles['squirrel.exe']]]){
   const from=path.join(path.dirname(source),name),to=path.join(job,'rollback','root-'+name);
   assert.equal(await hash(from),expectedSha256);await copyFile(from,to);assert.equal(await hash(to),expectedSha256);
   rootFiles[name]={source:from,saved:to,sha256:expectedSha256};

@@ -1,0 +1,8 @@
+import assert from 'node:assert/strict';
+import {mkdir,writeFile} from 'node:fs/promises';
+import {spawn} from 'node:child_process';
+import path from 'node:path';
+import {desktopOperation} from './operation-lock.mjs';
+import {hash} from './phased-backup-control.mjs';
+desktopOperation('reproduce OAuth119 cancellation during a lost credential acknowledgement');
+const root=path.resolve(import.meta.dirname,'../..'),build=path.resolve(process.argv[2]),expectedFailure=process.argv[3]==='--expect-failure',out=path.join(root,'.supabase/desktop-draft-preview76','oauth119-retention-'+Date.now());await mkdir(out,{recursive:true});let log='';const child=spawn(process.execPath,['--test','--test-reporter=tap','--test-name-pattern=cancelled replacement','desktop/tests/creation-oauth119.test.cjs'],{cwd:root,windowsHide:true,env:{...process.env,AGENTOPIA_PREVIEW_BUILD:build,AGENTOPIA_OAUTH_TEST_BUILD:build}});for(const stream of[child.stdout,child.stderr])stream.on('data',bytes=>log+=bytes);const code=await new Promise((resolve,reject)=>{child.once('error',reject);child.once('close',resolve);});await writeFile(path.join(out,'test.log'),log);const e={success:expectedFailure?code!==0:code===0,expectedFailure,exitCode:code,actualOAuthProtocol:true,productionAccess:false,providerRequests:0,build,controllerSha256:await hash(import.meta.filename),sourceSha256:await hash(path.join(root,'desktop/src/mcp-oauth.ts')),testSha256:await hash(path.join(root,'desktop/tests/creation-oauth119.test.cjs'))};await writeFile(path.join(out,'evidence.json'),JSON.stringify(e,null,2));assert(e.success,log);console.log(JSON.stringify({success:e.success,expectedFailure,evidence:path.join(out,'evidence.json')}));

@@ -1,0 +1,13 @@
+export function creationSetupFixture123(owner:string,scopes:()=>Record<string,any>){
+ const operations=new Map<string,{args:any;cancelled:boolean;work?:Promise<any>}>();let holdBegin=false,holdStart=false,lateCommit=false,failStart=false,beginGate:Promise<void>|null=null,startGate:Promise<void>|null=null,releaseBegin=()=>{},releaseStart=()=>{};
+ const key=(creation:string)=>'fixture.creation-connections123.'+owner+':'+creation,read=(creation:string)=>JSON.parse(localStorage.getItem(key(creation))??'[]'),write=(creation:string,rows:any[])=>localStorage.setItem(key(creation),JSON.stringify(rows));
+ (window as any).creationSetupSeed=(creation:string,rows:any[])=>write(creation,rows);(window as any).creationSetupControl=(options:any)=>{holdBegin=!!options.holdBegin;holdStart=!!options.holdStart;lateCommit=!!options.lateCommit;failStart=!!options.failStart;if(holdBegin)beginGate=new Promise(resolve=>releaseBegin=resolve);if(holdStart)startGate=new Promise(resolve=>releaseStart=resolve);};(window as any).creationSetupRelease=()=>{releaseBegin();releaseStart();};
+ return async(action:string,args:any)=>{const scope=scopes()[args.creationId];if(args.owner!==owner||!scope||scope.revision!==args.revision||scope.boundAgentId)throw Error('Wrong creation setup fixture identity');if(action==='creationTools.connections')return read(args.creationId);const rows=read(args.creationId),row=rows.find((row:any)=>row.id===args.connectionId);if(!row)throw Error('Unknown creation connection');
+  if(action==='creationTools.connection.begin'){const operationId=crypto.randomUUID();operations.set(operationId,{args:structuredClone(args),cancelled:false});if(holdBegin)await beginGate;return {operationId};}
+  if(action==='creationTools.connection.disconnect'){row.state='disconnected';row.hasCredential=false;write(args.creationId,rows);return;}
+  const operation=operations.get(args.operationId);if(!operation||operation.args.creationId!==args.creationId||operation.args.connectionId!==args.connectionId)throw Error('Wrong setup reservation');
+  if(action==='creationTools.connection.cancel'){operation.cancelled=true;if(!lateCommit)releaseStart();await operation.work?.catch(()=>{});return {state:lateCommit&&operation.work?'completed':'cancelled'};}
+  if(action==='creationTools.connection.start'){if(operation.cancelled)throw Error('MCP sign-in cancelled.');return operation.work??=Promise.resolve().then(async()=>{if(holdStart)await startGate;if(operation.cancelled&&!lateCommit)throw Error('MCP sign-in cancelled.');row.hasCredential=true;row.state=failStart?'resume':'connected';write(args.creationId,rows);if(failStart)throw Error('Controlled readiness write failure123');return {connected:true};});}
+  throw Error('Unknown creation setup action');
+ };
+}

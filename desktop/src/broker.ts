@@ -1,5 +1,17 @@
+import {CreationToolResources} from './creation-tool-resources';
+import {creationRetireInput} from './creation-retirement';
+import {creationToolWrite} from './creation-tool-scope';
+import {AgentEditorDrafts} from './agent-editor-drafts';
 import {normalizeAgentAvatar} from './agent-avatar-image';
 import {AgentPresentationStore,agentPresentationRow} from './agent-presentation';
+import {AgentDraftPreviews,PostgresAgentDraftPreviews,matchesPreviewRemoteScope,type PreviewScopeFilter} from './agent-draft-previews';
+import {CodexDraftPreview} from './codex-draft-preview';
+import {DraftPreviewExecution} from './draft-preview-execution';
+import {ChatWorkspaceSkills,chatWorkspaceSkillScope} from './chat-workspace-skills';
+import {NativePreviewWorkspaceSkills,previewWorkspaceSkillDefinitions,type PreviewWorkspaceSkills} from './preview-workspace-skills';
+import {draftPreviewOptions,agentDraftPreviewInput,agentDraftBehavior,type AgentDraftPreviewInput} from './agent-draft-preview-contracts';
+import {PreviewAdmissions,type PreviewAdmissionInput} from './preview-admissions';
+import {executionLoad} from './execution-budget';
 import {withInstructionApps} from './instruction-app-references';
 import {AgentReportQueue,AgentReportDeferred,AgentReportNotSubmitted,type AgentReportDelivery} from './agent-report-queue';
 import {readNamedAgentReportSources,namedAgentResultSettled,namedResultFingerprint} from './agent-report-source';
@@ -23,6 +35,8 @@ import {RestoredSettings} from './restored-settings';
 import {RestoredExternal} from './restored-external';
 import {RestoredLayouts} from './restored-layouts';
 import {readPortableSettings} from './portable-settings';
+import {EditorJournalInventory} from './editor-journal-inventory';
+import {EditorJournalRecovery} from './editor-journal-recovery';
 import {notificationPreferences,readNotificationPreferences} from './notification-preferences';
 import {ScheduledTaskTools,scheduledToolInstructions} from './scheduled-task-tools';
 import {chatInspectionInstructions} from './chat-inspection';
@@ -56,6 +70,7 @@ import {WorkspaceTools,workspaceDefinitions} from './workspace-tools';
 import {ToolService} from './tool-service';
 import {RemoteTools} from './remote-tools';
 import {McpOAuthConnections} from './mcp-oauth-connections';
+import {CreationSetupOperations} from './creation-setup-operations';
 import {Plugins} from './plugins';
 import {ImageConnections} from './image-connections';
 import {ComposioConnections,composioInvalidatedAgents} from './composio-connections';
@@ -88,20 +103,27 @@ function uuid(value:unknown){const result=text(value,36);if(!/^[0-9a-f]{8}-[0-9a
 function provider(value:unknown):Provider{if(value!=='openrouter'&&value!=='openai-oauth')throw new Error('Choose a supported AI provider.');return value;}
 export class Broker {
  readonly admin:SupabaseClient;
+ readonly creationTools:CreationToolResources;
  readonly native:CodexHarness;
+ readonly previewRunner:CodexDraftPreview;
+ readonly previews:AgentDraftPreviews;
+ private previewAdmissions=new PreviewAdmissions();
+ private changingPreviewScopes=new Set<string>();
+ private nativeReservations=new Map<string,number>();
  readonly chatFiles:ChatFiles;
  private recoveredPublicFiles?:RestoredPublicFiles;private recoveredExternal?:RestoredExternal;private recoveredLayouts?:RestoredLayouts;
  private pluginSkills:NativePluginSkills;
  readonly nativeChanges:NativeChangeReviewService;
  private auth:SupabaseClient;
  private sessionPersistence:SessionPersistence;
- private active=new Map<string,{userId:string;conversationId:string;goalId?:string;controller:AbortController;done:Promise<void>}>();
- private startingChats=new Map<string,{userId:string|null;cancelled:boolean;controller:AbortController;goalId?:string;conversationId?:string;deliveryId?:string}>();
+ private active=new Map<string,{userId:string;conversationId:string;goalId?:string;options?:ChatOptions;controller:AbortController;done:Promise<void>}>();
+ private startingChats=new Map<string,{userId:string|null;cancelled:boolean;controller:AbortController;fileIds?:string[];goalId?:string;conversationId?:string;deliveryId?:string}>();
  private cancelledQueued=new Set<string>();
  private pausedGoals=new Set<string>();
  private goalScopes=new Map<string,string|null>();
  private goals=new Map<string,Promise<void>>();private startingGoals=new Set<string>();private closing=false;
  readonly files:WorkspaceFiles;
+ private chatWorkspaceSkills:ChatWorkspaceSkills;
  readonly agentDocuments:AgentDocuments;
  readonly tools:ToolService;
  readonly mcpOAuth:McpOAuthConnections;
@@ -113,6 +135,7 @@ export class Broker {
  readonly agentReports:AgentReportQueue;
  private agentMutations=new Set<string>();private scopeChanging=false;
  readonly editor:WorkspaceEditor;
+ readonly editorDrafts:AgentEditorDrafts;readonly journalRecovery:EditorJournalRecovery;private editorDraftControls=0;
  readonly workspaceMonitor:WorkspaceMonitor;
  readonly fileOperations:FileOperations;
  readonly terminal:Terminal;
@@ -135,9 +158,71 @@ export class Broker {
  private firstAdmin=false;private backingUp=false;private nativeControls=0;private restoringNative=new Map<string,Promise<void>>();private recoveredClipboard?:RestoredClipboard;private recoveredSettings?:RestoredSettings;
  private signedOut=false;
  private currentOwner:string|null=null;
+ private creationSetupOperations?:CreationSetupOperations;
  private goalQueueState?:GoalQueue;
  private get goalQueue(){return this.goalQueueState??=new GoalQueue();}
  private effectiveOptions(user:Identity,options:ChatOptions){return options?.permission==='full'&&!this.terminal.permissions(user).full?{...options,permission:'ask' as const}:options;}
+ private executionUsed(exclude?:{kind:'chat'|'preview';id:string}){const preparing=[...this.assignments?.preparingRequestIds??[]],chat=[...new Set([...this.active?.keys()??[],...this.startingChats?.keys()??[],...preparing,...this.nativeReservations?.keys()??[],...this.restoringNative?.keys()??[]])].map(id=>({kind:'chat' as const,id})),preview=[...(this.previewAdmissions?.activeRequests??[]),...(this.previews?.activeRequests??[])].map(row=>({kind:'preview' as const,id:row.requestId}));return executionLoad([...chat,...preview],[{kind:'chat',usage:this.native.executionUsage??{requests:[],other:0}},{kind:'preview',usage:this.previews?.executionUsage??{requests:[],other:0}}],exclude)+Math.max(0,(this.assignments?.preparing??0)-preparing.length);}
+ private async withNativeSlot<T>(id:string,task:()=>Promise<T>):Promise<T>{if(this.executionUsed({kind:'chat',id})>=8)throw Error('Up to eight chats and previews can work at once. Finish or stop one before starting another.');const reservations=this.nativeReservations??=new Map<string,number>();reservations.set(id,(reservations.get(id)??0)+1);try{return await task();}finally{const count=(this.nativeReservations.get(id)??1)-1;if(count)this.nativeReservations.set(id,count);else this.nativeReservations.delete(id);}}
+ private emitPreview(owner:string,event:ChatEvent){this.emitOwned(owner,{kind:'agent-draft-preview',requestId:event.requestId,preview:{sessionId:event.conversationId??'',status:event.status,event:structuredClone(event)}});}
+ private previewReleased(owner:string){if(this.closing||this.signedOut||this.currentOwner!==owner)return;this.assignments?.queue.notify();this.goalQueue.changed(owner);this.agentReports?.pump(owner);for(const conversation of new Set(this.chatQueue.list(owner).map(row=>row.conversationId)))this.chatQueue.pump(owner,conversation);}
+ private previewRemoteChanging(owner:string,input:PreviewAdmissionInput){if(input.kind==='skills')return false;const accepted=this.previews.remoteSources?.(owner,input.sessionId,input.requestId);return [...this.changingPreviewScopes].some(key=>{if(!key.startsWith('remote:'))return false;const scope=JSON.parse(key.slice(7));return scope.owner===owner&&(!scope.agentId||scope.agentId===input.sourceAgentId)&&(!scope.creationId||scope.creationId===input.creationId)&&matchesPreviewRemoteScope(input.sourceAgentId,input.snapshot.execution,{remoteOnly:true,remoteConnectionId:scope.connectionId??undefined,remotePlugin:scope.plugin??undefined},accepted,input.creationId);});}
+ async remoteConnectionChange<T>(owner:string,scope:{agentId?:string;creationId?:string;connectionId?:string;plugin?:string},work:()=>Promise<T>):Promise<T>{
+  scope=structuredClone(scope);if(scope.agentId&&scope.creationId)throw Error('Choose one saved agent or creation connection.');if(scope.creationId)scope.creationId=uuid(scope.creationId).toLowerCase();const guard=async()=>{await this.attachmentOwner(owner);if(this.currentOwner!==owner||this.signedOut||this.closing)throw Error('Your account changed before the connection could be updated.');if(this.backingUp||this.scopeChanging||this.changingPreviewScopes.has('plugin-mutation:'+owner))throw Error('Wait for workspace maintenance before changing connections.');};await guard();if(scope.creationId){await this.creationTools.active(owner,scope.creationId);const creation=await this.creationTools.read(owner,scope.creationId);if(!creation||creation.boundAgentId)throw Error('This creation connection was saved or is unavailable.');}if(scope.agentId)must(await this.admin.from('agents').select('id').eq('id',scope.agentId).eq('user_id',owner).eq('active',true).single());await guard();const key='remote:'+JSON.stringify({owner,agentId:scope.agentId??null,...(scope.creationId?{creationId:scope.creationId}:{}),connectionId:scope.connectionId??null,plugin:scope.plugin??null});this.nativeControls++;try{return await this.mutatePreviewScope(key,{owner,...(scope.agentId?{sourceAgentId:scope.agentId}:{}),...(scope.creationId?{creationId:scope.creationId}:{}),remoteOnly:true,...(scope.connectionId?{remoteConnectionId:scope.connectionId}:{}),...(scope.plugin?{remotePlugin:scope.plugin}:{})},async()=>{await guard();return work();});}finally{this.nativeControls--;}
+ }
+ private async previewGuard(owner:string,input?:PreviewAdmissionInput){await this.attachmentOwner(owner);if(input?.creationId)await this.creationTools.active(owner,input.creationId);if(this.closing||this.signedOut||this.currentOwner!==owner)throw Error('Your account changed while the draft was being prepared.');if(this.backingUp||this.scopeChanging)throw Error('Wait for workspace maintenance before testing the draft.');if(this.changingPreviewScopes.has('owner:'+owner)||input&&(input.creationId&&(this.changingPreviewScopes.has('creation-tools:'+owner+':'+input.creationId)||this.changingPreviewScopes.has('plugin-mutation:'+owner))||this.previewRemoteChanging(owner,input)||input.sourceAgentId&&this.agentMutations.has(input.sourceAgentId)||input.sourceAgentId&&((input.snapshot.execution?.permission??'chat')!=='chat'||!!input.snapshot.execution?.skills?.length||input.kind==='skills')&&this.changingPreviewScopes.has('plugin-source:'+owner+':'+input.sourceAgentId)||this.changingPreviewScopes.has('provider:'+input.snapshot.provider)||this.changingPreviewScopes.has('provider:'+owner+':'+input.snapshot.provider)||input.snapshot.execution?.files.some(id=>this.changingPreviewScopes.has('file:'+owner+':'+id))))throw Error('The preview resources are being updated. Wait before testing the draft.');}
+ private async previewModels(owner:string,selected:Provider,input?:AgentDraftPreviewInput){await this.previewGuard(owner,input);const status=this.providers.status(owner);if(!(selected==='openai-oauth'?status.chatgpt?.authorized:status.openrouter))throw Error('Connect the selected AI provider before testing the draft.');let models=await this.catalog(selected,owner);if(selected==='openrouter'&&input&&draftPreviewOptions(input.snapshot).permission!=='chat'&&models.find(model=>model.id===input.snapshot.model)?.supportsTools===undefined)models=await this.catalog(selected,owner,true);await this.previewGuard(owner,input);return models;}
+ private async mutatePreviewScope<T>(key:string,filter:PreviewScopeFilter,work:()=>Promise<T>):Promise<T>{if(this.changingPreviewScopes.has(key))throw Error('These preview resources are already being updated.');const actor=this.currentOwner;if(!actor)throw Error('Sign in before changing preview resources.');this.changingPreviewScopes.add(key);this.previewAdmissions?.cancel(filter,(owner,input)=>this.previews.remoteSources?.(owner,input.sessionId,input.requestId));try{await this.previews.stopScope(filter);await this.attachmentOwner(actor);if(this.currentOwner!==actor||this.closing||this.signedOut)throw Error('Your account changed before the preview resources could be updated.');return await work();}finally{this.changingPreviewScopes.delete(key);}}
+ private async mutatePreviewPlugin<T>(user:Identity,action:string,args:Record<string,unknown>,prepare:()=>Promise<void>,work:()=>Promise<T>):Promise<T>{
+  const key='plugin-mutation:'+user.id,name=text(args.name,64);if(this.changingPreviewScopes.has(key))throw Error('Wait for the current plugin change to finish.');
+  const guard=async()=>{await this.attachmentOwner(user.id);if(this.currentOwner!==user.id||this.signedOut||this.closing)throw Error('Your account changed before the plugin could be updated.');if(this.backingUp||this.scopeChanging)throw Error('Wait for workspace maintenance before changing plugins.');};
+  this.changingPreviewScopes.add(key);this.nativeControls++;const sources=new Set<string>(),creationKey=action==='plugins.assign'?null:'remote:'+JSON.stringify({owner:user.id,agentId:null,connectionId:null,plugin:name});let creationFenced=false;
+  try{
+   await guard();must(await this.admin.from('desktop_plugins').select('name').eq('user_id',user.id).eq('name',name).single());
+   if(action==='plugins.assign'){if(typeof args.enabled!=='boolean')throw Error('Choose whether to enable this assignment.');const agent=uuid(args.agentId);must(await this.admin.from('agents').select('id').eq('user_id',user.id).eq('id',agent).single());sources.add(agent);}
+   else{if(action==='plugins.enable'&&typeof args.enabled!=='boolean')throw Error('Choose whether to enable this plugin.');for(let offset=0;;offset+=500){const rows=must(await this.admin.from('desktop_agent_plugins').select('agent_id').eq('user_id',user.id).eq('plugin_name',name).eq('enabled',true).order('agent_id').range(offset,offset+499));for(const row of rows)sources.add(uuid(row.agent_id));if(rows.length<500)break;}}
+   await prepare();await guard();for(const agent of sources)this.changingPreviewScopes.add('plugin-source:'+user.id+':'+agent);
+   const filter={owner:user.id,pluginAgentIds:[...sources]};this.previewAdmissions.cancel(filter);await this.previews.stopScope(filter);if(creationKey){if(this.changingPreviewScopes.has(creationKey))throw Error('This connection is already changing. Wait before updating its package.');this.changingPreviewScopes.add(creationKey);creationFenced=true;const skills={owner:user.id,creationOnly:true,creationSkillPlugin:name};this.previewAdmissions.cancel(skills);await this.previews.stopScope(skills);const creations={owner:user.id,creationOnly:true,remoteOnly:true,remotePlugin:name};this.previewAdmissions.cancel(creations,(owner,input)=>this.previews.remoteSources?.(owner,input.sessionId,input.requestId));await this.previews.stopScope(creations);}await guard();return await this.mcpOAuth.handoffs.packageChange(user.id,name,guard,work);
+  }finally{if(creationFenced&&creationKey)this.changingPreviewScopes.delete(creationKey);for(const agent of sources)this.changingPreviewScopes.delete('plugin-source:'+user.id+':'+agent);this.changingPreviewScopes.delete(key);this.nativeControls--;}
+ }
+ private async stopNormalFile(owner:string,id:string){for(const row of this.startingChats.values())if(row.userId===owner&&row.fileIds?.includes(id)){row.cancelled=true;row.controller.abort();}const running=[...this.active.values()].filter(row=>row.userId===owner&&row.options?.files.includes(id));for(const row of running)row.controller.abort();await this.native.stopMatching(owner,(_request,options)=>options.files.includes(id));await Promise.all(running.map(row=>row.done));}
+ private async forgetPreviewFile(owner:string,id:string){return this.mutatePreviewScope('file:'+owner+':'+id,{owner,fileId:id},async()=>{await this.stopNormalFile(owner,id);await this.attachmentOwner(owner);return this.files.remove(owner,id);});}
+ private async startPreview(args:Record<string,unknown>){const owner=this.currentOwner;if(!owner||this.closing||this.signedOut)throw Error('Sign in before testing the draft.');if(args.owner!==undefined&&args.owner!==owner)throw Error('This draft preview belongs to another account.');const input=agentDraftPreviewInput(args.input);if(this.backingUp||this.executionUsed({kind:'preview',id:input.requestId})>=8)throw Error('Wait for a free execution slot before testing the draft.');const admission=this.previewAdmissions.reserve(owner,input);try{const user=await this.identity();this.previewAdmissions.check(admission);if(user.id!==owner)throw Error('Your preview account changed.');return await this.previews.start(user,input);}finally{this.previewAdmissions.finish(admission);this.previewReleased(owner);}}
+ private async previewSkills(args:Record<string,unknown>){
+  const owner=this.currentOwner;if(!owner||this.closing||this.signedOut)throw Error('Sign in before discovering preview skills.');if(args.owner!==owner)throw Error('This preview belongs to another account.');
+  const options=chatOptions(args.options),selected=provider(options.provider),model=text(options.model,200),source=args.sourceAgentId==null?null:uuid(args.sourceAgentId),input:PreviewAdmissionInput={kind:'skills',sessionId:uuid(args.sessionId),requestId:uuid(args.requestId),sourceAgentId:source,...(args.creationId===undefined?{}:{creationId:uuid(args.creationId).toLowerCase()}),...(args.creationToolRevision===undefined?{}:{creationToolRevision:Number(args.creationToolRevision)}),snapshot:{provider:selected,execution:{permission:options.permission,mode:options.mode,files:options.files,skills:options.skills}}};
+  if(source&&input.creationId)throw Error('A saved-agent discovery cannot use a creation identity.');if(input.creationToolRevision!==undefined&&(!input.creationId||source||!Number.isSafeInteger(input.creationToolRevision)||input.creationToolRevision<1))throw Error('Choose the confirmed creation app revision for skill discovery.');if(this.backingUp||this.executionUsed({kind:'preview',id:input.requestId})>=8)throw Error('Wait for a free execution slot before discovering skills.');const admission=this.previewAdmissions.reserve(owner,input);this.nativeControls++;
+  try{const user=await this.identity(),validate=async()=>{this.previewAdmissions.check(admission);await this.previewGuard(owner,input);if(source)must(await this.admin.from('agents').select('id').eq('id',source).eq('user_id',owner).eq('active',true).single());this.previewAdmissions.check(admission);};if(user.id!==owner)throw Error('Your preview account changed.');await validate();const resource=input.creationToolRevision===undefined?source??undefined:await this.tools.remote!.creationPrincipal(owner,input.creationId!,input.creationToolRevision);await validate();return await this.previewRunner.skills(user,resource,selected,model,options,input.requestId,admission.controller.signal,validate);}finally{this.nativeControls--;this.previewAdmissions.finish(admission);this.previewReleased(owner);}
+ }
+ private async previewCall(user:Identity,action:string,args:Record<string,unknown>){
+  if(args.owner!==undefined&&args.owner!==user.id)throw Error('This draft preview belongs to another account.');
+  if(action==='agentDraftPreview.active')return [...new Map([...(this.previewAdmissions?.activeRequests??[]),...this.previews.activeRequests].filter(row=>row.owner===user.id).map(({owner,...row})=>[row.requestId,row])).values()];
+  const session=uuid(args.sessionId);
+  if(action==='agentDraftPreview.read')return this.previews.read(user.id,session);
+  if(action==='agentDraftPreview.inspect')return this.previews.inspect(user.id,session,()=>this.previewAdmissions.activeRequests.some(row=>row.owner===user.id&&row.sessionId===session));
+  if(action==='agentDraftPreview.stop'){this.previewAdmissions?.cancel({owner:user.id,sessionId:session});return this.previews.stop(user.id,session);}
+  if(action==='agentDraftPreview.tools.decide'||action==='agentDraftPreview.tools.revert'){
+   const request=uuid(args.requestId),id=uuid(args.id);must(await this.admin.from('desktop_preview_tool_calls').select('id').eq('id',id).eq('user_id',user.id).eq('conversation_id',session).eq('request_id',request).single());await this.previewGuard(user.id);
+   if(action==='agentDraftPreview.tools.decide'){if(typeof args.approved!=='boolean')throw Error('Choose whether to approve this preview operation.');return this.tools.decide(user.id,id,args.approved);}
+   return this.native.quietFiles(user.id,()=>this.previewRunner.native.quietFiles(user.id,()=>this.tools.revert(user.id,id,'agent-draft-preview')));
+  }
+  if(action==='agentDraftPreview.native.answer'){const request=uuid(args.requestId);if(!this.previews.activeRequests.some(row=>row.owner===user.id&&row.sessionId===session&&row.requestId===request&&!row.cancelling))throw Error('This preview response is no longer working.');return this.previewRunner.native.answer(user.id,request,uuid(args.id),args.value,user.admin);}
+  if(action==='agentDraftPreview.native.child.control'||action==='agentDraftPreview.native.background.list'||action==='agentDraftPreview.native.background.stop'){
+   const request=uuid(args.requestId),thread=uuid(args.threadId),active=this.previews.activeRequests.some(row=>row.owner===user.id&&row.sessionId===session&&row.requestId===request&&!row.cancelling);
+   if(!active&&action==='agentDraftPreview.native.child.control'){
+    const input=agentDraftPreviewInput(args.input);if(input.requestId!==request||input.sessionId!==session)throw Error('The child continuation belongs to a different preview.');if(this.backingUp||this.executionUsed({kind:'preview',id:request})>=8)throw Error('Wait for a free execution slot before continuing this child.');
+    const admission=this.previewAdmissions.reserve(user.id,input);this.nativeControls++;try{this.previewAdmissions.check(admission);await this.previewGuard(user.id,input);this.previewAdmissions.check(admission);return await this.previews.continueChild(user,input,{action:args.action,threadId:thread,turnId:args.turnId,id:args.id,text:args.text??''});}finally{this.nativeControls--;this.previewAdmissions.finish(admission);this.previewReleased(user.id);}
+   }
+   if(!active)throw Error('This preview response is no longer working.');
+   await this.previewGuard(user.id);const native=this.previewRunner.native;
+   if(action==='agentDraftPreview.native.child.control'){
+    if(!native.childScope(user.id,request,thread))throw Error('This child does not belong to the active preview.');const operation=String(args.action);if(!['send','cancel','retry-report'].includes(operation))throw Error('Choose a preview child control.');
+    this.nativeControls++;try{return await native.control(user.id,request,thread,operation,String(args.turnId??''),operation==='send'?text(args.text,100000):'',uuid(args.id));}finally{this.nativeControls--;}
+   }
+   this.nativeControls++;try{return action==='agentDraftPreview.native.background.list'?await native.backgrounds(user.id,request,thread):await native.stopBackground(user.id,request,thread,text(args.itemId,500),text(args.processId,500));}finally{this.nativeControls--;}
+  }
+  throw Error('Unsupported draft preview operation.');
+ }
  private emitOwned(userId:string,event:ChatEvent){if(event.kind==='native-background'&&event.native&&namedAgentResultSettled(event.native))void this.completeNamedReport({user_id:userId,request_id:event.requestId} as NamedInvocation).catch(error=>this.agentReports?.recordFault(userId,error));this.assignments?.queue.notify();this.goalQueue.changed(userId,event.conversationId);if(event.kind==='queue'&&event.conversationId)void this.yieldGoalsForQueue(userId,event.conversationId).catch(()=>{});if(!this.signedOut&&this.currentOwner===userId)this.emit({...event,ownerId:userId});}
  private recoveryPending(owner:string){return !!(this.recoveryPendingOwners?.has(owner)||this.identityRecoveryOwners?.has(owner));}
  private queueAvailable(owner:string,conversation:string){return !this.closing&&!this.backingUp&&!this.signedOut&&!this.recoveryPending(owner)&&this.currentOwner===owner&&!this.scopeChanging&&!this.goalQueue.isSettling(owner,conversation)&&![...this.startingChats.values()].some(row=>row.conversationId===conversation)&&![...this.active.values()].some(row=>row.conversationId===conversation)&&![...this.goals.keys()].some(id=>this.goalScopes.get(id)===conversation&&!this.goalQueue.isWaiting(id))&&!this.startingGoals.size;}
@@ -149,17 +234,19 @@ export class Broker {
   })));
  }
  constructor(env:Record<string,string>,private secrets:Secrets,readonly providers:Providers,private emit:(event:ChatEvent)=>void,protectedPaths:string[]=[],attachmentDirectory?:string,terminalScript=path.resolve(__dirname,'../resources/runtime/terminal.ps1')){
-  this.drafts=new ChatDrafts(secrets);
-  this.chatQueue=new ChatQueue(secrets,(owner,row)=>this.launchQueuedChat(owner,row),(owner,conversation)=>this.queueAvailable(owner,conversation),(owner,conversation)=>this.emitOwned(owner,{kind:'queue',requestId:'',conversationId:conversation}));
+  this.drafts=new ChatDrafts(secrets);this.editorDrafts=new AgentEditorDrafts(secrets);
+  this.chatQueue=new ChatQueue(secrets,(owner,row)=>this.launchQueuedChat(owner,row),(owner,conversation)=>this.queueAvailable(owner,conversation)&&this.executionUsed()<8,(owner,conversation)=>this.emitOwned(owner,{kind:'queue',requestId:'',conversationId:conversation}));
   const options={auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}};
-  this.admin=createClient(env.API_URL,env.SERVICE_ROLE_KEY,options);
+  this.admin=createClient(env.API_URL,env.SERVICE_ROLE_KEY,options);this.creationTools=new CreationToolResources(this.admin);
   this.auth=createClient(env.API_URL,env.ANON_KEY,options);
   this.sessionPersistence=new SessionPersistence(secrets);
   this.auth.auth.onAuthStateChange((event,session)=>this.sessionPersistence.capture(event,session));
   this.files=new WorkspaceFiles(secrets,undefined,protectedPaths,attachmentDirectory?new AttachmentImages(attachmentDirectory):undefined);
+  this.chatWorkspaceSkills=new ChatWorkspaceSkills(this.files);
   this.agentDocuments=new AgentDocuments(this.admin,this.files.documents,file=>this.files.checkPath(file));
   this.presentation=new AgentPresentationStore(this.admin,file=>this.files.checkPath(file),normalizeAgentAvatar);
   const nativeDirectory=attachmentDirectory?path.dirname(attachmentDirectory):path.resolve(__dirname,'../.native-data');
+  this.journalRecovery=new EditorJournalRecovery(new EditorJournalInventory(nativeDirectory));
   this.recoveredLayouts=attachmentDirectory?new RestoredLayouts(nativeDirectory,secrets,this.files):undefined;
   this.recoveredSettings=attachmentDirectory?new RestoredSettings(nativeDirectory,secrets):undefined;
   this.recoveredClipboard=attachmentDirectory?new RestoredClipboard(nativeDirectory,secrets,this.files):undefined;
@@ -175,11 +262,13 @@ export class Broker {
   this.fileOperations=new FileOperations(this.admin,this.files,workspace,this.editor,path.join(path.dirname(terminalScript),'file-actions.ps1'),(owner,event)=>this.emitOwned(owner,event));
   this.terminal=new Terminal(this.admin,secrets,workspace,terminalScript,(owner,event)=>this.emitOwned(owner,event),()=>this.identity());
   this.pluginSkills=new NativePluginSkills(new Plugins(this.admin),attachmentDirectory?path.dirname(attachmentDirectory):path.resolve(__dirname,'../.native-data'),path.dirname(path.dirname(terminalScript)));
-  this.native=new CodexHarness(this.admin,providers,attachmentDirectory?path.dirname(attachmentDirectory):path.resolve(__dirname,'../.native-data'),path.dirname(path.dirname(terminalScript)),(owner,event)=>this.emitOwned(owner,event),owner=>this.attachmentOwner(owner),async owner=>{const user=await this.identity();return user.id===owner&&user.admin;},(requestId,threadId,child,aborted)=>this.terminal.sessions.finishRequest(child?'native:'+threadId:requestId,aborted),this.pluginSkills,this.chatFiles.outputDirectory);
+  this.native=new CodexHarness(this.admin,providers,attachmentDirectory?path.dirname(attachmentDirectory):path.resolve(__dirname,'../.native-data'),path.dirname(path.dirname(terminalScript)),(owner,event)=>this.emitOwned(owner,event),owner=>this.attachmentOwner(owner),async owner=>{const user=await this.identity();return user.id===owner&&user.admin;},(requestId,threadId,child,aborted)=>this.terminal.sessions.finishRequest(child?'native:'+threadId:requestId,aborted),this.pluginSkills,this.chatFiles.outputDirectory,undefined,undefined,new NativePreviewWorkspaceSkills(path.join(nativeDirectory,'workspace-skills')),request=>request.workspace_skills,'chat');
   this.mcpOAuth=new McpOAuthConnections(this.admin,secrets,async()=>{if(this.closing||this.signedOut)throw Error('Your Agentopia account changed.');return (await this.identity()).id;},url=>shell.openExternal(url));
   this.composio=new ComposioConnections(secrets,async()=>{if(this.closing||this.signedOut)throw Error('Your Agentopia account changed.');return (await this.identity()).id;},async(owner,agent)=>{await this.attachmentOwner(owner);must(await this.admin.from('agents').select('id').eq('id',agent).eq('user_id',owner).eq('active',true).single());},url=>shell.openExternal(url));
   this.googleDocuments=new GoogleDocuments(secrets,this.composio,owner=>this.attachmentOwner(owner));
-  this.tools=new ToolService(this.admin,workspace,(owner,event)=>{this.native.toolEvent(owner,event);this.emitOwned(owner,event);},()=>this.identity(),new RemoteTools(this.admin,undefined,this.mcpOAuth),secrets,this.terminal,this.fileOperations,this.editor,new PluginFiles(new Plugins(this.admin)));
+  this.tools=new ToolService(this.admin,workspace,(owner,event)=>{if(event.scope==='agent-draft-preview'){this.previewRunner.native.toolEvent(owner,event);this.emitPreview(owner,event);}else{this.native.toolEvent(owner,event);this.emitOwned(owner,event);}},()=>this.identity(),new RemoteTools(this.admin,undefined,this.mcpOAuth),secrets,this.terminal,this.fileOperations,this.editor,new PluginFiles(new Plugins(this.admin)));
+  this.previewRunner=new CodexDraftPreview(this.admin,providers,path.join(nativeDirectory,'draft-previews'),path.dirname(path.dirname(terminalScript)),(owner,event)=>this.emitPreview(owner,event),owner=>this.previewGuard(owner),new DraftPreviewExecution(this.files,this.tools),this.pluginSkills);
+  this.previews=new AgentDraftPreviews(new PostgresAgentDraftPreviews(this.admin),this.previewRunner,(owner,input)=>this.previewGuard(owner,input),(owner,selected,input)=>this.previewModels(owner,selected,input),(_user,input)=>!this.closing&&!this.signedOut&&!this.backingUp&&!this.scopeChanging&&this.executionUsed({kind:'preview',id:input.requestId})<8,(owner,row)=>this.emitOwned(owner,{kind:'agent-draft-preview',requestId:row.id,preview:{sessionId:row.conversation_id,status:row.status}}),owner=>this.previewReleased(owner));
   this.tools.agentDocuments=this.agentDocuments;
   this.tools.validateExecution=async(user,request)=>{await this.validateScheduledContext(user,request);if(request.agent_documents)await this.agentDocuments.validate(user.id,request.agent_documents);};
   this.tools.remote!.composio=this.composio;
@@ -190,7 +279,7 @@ export class Broker {
   this.tools.deliverChat=(owner,row,signal)=>this.deliveryQueue.submit(owner,row,signal);
   this.nativeChanges=new NativeChangeReviewService(this.admin,workspace,this.editor,this.native,(owner,requestId,conversationId)=>this.emitOwned(owner,{kind:'native-changes',requestId,conversationId}),path.join(path.dirname(terminalScript),'file-actions.ps1'));
   this.agentReports=new AgentReportQueue(secrets,(owner,conversation,parent)=>this.queueAvailable(owner,conversation)&&!this.chatQueue.list(owner,conversation).length&&this.native.namedReportAvailable(owner,parent),(owner,rows,id,signal)=>this.launchAgentReport(owner,rows,id,signal),(owner,conversation)=>this.reportQueueChanged(owner,conversation));
-  this.assignments=new AgentAssignments(this.admin,this.tools.agents,()=>!this.closing&&!this.signedOut&&!this.backingUp&&!this.scopeChanging&&!this.agentMutations.size&&this.native.freeWorkers>0&&this.active.size+this.startingChats.size+this.assignments.preparing<8,(record,instance,context,accepted)=>this.launchNamedAgent(record,instance,context,accepted),record=>this.completeNamedReport(record));
+  this.assignments=new AgentAssignments(this.admin,this.tools.agents,()=>!this.closing&&!this.signedOut&&!this.backingUp&&!this.scopeChanging&&!this.agentMutations.size&&this.executionUsed()<8,(record,instance,context,accepted)=>this.launchNamedAgent(record,instance,context,accepted),record=>this.completeNamedReport(record));
   this.tools.agents.invoke=async(...args)=>{const result=await this.assignments.invoke(...args);if(args[7].harness!=='legacy'&&['queued','ready','running','awaiting_approval'].includes(result.instance.status)){try{await this.native.registerNamedAssignment(args[0],args[6].id,result.invocation_id,result.instance.id);await this.agentReports.watch(args[0],{childRequestId:result.invocation_id,childInstanceId:result.instance.id,parentRequestId:args[6].id,parentConversationId:args[1].instance.conversation_id});await this.completeNamedReport({user_id:args[0],request_id:result.invocation_id} as NamedInvocation);}catch{this.emitOwned(args[0],{kind:'agent',requestId:result.invocation_id,conversationId:result.instance.conversation_id});return {...result,notice:'The specialist assignment is saved, but automatic reporting could not be registered. Inspect instance '+result.instance.id+' with read_agent_instance before starting another assignment.'};}}this.emitOwned(args[0],{kind:'agent',requestId:result.invocation_id,conversationId:result.instance.conversation_id});return args[7].harness==='legacy'?{...result,notice:'This compatibility harness requires reading the specialist result explicitly. Automatic reports use the Codex harness.'}:result;};
   const scheduleStore=new PostgresScheduledTasks(this.admin);
   this.scheduledWorkspaces=new ScheduledWorkspaces(secrets,this.files,scheduledWorkspaceDirectory(nativeDirectory,this.chatFiles.outputDirectory));
@@ -213,7 +302,7 @@ export class Broker {
   return new ScheduledWorkspaceMaintenance(secrets,workspaces,path.join(directory,'scheduled-recovery'),{
    guard:owner=>this.attachmentOwner(owner),busy:()=>this.storageBusy(),exclusive:work=>this.backup(work,'storage cleanup'),withFiles:(owner,paths,work)=>this.editor.fileOperation(owner,paths,work),
    state:(owner,journal)=>this.scheduledWorkspaceState(owner,journal),references:owner=>this.files.list(owner),
-   forget:async(owner,root)=>{for(const ref of this.files.list(owner)){const relative=path.relative(root,ref.path);if(ref.source!=='clipboard'&&(relative===''||relative!=='..'&&!relative.startsWith('..'+path.sep)&&!path.isAbsolute(relative))){await this.attachmentOwner(owner);await this.files.remove(owner,ref.id);}}},
+   forget:async(owner,root)=>{for(const ref of this.files.list(owner)){const relative=path.relative(root,ref.path);if(ref.source!=='clipboard'&&(relative===''||relative!=='..'&&!relative.startsWith('..'+path.sep)&&!path.isAbsolute(relative))){await this.attachmentOwner(owner);await this.forgetPreviewFile(owner,ref.id);}}},
    attach:async(owner,root,guard)=>{const result=await this.files.attach(owner,[{path:root}],guard);return result.selected[0];},
    reveal:async root=>{const problem=await shell.openPath(root);if(problem)throw Error(problem);}
   });
@@ -228,7 +317,7 @@ export class Broker {
  private async attachmentOwner(owner:string){if(this.closing||this.signedOut||(await this.identity()).id!==owner)throw new Error('Your account changed while attachments were being prepared.');}
  async attach(owner:unknown,items:AttachmentInput[]){const expected=uuid(owner),guard=async()=>{if(this.backingUp)throw Error('Wait for workspace backup or maintenance before adding attachments.');await this.attachmentOwner(expected);};await guard();const result=await this.files.attach(expected,items,guard);await guard();return result;}
  async initialize(){
-  await this.native.recover();await this.nativeChanges.recover();await this.assignments.recover();
+  await this.native.recover();await this.previews.recover();await this.nativeChanges.recover();await this.assignments.recover();
   await this.terminal.recover();
   await this.fileOperations.recover();
   const restoredSession=await this.sessionPersistence.restore(this.auth.auth);
@@ -272,7 +361,15 @@ export class Broker {
   }catch(error){if(error instanceof WorkspaceImportPending)this.recoveryPendingOwners.add(current.id);throw error;}finally{this.identityRecoveryOwners.delete(current.id);}
  }
  private async requireAdmin(){const user=await this.identity();if(!user.admin)throw new Error('Administrator access is required.');return user;}
+ private async editorDraftCall(action:string,args:Record<string,unknown>){
+  if(!['editorDrafts.read','editorDrafts.write','editorDrafts.list','editorRecovery.list','editorRecovery.read','editorRecovery.capture','editorRecovery.retire'].includes(action))throw Error('Unsupported agent draft operation.');
+  const owner=this.currentOwner;if(!owner||args.owner!==owner||this.closing||this.signedOut)throw Error('This saved draft belongs to another account.');
+  const guard=async()=>{if(this.closing||this.signedOut||this.currentOwner!==owner||this.backingUp||this.scopeChanging)throw Error('Wait until the same account is ready before saving or reading its draft.');await this.attachmentOwner(owner);if(this.currentOwner!==owner||this.backingUp||this.closing||this.signedOut)throw Error('The draft account or maintenance state changed.');};
+  if(this.backingUp||this.scopeChanging)throw Error('Wait for maintenance before saving an agent draft.');this.editorDraftControls++;
+  try{const user=await this.identity();if(user.id!==owner)throw Error('Your draft account changed.');await guard();const result=action==='editorRecovery.retire'?await this.journalRecovery.retire(owner,args.input,this.editorDrafts,guard):action==='editorRecovery.list'?await this.journalRecovery.list(owner,args.before,guard):action==='editorRecovery.read'?await this.journalRecovery.read(owner,args.id,guard):action==='editorRecovery.capture'?await this.journalRecovery.capture(owner,args.entries,guard):action==='editorDrafts.write'?await this.editorDrafts.write(owner,args.input,guard):action==='editorDrafts.list'?await this.editorDrafts.list(owner):await this.editorDrafts.read(owner,args.scope);await guard();return result;}finally{this.editorDraftControls--;}
+ }
  async call(action:string,args:Record<string,unknown>={}):Promise<any>{
+  if(action.startsWith('editorDrafts.')||action.startsWith('editorRecovery.'))return this.editorDraftCall(action,args);
   if(action.startsWith('recovery.workspaces.')){
    const user=await this.authenticate();if(args.owner!==user.id)throw Error('This workspace recovery belongs to another account.');const guard=async()=>{const latest=await this.authenticate();if(this.closing||latest.id!==user.id)throw Error('Your recovery account changed.');};
    if(action==='recovery.workspaces.status')return this.recoveredWorkspaces.status(user.id,user.email,guard);
@@ -303,8 +400,9 @@ export class Broker {
   }
   if(action==='auth.signIn'){
    this.sessionPersistence.suspend();
-   this.closing=true;this.mcpOAuth.cancel();this.goalQueue.changed();this.workspaceMonitor.close();
+   this.closing=true;this.previewAdmissions?.cancel();this.mcpOAuth.cancel();await this.mcpOAuth.cancelAndWait?.(()=>true);await this.mcpOAuth.handoffs?.settled();this.goalQueue.changed();this.workspaceMonitor.close();
    if(this.currentOwner){await this.scheduled.accountChanged(this.currentOwner);await this.scheduledQueue.closeOwner(this.currentOwner);}
+   if(this.currentOwner)await this.previews.stopOwner(this.currentOwner);
    if(this.currentOwner)await this.fileOperations.stopOwner(this.currentOwner);
    for(const request of this.active.values())request.controller.abort();
    if(this.currentOwner)await this.terminal.cancelOwner(this.currentOwner);
@@ -324,8 +422,9 @@ export class Broker {
   }
   if(action==='auth.signOut'){
    this.sessionPersistence.suspend();
-   this.closing=true;this.mcpOAuth.cancel();this.workspaceMonitor.close();
+   this.closing=true;this.previewAdmissions?.cancel();this.mcpOAuth.cancel();await this.mcpOAuth.cancelAndWait?.(()=>true);await this.mcpOAuth.handoffs?.settled();this.workspaceMonitor.close();
    if(this.currentOwner){await this.scheduled.accountChanged(this.currentOwner);await this.scheduledQueue.closeOwner(this.currentOwner);}
+   if(this.currentOwner)await this.previews.stopOwner(this.currentOwner);
    if(this.currentOwner)await this.fileOperations.stopOwner(this.currentOwner);
    for(const request of this.active.values())request.controller.abort();
    if(this.currentOwner)await this.terminal.cancelOwner(this.currentOwner);
@@ -339,10 +438,36 @@ export class Broker {
    await Promise.allSettled([...this.active.values()].map(r=>r.done));
    try{await this.auth.auth.signOut();}catch{}finally{await this.secrets.set('session',undefined);}return;
   }
+  if(action==='agentDraftPreview.start')return this.startPreview(args);
+  if(action==='agentDraftPreview.skills')return this.previewSkills(args);
+  if(action==='agentDraftPreview.skills.stop'){if(!this.currentOwner||args.owner!==this.currentOwner)throw Error('This discovery belongs to another account.');this.previewAdmissions.stopSkills(this.currentOwner,uuid(args.sessionId),uuid(args.requestId));return;}
   if(action==='chat.start')return this.startChat(()=>this.identity(),args);
   if(action.startsWith('workspace.editor.')){if(this.storageCleanup)throw Error('Wait for workspace maintenance before changing local file drafts.');const generation=this.editor.generation,user=await this.identity();return this.editor.call(action,args,user.id,async()=>{if(this.storageCleanup)throw Error('Wait for workspace maintenance before changing local file drafts.');await this.attachmentOwner(user.id);},generation);}
   const user=await this.identity();
   if(this.backingUp)throw new Error(this.storageCleanup?'Wait for storage cleanup to finish before changing or reloading application data.':'Wait for the workspace backup to finish before changing or reloading application data.');
+  if(action.startsWith('agentDraftPreview.'))return this.previewCall(user,action,args);
+  if(action.startsWith('creationTools.')){
+   if(args.owner!==user.id)throw Error('This draft app selection belongs to another account.');const creation=uuid(['creationTools.write','creationTools.retire'].includes(action)?(args.input as any)?.creationId:args.creationId).toLowerCase();this.nativeControls++;
+   const guard=async()=>{await this.attachmentOwner(user.id);if(this.closing||this.signedOut||this.currentOwner!==user.id||this.backingUp||this.scopeChanging)throw Error('Wait until your account and workspace are ready before changing draft apps.');};
+   try{await guard();if(action==='creationTools.retirement'){const result=await this.creationTools.retirement(user.id,creation);await guard();return result;}
+    if(action==='creationTools.retire'){const input=creationRetireInput(args.input);return await this.mutatePreviewScope('creation-tools:'+user.id+':'+creation,{owner:user.id,creationId:creation},()=>this.mcpOAuth.handoffs.retire(user.id,creation,guard,async()=>{await guard();const result=await this.creationTools.retire(user.id,input);await guard();return result;}));}
+    if(action==='creationTools.connections'||action.startsWith('creationTools.connection.')){
+     if(!Number.isSafeInteger(args.revision)||Number(args.revision)<1)throw Error('Choose the confirmed creation app revision.');const revision=Number(args.revision),operations=this.creationSetupOperations??=new CreationSetupOperations();
+     if(action==='creationTools.connection.start'||action==='creationTools.connection.cancel'){const identity={owner:user.id,creationId:creation,revision,connectionId:uuid(args.connectionId).toLowerCase(),operationId:uuid(args.operationId).toLowerCase()};if(action.endsWith('.cancel')){const result=await operations.cancel(identity);await guard();return result;}
+      return await operations.start(identity,async(scope,choice,signal)=>{const stop=()=>this.mcpOAuth.cancel(scope);signal.addEventListener('abort',stop,{once:true});try{signal.throwIfAborted();return await this.remoteConnectionChange(user.id,{creationId:creation,connectionId:'mcp:'+identity.connectionId},async()=>{await guard();signal.throwIfAborted();const result=choice.mode==='resume'?await this.mcpOAuth.resumeCreationAuthorization(scope):await this.mcpOAuth.connect(scope,{clientId:choice.clientId,clientMetadataUrl:choice.clientMetadataUrl});await guard();return result;});}finally{signal.removeEventListener('abort',stop);}});
+     }
+     const principal=await this.tools.remote!.creationPrincipal(user.id,creation,revision),rows=await this.mcpOAuth.creationConnections(user.id,principal);await guard();if(action==='creationTools.connections')return rows;
+     if(action==='creationTools.connection.disconnect'){const connection=uuid(args.connectionId).toLowerCase();if(!rows.some(row=>row.id===connection&&row.auth!=='none'))throw Error('Choose this creation’s reviewed browser connection.');await this.remoteConnectionChange(user.id,{creationId:creation,connectionId:'mcp:'+connection},()=>this.mcpOAuth.disconnect({owner:user.id,creation:principal,connection}));await guard();return;}
+     if(action==='creationTools.connection.begin'){const connection=uuid(args.connectionId).toLowerCase(),row=rows.find(row=>row.id===connection);if(!row||row.auth==='none')throw Error('Choose this creation’s reviewed browser connection.');if(args.mode!=='connect'&&args.mode!=='resume')throw Error('Choose Connect or Resume.');if(args.mode==='resume'&&row.state!=='resume')throw Error('This connection has no resumable sign-in. Choose Connect again.');const clientId=args.clientId===undefined?undefined:text(args.clientId,2048).trim(),clientMetadataUrl=args.clientMetadataUrl===undefined?undefined:text(args.clientMetadataUrl,2048).trim();if(clientId&&clientMetadataUrl)throw Error('Choose one public client registration method.');if(row.client?.mode==='provided'&&(clientMetadataUrl||clientId&&clientId!==row.client.clientId)||row.client?.mode==='dcr'&&(clientId||clientMetadataUrl)||row.client?.mode==='cimd'&&clientId)throw Error('Use the public client registration declared by this app.');if(args.mode==='connect'&&row.client?.mode==='cimd'&&!clientMetadataUrl)throw Error('Enter the app’s public client metadata document URL.');return operations.reserve({owner:user.id,creation:principal,connection},{mode:args.mode,clientId,clientMetadataUrl});}
+     throw Error('Unknown creation connection operation.');
+    }
+    if(action==='creationTools.sources'){if(!Number.isSafeInteger(args.revision)||Number(args.revision)<1)throw Error('Choose the confirmed creation app revision.');const principal=await this.tools.remote!.creationPrincipal(user.id,creation,Number(args.revision)),result=await this.tools.remote!.sources(user.id,principal);await guard();return result;}
+    if(action==='creationTools.read'){const result=await this.creationTools.read(user.id,creation);await guard();return result;}
+    if(action==='creationTools.catalog'){const registry=new Plugins(this.admin,()=>this.imageConnections.configured(user.id)),plugins=await registry.list(user);await guard();const scope=await this.creationTools.read(user.id,creation);await guard();const retirement=await this.creationTools.retirement(user.id,creation);await guard();return {scope,retirement,plugins:plugins.filter(row=>row.bundled||row.updatable).map(({name,version,description,digest,enabled,configured,kind})=>({name,version,description,digest,enabled,configured,kind}))};}
+    if(action==='creationTools.write'){const input=creationToolWrite(args.input),old=await this.creationTools.read(user.id,creation);await guard();if(old?.writeId===input.writeId){const result=await this.creationTools.write(user.id,input);await guard();return result;}return await this.mutatePreviewScope('creation-tools:'+user.id+':'+creation,{owner:user.id,creationId:creation},()=>this.mcpOAuth.handoffs.mutate(user.id,creation,guard,async()=>{await guard();const result=await this.creationTools.write(user.id,input);await guard();return result;}));}
+    throw Error('Unknown draft app operation.');
+   }finally{this.nativeControls--;}
+  }
   if(action.startsWith('tasks.workspaces.')){
    if(args.owner!==user.id)throw Error('These retained workspaces belong to another account.');
    const owner=user.id;
@@ -403,11 +528,11 @@ export class Broker {
    if(this.backingUp)throw new Error('Wait for the backup to finish before controlling background agents.');
    const requestId=uuid(args.requestId),threadId=uuid(args.threadId),operation=String(args.action);if(!['send','cancel','retry-report'].includes(operation))throw new Error('Choose a child control.');
    this.nativeControls++;try{
-    await this.restoreNativeContext(user,requestId);
-    return await this.native.control(user.id,requestId,threadId,operation,String(args.turnId??''),operation==='send'?text(args.text,100000):'',uuid(args.id));
+    const work=async()=>{await this.restoreNativeContext(user,requestId);return this.native.control(user.id,requestId,threadId,operation,String(args.turnId??''),operation==='send'?text(args.text,100000):'',uuid(args.id));};
+    return operation==='cancel'&&this.native.hasContext(user.id,requestId)?await work():await this.withNativeSlot(requestId,work);
    }finally{this.nativeControls--;}
   }
-  if(action==='native.skills'){if(this.backingUp)throw new Error('Wait for the workspace backup to finish before discovering skills.');const options=chatOptions(args.options),agent=must(await this.admin.from('agents').select('id,agent_llm_preferences(provider,model)').eq('id',uuid(args.agentId)).eq('user_id',user.id).single()) as any,pref=Array.isArray(agent.agent_llm_preferences)?agent.agent_llm_preferences[0]:agent.agent_llm_preferences;const references=options.files.map(id=>{const ref=this.files.list(user.id).find(r=>r.id===id);if(!ref)throw new Error('An attached reference is unavailable.');return ref;});return this.native.skills(user,provider(options.provider??pref.provider),options.model??pref.model,references,options,agent.id);}
+  if(action==='native.skills'){if(this.backingUp)throw new Error('Wait for the workspace backup to finish before discovering skills.');const reservation='skills:'+crypto.randomUUID();return this.withNativeSlot(reservation,async()=>{this.nativeControls++;try{const options=chatOptions(args.options),agent=must(await this.admin.from('agents').select('id,agent_llm_preferences(provider,model)').eq('id',uuid(args.agentId)).eq('user_id',user.id).single()) as any,pref=Array.isArray(agent.agent_llm_preferences)?agent.agent_llm_preferences[0]:agent.agent_llm_preferences;const references=options.files.map(id=>{const ref=this.files.list(user.id).find(r=>r.id===id);if(!ref)throw new Error('An attached reference is unavailable.');return ref;});await this.attachmentOwner(user.id);if(this.backingUp)throw Error('Wait for workspace maintenance before discovering skills.');return await this.native.skills(user,provider(options.provider??pref.provider),options.model??pref.model,references,options,agent.id,reservation);}finally{this.nativeControls--;}});}
   if(action.startsWith('navigation.'))return new DesktopLocations(this.admin,this.secrets).call(action,args,user.id,()=>this.attachmentOwner(user.id));
   if(action.startsWith('workspace.operations.')){
    if(args.owner!==user.id)throw new Error('These file operations belong to another account.');const guard=()=>this.attachmentOwner(user.id);
@@ -439,7 +564,7 @@ export class Broker {
    if(action==='terminal.session.input')return this.terminal.sessions.input(user,uuid(args.id),args.input);
    if(action==='terminal.session.resize')return this.terminal.sessions.resize(user,uuid(args.id),args.columns,args.rows);
    if(action==='terminal.session.stop'){const id=uuid(args.id);await this.terminal.sessions.get(user,id);for(const request of this.terminal.sessions.requestIds(id))this.active.get(request)?.controller.abort();return this.terminal.sessions.stop(user,id);}
-   if(action==='terminal.revoke'){await this.native.stopOwner(user.id);for(const request of this.active.values())if(request.userId===user.id)request.controller.abort();const result=await this.terminal.revoke(user);const composer=this.secrets.get<ChatOptions>('composer:'+user.id);if(composer?.permission==='full')await this.secrets.set('composer:'+user.id,{...composer,permission:'ask'});for(const request of this.active.values())if(request.userId===user.id)request.controller.abort();return result;}
+   if(action==='terminal.revoke')return this.mutatePreviewScope('owner:'+user.id,{owner:user.id},async()=>{await this.native.stopOwner(user.id);for(const request of this.active.values())if(request.userId===user.id)request.controller.abort();const result=await this.terminal.revoke(user);const composer=this.secrets.get<ChatOptions>('composer:'+user.id);if(composer?.permission==='full')await this.secrets.set('composer:'+user.id,{...composer,permission:'ask'});for(const request of this.active.values())if(request.userId===user.id)request.controller.abort();return result;});
    if(action==='terminal.list')return this.terminal.list(user,args.conversationId);
    if(action==='terminal.get')return this.terminal.get(user,uuid(args.id));
    if(action==='terminal.cancel'){const requestId=await this.terminal.cancel(user,uuid(args.id));const running=requestId?this.active.get(requestId):undefined;if(running?.userId===user.id)running.controller.abort();return;}
@@ -468,7 +593,7 @@ export class Broker {
   if(action.startsWith('native.changes.')){if(args.owner!==user.id)throw new Error('These native file changes belong to another account.');const guard=()=>this.attachmentOwner(user.id);if(action==='native.changes.location'){const row=must(await this.admin.from('desktop_requests').select('conversation_id,assistant_message_id').eq('id',uuid(args.requestId)).eq('user_id',user.id).single());await guard();return row;}if(action==='native.changes.prepare')return this.nativeChanges.prepare(user.id,uuid(args.requestId),guard);if(action==='native.changes.status'){const rows=await this.nativeChanges.statuses(user.id,uuid(args.requestId));await guard();return rows;}if(action==='native.changes.undo')return this.nativeChanges.undo(user.id,uuid(args.id),guard);throw new Error('Unsupported native file review operation.');}
   if(action.startsWith('composio.')){
    if(action==='composio.status')return this.composio.status(user.id);
-   this.nativeControls++;let before:string|undefined;try{
+   const work=async()=>{this.nativeControls++;let before:string|undefined;try{
     before=JSON.stringify(await this.composio.status(user.id));let result;
     if(action==='composio.catalog')return await this.composio.catalog(user.id,{search:args.search===undefined?'':text(args.search,300),category:args.category===undefined?undefined:text(args.category,200),cursor:args.cursor===undefined?undefined:text(args.cursor,4000)});
     if(action==='composio.categories')return await this.composio.categories(user.id);
@@ -483,7 +608,8 @@ export class Broker {
     else if(action==='composio.agent.assign')result=await this.composio.assignAgent(user.id,uuid(args.id),uuid(args.agentId),args.enabled);
     else throw Error('Unsupported Composio operation.');
     return result;
-   }finally{try{if(before!==undefined){let after:string|undefined;try{after=JSON.stringify(await this.composio.status(user.id));}catch{/* Account shutdown already closes its workers. */}if(after!==undefined&&before!==after){const affected=composioInvalidatedAgents(action,JSON.parse(before),JSON.parse(after),typeof args.agentId==='string'?args.agentId:undefined);if(affected===null)await this.native.pluginsChanged(user.id,'composio');else await Promise.all(affected.map(agent=>this.native.pluginsChanged(user.id,'composio',agent)));}}}finally{this.nativeControls--;}}
+   }finally{try{if(before!==undefined){let after:string|undefined;try{after=JSON.stringify(await this.composio.status(user.id));}catch{/* Account shutdown already closes its workers. */}if(after!==undefined&&before!==after){const affected=composioInvalidatedAgents(action,JSON.parse(before),JSON.parse(after),typeof args.agentId==='string'?args.agentId:undefined);if(affected===null)await this.native.pluginsChanged(user.id,'composio');else await Promise.all(affected.map(agent=>this.native.pluginsChanged(user.id,'composio',agent)));}}}finally{this.nativeControls--;}}};
+   if(['composio.configure','composio.project.remove','composio.connect','composio.refresh','composio.cancel','composio.disconnect','composio.assign','composio.agent.assign'].includes(action)){const project=['composio.configure','composio.project.remove'].includes(action),connectionId=project?undefined:'mcp:'+uuid(args.id??args.reconnectId??crypto.randomUUID());return this.remoteConnectionChange(user.id,{...(action==='composio.agent.assign'?{agentId:uuid(args.agentId)}:{}),connectionId,...(project?{plugin:'composio'}:{})},work);}return work();
   }
   if(action.startsWith('images.')){
    if(action==='images.connection.status')return this.imageConnections.status(user.id);
@@ -501,13 +627,19 @@ export class Broker {
    }finally{this.nativeControls--;}
   }
   if(action==='plugins.pickPackage'){const {pickPluginSource}=await import('./plugin-picker');const imported=await pickPluginSource(args.kind,()=>this.attachmentOwner(user.id),file=>checkPluginSourcePath(file,this.files));return imported?{...imported,skills:imported.package.files?await this.pluginSkills.validatePackage(user.id,imported.package,()=>this.attachmentOwner(user.id)):[]}:null;}
-  if(action.startsWith('plugins.')){const registry=new Plugins(this.admin,()=>this.imageConnections.configured(user.id));if(action==='plugins.validate'||action==='plugins.reviewUpdate'){const reviewed=await registry.call(action,args,user);return {...reviewed,skills:reviewed.package.files?await this.pluginSkills.validatePackage(user.id,reviewed.package,()=>this.attachmentOwner(user.id)):[]};}if(action==='plugins.install'||action==='plugins.update'){const reviewed=await registry.call(action==='plugins.update'?'plugins.reviewUpdate':'plugins.validate',args,user);if(args.digest!==reviewed.digest)throw new Error('Validate and review this exact package before installing.');if(reviewed.package.files)await this.pluginSkills.validatePackage(user.id,reviewed.package,()=>this.attachmentOwner(user.id));}const result=await registry.call(action,args,user);if(['plugins.enable','plugins.assign','plugins.remove','plugins.update'].includes(action)){await this.native.pluginsChanged(user.id,String(args.name),action==='plugins.assign'?String(args.agentId):undefined);if(action==='plugins.remove'||action==='plugins.update')await this.pluginSkills.removeCached(user.id,String(args.name),action==='plugins.update'?String(result.digest):undefined);}return result;}
+  if(action.startsWith('plugins.')){
+   const registry=new Plugins(this.admin,()=>this.imageConnections.configured(user.id));
+   if(action==='plugins.validate'||action==='plugins.reviewUpdate'){const reviewed=await registry.call(action,args,user);return {...reviewed,skills:reviewed.package.files?await this.pluginSkills.validatePackage(user.id,reviewed.package,()=>this.attachmentOwner(user.id)):[]};}
+   const prepare=async()=>{if(action==='plugins.install'||action==='plugins.update'){const reviewed=await registry.call(action==='plugins.update'?'plugins.reviewUpdate':'plugins.validate',args,user);if(args.digest!==reviewed.digest)throw new Error('Validate and review this exact package before installing.');if(reviewed.package.files)await this.pluginSkills.validatePackage(user.id,reviewed.package,()=>this.attachmentOwner(user.id));}};
+   const work=async()=>{const result=await registry.call(action,args,user);if(['plugins.enable','plugins.assign','plugins.remove','plugins.update'].includes(action)){await this.native.pluginsChanged(user.id,String(args.name),action==='plugins.assign'?String(args.agentId):undefined);await this.previewRunner.native.pluginsChanged(user.id,String(args.name),action==='plugins.assign'?String(args.agentId):undefined);if(action==='plugins.remove'||action==='plugins.update')await this.pluginSkills.removeCached(user.id,String(args.name),action==='plugins.update'?String(result.digest):undefined);}return result;};
+   if(['plugins.enable','plugins.assign','plugins.remove','plugins.update'].includes(action))return this.mutatePreviewPlugin(user,action,args,prepare,work);await prepare();return work();
+  }
   if(action.startsWith('agentSettings.mcp.oauth.')){
    if(this.backingUp||this.closing)throw Error('Wait until Agentopia is ready before changing MCP sign-in.');
    const scope={owner:user.id,agent:uuid(args.agentId),connection:uuid(args.id)};
    if(action==='agentSettings.mcp.oauth.cancel'){this.mcpOAuth.cancel(scope);return;}
-   if(action==='agentSettings.mcp.oauth.disconnect')return this.mcpOAuth.disconnect(scope);
-   if(action==='agentSettings.mcp.oauth.connect')return this.mcpOAuth.connect(scope,{clientId:args.clientId===undefined?undefined:text(args.clientId),clientMetadataUrl:args.clientMetadataUrl===undefined?undefined:text(args.clientMetadataUrl)});
+   if(action==='agentSettings.mcp.oauth.disconnect')return this.remoteConnectionChange(user.id,{agentId:scope.agent,connectionId:'mcp:'+scope.connection},()=>this.mcpOAuth.disconnect(scope));
+   if(action==='agentSettings.mcp.oauth.connect')return this.remoteConnectionChange(user.id,{agentId:scope.agent,connectionId:'mcp:'+scope.connection},()=>this.mcpOAuth.connect(scope,{clientId:args.clientId===undefined?undefined:text(args.clientId),clientMetadataUrl:args.clientMetadataUrl===undefined?undefined:text(args.clientMetadataUrl)}));
    throw Error('Unsupported MCP sign-in operation.');
   }
   if(action.startsWith('agents.presentation.')){
@@ -537,11 +669,12 @@ export class Broker {
   }
   if(action.startsWith('settings.')||action.startsWith('agentSettings.')){
    const changedMcp=['agentSettings.mcp.save','agentSettings.mcp.remove','agentSettings.mcp.enable'].includes(action)&&args.id?{owner:user.id,agent:uuid(args.agentId),connection:uuid(args.id)}:undefined;
-   if(changedMcp)this.mcpOAuth.cancel(changedMcp);
+   const work=async()=>{if(changedMcp)this.mcpOAuth.cancel(changedMcp);
    const result=await new ProjectSettings(this.admin).call(action,args,user);
    if(changedMcp&&action!=='agentSettings.mcp.enable'&&(action==='agentSettings.mcp.remove'||args.url||args.token||args.clearToken===true))await this.mcpOAuth.disconnect(changedMcp);
    if(action==='agentSettings.get')result.mcp=await Promise.all(result.mcp.map(async(row:any)=>({...row,hasOAuth:await this.mcpOAuth.status({owner:user.id,agent:uuid(args.agentId),connection:row.id})})));
-   return result;
+   return result;};
+   if(['agentSettings.mcp.save','agentSettings.mcp.remove','agentSettings.mcp.enable'].includes(action)||action==='agentSettings.save'&&args.section==='capabilities')return this.remoteConnectionChange(user.id,{agentId:uuid(args.agentId),connectionId:action==='agentSettings.save'?'web_search':'mcp:'+uuid(args.id??crypto.randomUUID())},work);return work();
   }
   switch(action){
    case 'voice.preferences.get':return this.secrets.get('voice-preferences:'+user.id)??{...defaultVoicePreferences};
@@ -556,11 +689,11 @@ export class Broker {
    case 'files.list':await this.files.recover(user.id);return this.files.list(user.id);
    case 'files.preview':{const preview=await this.files.preview(user.id,uuid(args.id));await this.attachmentOwner(user.id);return preview;}
    case 'files.pick':if(args.kind!=='file'&&args.kind!=='folder')throw new Error('Choose files or a folder.');return this.files.pick(user.id,args.kind,()=>this.attachmentOwner(user.id));
-   case 'files.remove':return this.files.remove(user.id,uuid(args.id));
+   case 'files.remove':return this.forgetPreviewFile(user.id,uuid(args.id));
    case 'tools.catalog':return this.tools.remote!.sources(user.id,uuid(args.agentId));
    case 'tools.inspect':return this.tools.remote!.inspect(user.id,uuid(args.agentId),uuid(args.connectionId),AbortSignal.timeout(45000));
    case 'tools.decide':if(typeof args.approved!=='boolean'||args.rememberChatPair!==undefined&&typeof args.rememberChatPair!=='boolean')throw new Error('Choose whether to approve this operation.');return this.tools.decide(user.id,uuid(args.id),args.approved,args.rememberChatPair===true);
-   case 'tools.revert':return this.native.quietFiles(user.id,()=>this.tools.revert(user.id,uuid(args.id)));
+   case 'tools.revert':return this.native.quietFiles(user.id,()=>this.previewRunner.native.quietFiles(user.id,()=>this.tools.revert(user.id,uuid(args.id))));
    case 'plans.get':if(args.owner!==user.id)throw new Error('This plan belongs to another account.');return this.tools.planning.get(user.id,uuid(args.conversationId));
    case 'plans.open':if(args.owner!==user.id)throw new Error('This plan belongs to another account.');return this.tools.planning.byId(user.id,uuid(args.id));
    case 'plans.history':if(args.owner!==user.id)throw new Error('This plan belongs to another account.');return this.tools.planning.history(user.id,uuid(args.id));
@@ -636,16 +769,28 @@ export class Broker {
     for(const operation of starting){operation.cancelled=true;operation.controller.abort();}for(const record of running)record.controller.abort();await this.native.stopInstance(user.id,id);await Promise.allSettled(running.map(record=>record.done));this.emitOwned(user.id,{kind:'agent',requestId:instance.request_id??'',conversationId:undefined});return;
    }
    case 'conversations.agent':return must(await this.admin.rpc('desktop_select_chat_agent',{p_user:user.id,p_conversation:uuid(args.conversationId),p_agent:uuid(args.agentId)}));
+   case 'agents.creation.inspect':{
+    if(args.owner!==user.id)throw Error('This creation draft belongs to another account.');const creation=uuid(args.creationId);this.nativeControls++;
+    try{await this.attachmentOwner(user.id);const row=must(await this.admin.from('agents').select('id').eq('user_id',user.id).contains('metadata',{desktop_creation_id:creation}).maybeSingle());await this.attachmentOwner(user.id);return row?{agentId:uuid(row.id)}:null;}finally{this.nativeControls--;}
+   }
+   case 'agents.creation.finish':{
+    if(args.owner!==user.id)throw Error('This creation belongs to another account.');const creation=uuid(args.creationId).toLowerCase(),guard=async()=>{await this.attachmentOwner(user.id);if(this.backingUp||this.closing||this.signedOut||this.scopeChanging)throw Error('Wait until your account and workspace are ready before finishing this agent.');};this.nativeControls++;
+    try{return await this.mutatePreviewScope('creation-tools:'+user.id+':'+creation,{owner:user.id,creationId:creation},()=>this.mcpOAuth.handoffs.finish(user.id,creation,guard));}finally{this.nativeControls--;}
+   }
    case 'agents.save':{
-    const guard=async()=>{if(this.backingUp||this.closing)throw Error('Wait until Agentopia is ready before saving an agent.');await this.attachmentOwner(user.id);};this.nativeControls++;
+    const guard=async()=>{if(this.backingUp||this.closing||this.signedOut||this.scopeChanging||this.changingPreviewScopes?.has('plugin-mutation:'+user.id)||this.changingPreviewScopes?.has('provider:'+args.provider)||this.changingPreviewScopes?.has('provider:'+user.id+':'+args.provider))throw Error('Wait until Agentopia is ready before saving an agent.');await this.attachmentOwner(user.id);};this.nativeControls++;
     try{
      await guard();const selectedProvider=provider(args.provider),model=text(args.model,200),id=args.id?uuid(args.id):null;
      if(args.presentation!==undefined&&(id||args.owner!==user.id))throw Error('This creation draft belongs to another account or an already saved agent.');
-     const creation=args.presentation===undefined?null:{id:uuid(args.creationId),...await this.presentation.creation(user.id,args.presentation,guard)};
+     const creation=args.presentation===undefined?null:{id:uuid(args.creationId).toLowerCase(),...await this.presentation.creation(user.id,args.presentation,guard)};
+     if(args.behavior!==undefined&&!creation)throw Error('Custom creation behavior requires a new owned creation draft.');const behavior=args.behavior===undefined?undefined:agentDraftBehavior(args.behavior);
+     if(args.creationToolRevision!==undefined&&(!creation||!Number.isSafeInteger(args.creationToolRevision)||Number(args.creationToolRevision)<1))throw Error('Choose an owned creation and its confirmed app selection revision.');
+     const toolScope=creation?await this.creationTools.read(user.id,creation.id):null;await guard();if((toolScope?.revision)!==args.creationToolRevision)throw Error('The draft app selection changed. Refresh it before saving the agent.');
+     if(creation)await this.creationTools.active(user.id,creation.id);if(toolScope&&!toolScope.boundAgentId)await this.creationTools.validate(user.id,toolScope.grants);await guard();
      let allowed=false;
      if(id){const old=must(await this.admin.from('agents').select('agent_llm_preferences(provider,model)').eq('id',id).eq('user_id',user.id).single()) as any;const pref=Array.isArray(old.agent_llm_preferences)?old.agent_llm_preferences[0]:old.agent_llm_preferences;allowed=pref?.provider===selectedProvider&&pref?.model===model;}
      if(!allowed){const models=await this.catalog(selectedProvider,user.id);if(!models.some((m:any)=>m.id===model))throw new Error('Select an available provider model.');}
-     await guard();const save=async()=>{await guard();const common={p_user:user.id,p_name:text(args.name,100),p_description:text(args.description,4000),p_instructions:text(args.instructions,100000),p_provider:selectedProvider,p_model:model},saved=must(await this.admin.rpc(creation?'desktop_create_agent_presentation':'desktop_save_agent',creation?{...common,p_creation:creation.id,p_appearance:creation.appearance,p_avatar:creation.avatar}:{...common,p_id:id}));await guard();await this.tools.agents.profile(user.id,saved);await guard();return saved;};return await (id?this.mutateAgent(user.id,id,save):save());
+     await guard();const save=async()=>{const commit=async()=>{await guard();const common={p_user:user.id,p_name:text(args.name,100),p_description:text(args.description,4000),p_instructions:text(args.instructions,100000),p_provider:selectedProvider,p_model:model},saved=must(await this.admin.rpc(creation?(toolScope?'desktop_create_agent_with_tools':behavior?'desktop_create_agent_definition':'desktop_create_agent_presentation'):'desktop_save_agent',creation?{...common,p_creation:creation.id,p_appearance:creation.appearance,p_avatar:creation.avatar,...(toolScope?{p_tool_revision:toolScope.revision,p_behavior:behavior??null}:behavior?{p_behavior:behavior}:{})}:{...common,p_id:id}));await guard();await this.tools.agents.profile(user.id,saved);await guard();return saved;};return creation&&toolScope?this.mcpOAuth.handoffs.save(user.id,creation.id,toolScope.revision,guard,commit):commit();};return await (id?this.mutateAgent(user.id,id,save):creation?this.mutatePreviewScope('creation-tools:'+user.id+':'+creation.id,{owner:user.id,creationId:creation.id},save):save());
     }finally{this.nativeControls--;}
    }
    case 'agents.delete':return this.mutateAgent(user.id,uuid(args.id),async()=>{const id=uuid(args.id);must(await this.admin.from('agents').update({active:false}).eq('id',id).eq('user_id',user.id).select('id').single());must(await this.admin.from('desktop_goals').update({status:'paused',note:'The assigned agent was retired.'}).eq('agent_id',id).eq('user_id',user.id).eq('status','running'));await this.tools.agents.profile(user.id,id);});
@@ -671,13 +816,13 @@ export class Broker {
    case 'providers.status':return this.providers.status(user.id);
    case 'providers.preferChatGPT':return this.providers.preferChatGPT(user.id,args.enabled);
    case 'providers.models':return this.catalog(provider(args.provider),user.id,!!args.refresh);
-   case 'providers.connectChatGPT':return this.providers.connect(user.id);
-   case 'providers.disconnectChatGPT':await this.native.stopOwner(user.id);return this.providers.disconnect(user.id);
+   case 'providers.connectChatGPT':return this.mutatePreviewScope('provider:'+user.id+':openai-oauth',{owner:user.id,provider:'openai-oauth'},()=>this.providers.connect(user.id));
+   case 'providers.disconnectChatGPT':return this.mutatePreviewScope('provider:'+user.id+':openai-oauth',{owner:user.id,provider:'openai-oauth'},async()=>{await this.native.stopOwner(user.id);return this.providers.disconnect(user.id);});
    case 'providers.acknowledgeChatGPT':return this.providers.acknowledge(user.id);
    case 'providers.manageUsage':return this.providers.manageUsage(args.provider);
-   case 'providers.saveOpenRouter':await this.requireAdmin();return this.providers.saveRouter(text(args.key,4096),text(args.model,200));
+   case 'providers.saveOpenRouter':await this.requireAdmin();return this.mutatePreviewScope('provider:openrouter',{provider:'openrouter'},()=>this.providers.saveRouter(text(args.key,4096),text(args.model,200)));
    case 'providers.defaultOpenRouter':await this.requireAdmin();return this.providers.defaultRouter(text(args.model,200));
-   case 'providers.removeOpenRouter':await this.requireAdmin();await this.native.stopProvider('openrouter');return this.providers.removeRouter();
+   case 'providers.removeOpenRouter':await this.requireAdmin();return this.mutatePreviewScope('provider:openrouter',{provider:'openrouter'},async()=>{await this.native.stopProvider('openrouter');return this.providers.removeRouter();});
    case 'admin.users':{
     await this.requireAdmin();const users=[];let page=1;
     while(true){const batch=must(await this.admin.auth.admin.listUsers({page,perPage:1000})).users;users.push(...batch);if(batch.length<1000)break;page++;}
@@ -688,8 +833,8 @@ export class Broker {
     await this.requireAdmin();const created=must(await this.admin.auth.admin.createUser({email:text(args.email,254),password:text(args.password,256),email_confirm:true})).user;
     if(created&&args.admin===true)must(await this.admin.rpc('desktop_set_admin',{p_actor:user.id,p_target:created.id,p_admin:true}));return;
    }
-   case 'admin.role':{await this.requireAdmin();const target=uuid(args.id),result=must(await this.admin.rpc('desktop_set_admin',{p_actor:user.id,p_target:target,p_admin:args.admin===true}));if(args.admin!==true){await this.tools.stopComputer(target);await this.native.stopOwner(target);for(const active of this.active.values())if(active.userId===target)active.controller.abort();must(await this.admin.from('desktop_goals').update({status:'paused',note:'Administrator permission changed. Review permissions before resuming.'}).eq('user_id',target).eq('status','running'));}return result;}
-   case 'admin.suspend':{await this.requireAdmin();const target=uuid(args.id);const result=must(await this.admin.auth.admin.updateUserById(target,{ban_duration:args.suspended===true?'876000h':'none'}));if(args.suspended===true){await this.tools.stopComputer(target);await this.native.stopOwner(target);}return result;}
+   case 'admin.role':{await this.requireAdmin();const target=uuid(args.id),result=must(await this.admin.rpc('desktop_set_admin',{p_actor:user.id,p_target:target,p_admin:args.admin===true}));if(args.admin!==true){this.previewAdmissions?.cancel({owner:target});await this.previews.stopOwner(target);await this.tools.stopComputer(target);await this.native.stopOwner(target);for(const active of this.active.values())if(active.userId===target)active.controller.abort();must(await this.admin.from('desktop_goals').update({status:'paused',note:'Administrator permission changed. Review permissions before resuming.'}).eq('user_id',target).eq('status','running'));}return result;}
+   case 'admin.suspend':{await this.requireAdmin();const target=uuid(args.id);const result=must(await this.admin.auth.admin.updateUserById(target,{ban_duration:args.suspended===true?'876000h':'none'}));if(args.suspended===true){this.previewAdmissions?.cancel({owner:target});await this.previews.stopOwner(target);await this.tools.stopComputer(target);await this.native.stopOwner(target);}return result;}
    case 'admin.registration':await this.requireAdmin();await this.secrets.set('registration',args.enabled===true);return;
    case 'chat.cancel':{
     const id=uuid(args.requestId);await this.agentReports?.cancelParent(user.id,id);const queued=this.chatQueue.list(user.id).find(row=>row.id===id);
@@ -735,8 +880,8 @@ export class Broker {
  private async manageConversation(user:Identity,args:Record<string,unknown>){if(args.action==='delete')await this.native.stopConversation(user.id,uuid(args.conversationId));const plan=args.action==='delete'?await this.tools.planning.get(user.id,uuid(args.conversationId)):null;const result=await this.terminal.changeConversations(user.id,args.action==='delete'?[uuid(args.conversationId)]:[],async()=>must(await this.admin.rpc('desktop_manage_conversation',{
     p_user:user.id,p_conversation:uuid(args.conversationId),p_action:text(args.action,20),p_title:args.title===undefined?null:text(args.title,120),
    })));if(plan)await this.tools.planning.removeDraft(user.id,plan.id);if(args.action==='delete')await this.drafts.remove(user.id,'conversation:'+uuid(args.conversationId));return result;}
- private storageBusy(){return !!(this.active.size||this.startingChats.size||this.goals.size||this.scopeChanging||this.agentMutations.size||this.nativeControls||this.agentReports?.busy||this.native.busy||this.terminal.busy||this.assignments.queue.size||this.scheduledControls||this.scheduled.scheduler.busy||this.scheduledQueue.busy||this.chatQueue.list(this.currentOwner??'').length);}
- async backup<T>(task:()=>Promise<T>,kind:'backup'|'storage cleanup'='backup'){if(this.active.size||this.startingChats.size||this.goals.size||this.scopeChanging||this.agentMutations.size||this.nativeControls||this.agentReports?.busy||this.native.busy||this.terminal?.busy||this.assignments.queue.size||this.scheduledControls||this.scheduled.scheduler.busy||this.scheduledQueue.busy)throw new Error(kind==='storage cleanup'?'Finish or pause active chats, scheduled work and terminals before storage cleanup.':'Finish or pause active chats, scheduled work and skill discovery before creating a consistent backup.');if(this.backingUp)throw new Error('A backup is already in progress.');this.backingUp=true;this.storageCleanup=kind==='storage cleanup';try{await this.agentReports?.quiesce();await this.native.quiesce();return await task();}finally{this.backingUp=false;this.storageCleanup=false;}}
+ private storageBusy(){return !!(this.active.size||this.startingChats.size||this.goals.size||this.scopeChanging||this.agentMutations.size||this.nativeControls||this.changingPreviewScopes?.size||this.editorDraftControls||this.editorDrafts?.busy||this.previewAdmissions?.busy||this.previews?.busy||this.previewRunner?.native.busy||this.agentReports?.busy||this.native.busy||this.terminal.busy||this.assignments.queue.size||this.scheduledControls||this.scheduled.scheduler.busy||this.scheduledQueue.busy||this.chatQueue.list(this.currentOwner??'').length);}
+ async backup<T>(task:()=>Promise<T>,kind:'backup'|'storage cleanup'='backup'){if(this.active.size||this.startingChats.size||this.goals.size||this.scopeChanging||this.agentMutations.size||this.nativeControls||this.changingPreviewScopes?.size||this.editorDraftControls||this.editorDrafts?.busy||this.previewAdmissions?.busy||this.previews?.busy||this.previewRunner?.native.busy||this.agentReports?.busy||this.native.busy||this.terminal?.busy||this.assignments.queue.size||this.scheduledControls||this.scheduled.scheduler.busy||this.scheduledQueue.busy)throw new Error(kind==='storage cleanup'?'Finish or pause active chats, scheduled work and terminals before storage cleanup.':'Finish or pause active chats, scheduled work and skill discovery before creating a consistent backup.');if(this.backingUp)throw new Error('A backup is already in progress.');this.backingUp=true;this.storageCleanup=kind==='storage cleanup';try{await this.agentReports?.quiesce();await this.native.quiesce();await this.previewRunner?.native.quiesce();return await task();}finally{this.backingUp=false;this.storageCleanup=false;}}
  private async newOptions(user:Identity,options:ChatOptions){
   const status=this.providers.status(user.id),selected=newChatProvider(status,options.provider);if(!selected)return this.effectiveOptions(user,options);
   if(selected==='openai-oauth'&&status.chatgpt?.connectionIssue){const remembered=status.selections?.[selected];return this.effectiveOptions(user,{...options,provider:selected,model:remembered?.model??(selected===options.provider?options.model:undefined),thinking:remembered?.thinking??(selected===options.provider?options.thinking:'default')});}
@@ -748,11 +893,12 @@ export class Broker {
  }
  private async mutateMemoryScope<T>(user:string,work:()=>Promise<T>):Promise<T>{
   if(this.scopeChanging)throw new Error('Agent memory scope is already being updated.');this.scopeChanging=true;
-  try{for(const operation of this.startingChats.values())if(operation.userId===user){operation.cancelled=true;operation.controller.abort();}const running=[...this.active.values()].filter(record=>record.userId===user);for(const record of running)record.controller.abort();await this.assignments.interruptOwner(user,'Project isolation changed. Review this assignment before continuing.');await this.native.stopOwner(user);await Promise.allSettled(running.map(record=>record.done));return await work();}finally{this.scopeChanging=false;this.assignments.queue.notify();}
+  try{this.previewAdmissions?.cancel({owner:user});await this.previews.stopOwner(user);for(const operation of this.startingChats.values())if(operation.userId===user){operation.cancelled=true;operation.controller.abort();}const running=[...this.active.values()].filter(record=>record.userId===user);for(const record of running)record.controller.abort();await this.assignments.interruptOwner(user,'Project isolation changed. Review this assignment before continuing.');await this.native.stopOwner(user);await Promise.allSettled(running.map(record=>record.done));return await work();}finally{this.scopeChanging=false;this.assignments.queue.notify();}
  }
  private async mutateAgent<T>(user:string,agent:string,work:()=>Promise<T>):Promise<T>{
   await this.tools.agents.profile(user,agent);if(this.agentMutations.has(agent))throw new Error('This agent is already being updated.');this.agentMutations.add(agent);
   try{
+   this.previewAdmissions?.cancel({owner:user,sourceAgentId:agent});await this.previews.stopScope({owner:user,sourceAgentId:agent});
    const own=must(await this.admin.from('desktop_requests').select('id').eq('user_id',user).eq('agent_id',agent).eq('status','running'));
    const dependents=must(await this.admin.from('desktop_agent_instances').select('request_id').eq('user_id',user).contains('authority_chain',JSON.stringify([{agent_id:agent}])));
    const workIds=[...new Set([...own.map(row=>row.id),...dependents.flatMap(row=>row.request_id?[row.request_id]:[])])],running=workIds.flatMap(id=>{const record=this.active.get(id);return record&&record.userId===user?[record]:[];});
@@ -822,7 +968,7 @@ export class Broker {
       if(!saved.context)throw new Error('This older child has no recoverable execution context. Start a new parent turn.');
       const context={...saved.context,agentProfile:saved.context.agentProfile?{...saved.context.agentProfile,policy:agentPolicy(saved.context.agentProfile.policy)}:null},agent=must(await this.admin.from('agents').select('id,system_instructions,assistant_instructions,personality,metadata').eq('id',request.agent_id).eq('user_id',user.id).eq('active',true).single());
       if(context.agentProfile){const instance=must(await this.admin.from('desktop_agent_instances').select('*').eq('id',request.agent_instance_id).eq('user_id',user.id).single()),current=await this.tools.agents.authorizeInstance(user.id,instance);if(current.revision!==context.agentProfile.revision||current.memory_revision!==context.agentProfile.memory_revision||JSON.stringify(current.policy)!==JSON.stringify(context.agentProfile.policy))throw new Error('The agent definition changed. Start a new assignment with its current policy.');agent.system_instructions=[agent.system_instructions??agent.assistant_instructions??'',agentInstructions(current),delegatedAgentInstructions(instance.parent_instance_id)].filter(Boolean).join('\n\n');}
-      await this.executeNative(user,{...request,project:context.project,recalledMemory:context.recalledMemory,agent_profile:context.agentProfile,agent_memory:context.agentMemory,agent_documents:context.agentDocuments,agent_references:saved.agent_references??{memories:[],instances:[]},agent_authority_chain:context.agentAuthorityChain??[]},agent,{model:context.model},provider(context.provider),'',new AbortController(),chatOptions(context.options),true);
+      await this.executeNative(user,{...request,project:context.project,recalledMemory:context.recalledMemory,agent_profile:context.agentProfile,agent_memory:context.agentMemory,agent_documents:context.agentDocuments,workspace_skills:context.workspaceSkills,agent_references:saved.agent_references??{memories:[],instances:[]},agent_authority_chain:context.agentAuthorityChain??[]},agent,{model:context.model},provider(context.provider),'',new AbortController(),chatOptions(context.options),true);
      })();this.restoringNative.set(requestId,restoring);void restoring.finally(()=>this.restoringNative.delete(requestId)).catch(()=>{});}await restoring;
     }
  }
@@ -877,6 +1023,8 @@ export class Broker {
   for(const row of rows)if(row.status==='waiting'&&rows.some(nested=>nested.parentRequestId===row.childRequestId)&&!rows.some(nested=>nested.parentRequestId===row.childRequestId&&['waiting','ready','running'].includes(nested.status)))void this.completeNamedReport({user_id:owner,request_id:row.childRequestId}).catch(()=>{});
  }
  private async launchAgentReport(owner:string,rows:ReadonlyArray<AgentReportDelivery>,id:string,signal:AbortSignal){
+  if(this.executionUsed({kind:'chat',id:rows[0].parentRequestId})>=8)throw new AgentReportDeferred('All execution slots are busy. The specialist report will wait.');
+  return this.withNativeSlot(rows[0].parentRequestId,async()=>{
   this.nativeControls++;
   try{
    const user=await this.identity();if(user.id!==owner)throw new AgentReportNotSubmitted('Sign in to the account that requested this specialist.');
@@ -891,6 +1039,7 @@ export class Broker {
    signal.throwIfAborted();
    await this.native.reportNamedAssignments(owner,sources.parent.id,id,sources.results,signal,async()=>{const current=await prepare(false);if(JSON.stringify(current.results)!==JSON.stringify(sources.results))throw Error('The saved specialist result changed before reporting. Review its current source.');});
   }finally{this.nativeControls--;}
+  });
  }
  private async launchNamedAgent(record:NamedInvocation,instance:AgentInstance,context:AgentLaunch,accepted:()=>void){
   const user=await this.identity();if(user.id!==record.user_id)throw new Error('The requesting account changed before this assignment started.');
@@ -901,7 +1050,7 @@ export class Broker {
  }
  private scheduledAvailable(run:ScheduledRun){
   if(this.closing||this.signedOut||this.currentOwner!==run.owner||this.recoveryPending(run.owner)||this.backingUp||this.scopeChanging||this.agentMutations.size)return false;
-  return !!run.snapshot.conversationId||this.native.freeWorkers>0&&this.active.size+this.startingChats.size<8;
+  return !!run.snapshot.conversationId||this.executionUsed()<8;
  }
  private async launchScheduledNow(run:ScheduledRun,signal:AbortSignal):Promise<TaskRunOutcome>{
   signal.throwIfAborted();const user=await this.identity();if(user.id!==run.owner)throw Error('The scheduled account changed.');
@@ -945,13 +1094,13 @@ export class Broker {
   for(const snapshot of snapshots){this.scheduledExecution.bindings(user.id,snapshot);if(snapshot.workspace?.resolved)await this.scheduledWorkspaces.validate(user.id,snapshot);}
  }
  private async startChat(identity:Identity|(()=>Promise<Identity>),args:Record<string,unknown>,delegation?:AgentLaunch,deliveryId?:string,scheduledRun?:ScheduledRun){
-  const id=uuid(args.requestId);const conversationId=args.conversationId?uuid(args.conversationId):undefined;if(conversationId&&([...this.active.values()].some(row=>row.conversationId===conversationId)||[...this.startingChats.values()].some(row=>row.conversationId===conversationId)))throw scheduledRun?new ScheduledTaskNotSubmitted('This conversation is already working. The scheduled response will wait.'):Error('This conversation is already working. Queue the message or steer the current turn.');if(this.startingChats.has(id))throw new Error('This response is already starting.');const operation={conversationId,deliveryId,userId:this.currentOwner,cancelled:false,controller:new AbortController(),goalId:args.options&&typeof args.options==='object'?(args.options as {goalId?:string}).goalId:undefined};this.startingChats.set(id,operation);
+  const id=uuid(args.requestId);const conversationId=args.conversationId?uuid(args.conversationId):undefined;if(conversationId&&([...this.active.values()].some(row=>row.conversationId===conversationId)||[...this.startingChats.values()].some(row=>row.conversationId===conversationId)))throw scheduledRun?new ScheduledTaskNotSubmitted('This conversation is already working. The scheduled response will wait.'):Error('This conversation is already working. Queue the message or steer the current turn.');if(this.startingChats.has(id))throw new Error('This response is already starting.');if(this.executionUsed({kind:'chat',id})>=8)throw new Error('Up to eight chats and previews can work at once. Finish or stop one before starting another.');const operation={conversationId,deliveryId,userId:this.currentOwner,cancelled:false,controller:new AbortController(),fileIds:args.options&&typeof args.options==='object'&&Array.isArray((args.options as {files?:unknown}).files)?(args.options as {files:unknown[]}).files.filter((id):id is string=>typeof id==='string'):[],goalId:args.options&&typeof args.options==='object'?(args.options as {goalId?:string}).goalId:undefined};this.startingChats.set(id,operation);
   try{const user=typeof identity==='function'?await identity():identity;operation.userId=user.id;if(operation.cancelled)throw new Error('The response was cancelled before sending.');return await this.beginChat(user,args,operation,delegation,deliveryId,scheduledRun);}catch(error){if(operation.cancelled)throw new Error('The response was cancelled before sending.');throw error;}finally{if(this.startingChats.get(id)===operation)this.startingChats.delete(id);}
  }
- private async beginChat(user:Identity,args:Record<string,unknown>,operation:{cancelled:boolean;controller:AbortController},delegation?:AgentLaunch,deliveryId?:string,scheduledRun?:ScheduledRun){
+ private async beginChat(user:Identity,args:Record<string,unknown>,operation:{cancelled:boolean;controller:AbortController;fileIds?:string[]},delegation?:AgentLaunch,deliveryId?:string,scheduledRun?:ScheduledRun){
   if(this.backingUp)throw new Error('A workspace backup is being created. Wait for it to finish before starting a response.');
   if(this.closing||this.signedOut||this.currentOwner!==user.id)throw new Error('Your Agentopia account changed. Sign in again before starting a response.');
-  if([...this.active.values()].filter(r=>r.userId===user.id).length>=8)throw new Error('Up to eight chats can work at once. Finish or stop one before starting another.');
+  if(this.executionUsed({kind:'chat',id:uuid(args.requestId)})>=8)throw new Error('Up to eight chats can work at once. Finish or stop one before starting another.');
   let delivery:ChatDelivery|undefined;
   if(deliveryId){
    const record=await this.tools.deliveries.read(user.id,deliveryId);await this.deliveryOrigin(user.id,record);operation.controller.signal.throwIfAborted();
@@ -978,6 +1127,7 @@ export class Broker {
   let historicalRows:any[]=[],projectId=args.projectId?uuid(args.projectId):null;if(args.conversationId){must(await this.admin.from('conversation_sessions').select('id').eq('conversation_id',uuid(args.conversationId)).eq('user_id',user.id).single());historicalRows=await this.loadMessages(uuid(args.conversationId));const membership=must(await this.admin.from('desktop_project_chats').select('project_id').eq('conversation_id',uuid(args.conversationId)).eq('user_id',user.id).maybeSingle());if(projectId&&projectId!==membership?.project_id)throw new Error('Chat moved to another project. Reopen it before sending.');projectId=membership?.project_id??null;}
   const project=projectId?must(await this.admin.from('desktop_projects').select('id,name,reference_id,instructions,file_ids,revision,memory_enabled,agent_memory_isolated').eq('id',projectId).eq('user_id',user.id).single()) as Project:null;
   const executionOptions={...options,files:delivery||scheduledRun?[...options.files]:[...new Set([...options.files,...(options.permission==='chat'?[]:project?.file_ids??[])])]};
+  operation.fileIds=[...executionOptions.files];if(executionOptions.files.some(id=>this.changingPreviewScopes?.has('file:'+user.id+':'+id)))throw Error('The selected workspace resources are being updated. Wait before sending.');
   if(delegation&&(project?.revision??null)!==delegation.projectRevision)throw new Error('The originating project changed. Review this queued assignment before continuing.');
   if(delegation&&executionOptions.files.some(file=>!options.files.includes(file)))throw new Error('This delegation cannot add workspace files beyond its originating assignment.');
   if(executionOptions.files.length>20)throw new Error('Project and message context can include up to 20 files or folders together. Remove an attachment or update project settings.');
@@ -1014,7 +1164,7 @@ export class Broker {
   if(operation.cancelled)controller.abort();
   if(options.goalId)this.emitOwned(user.id,{kind:'started',goalId:options.goalId,requestId,conversationId:request.conversation_id,text:message});
   const done=(options.harness==='legacy'?this.executeChat.bind(this):this.executeNative.bind(this))(user,request,agent,{...pref,model,supportsTools:chosenModel.supportsTools},selected,token,controller,executionOptions);
-  this.active.set(requestId,{userId:user.id,conversationId:request.conversation_id,goalId:options.goalId,controller,done});
+  this.active.set(requestId,{userId:user.id,conversationId:request.conversation_id,goalId:options.goalId,options:executionOptions,controller,done});
   done.finally(()=>this.settleChat(user.id,requestId,request.conversation_id)).catch(()=>{});return request;
  }
  private async settleChat(owner:string,requestId:string,conversation:string){
@@ -1025,11 +1175,15 @@ export class Broker {
  }
  private async executeNative(user:Identity,request:any,agent:any,pref:any,selected:Provider,_token:string,controller:AbortController,options:ChatOptions,attachOnly=false){
   let status='completed',failure:string|undefined,response='';
-  try{const rows=await this.loadMessages(request.conversation_id),remote=await this.tools.remote!.plan(user.id,agent.id,options),definitions=[...this.tools.computerDefinitions(user,options),...this.tools.browserDefinitions(options),...workspaceDefinitions(options),...await this.tools.pluginDefinitions(user.id,agent.id,options),...await this.tools.imageDefinitions(user.id,agent.id,options),...this.terminal.definitions(user,options),...remote.definitions,...await this.tools.planning.definitions(user.id,request.conversation_id,options),...this.tools.memory.definitions(request,options),...this.tools.chats.definitions(options),...this.agentDocuments.definitions(options),...(this.tools.deliveryDefinitions?.(options)??[]),...(this.tools.scheduleDefinitions?.(options)??[]),...(request.agent_profile?this.tools.agents.definitions(request.agent_profile,options):[])].filter(tool=>!request.agent_profile||allowsAgentTool(request.agent_profile.policy,tool)),references=options.files.map(id=>{const ref=this.files.list(user.id).find(r=>r.id===id);if(!ref)throw new Error('An attached workspace reference is unavailable.');return ref;});
+  try{const rows=await this.loadMessages(request.conversation_id),remote=await this.tools.remote!.plan(user.id,agent.id,options),references=options.files.map(id=>{const ref=this.files.list(user.id).find(r=>r.id===id);if(!ref)throw new Error('An attached workspace reference is unavailable.');return ref;});
    if(!attachOnly)await this.agentSnapshot(user.id,request,agent.id,options);
    const memory:import('./contracts').ProjectMemorySource[]=attachOnly?request.recalledMemory??[]:await this.tools.memory.snapshot(user.id,request,options);await this.tools.memory.validate(user.id,request,memory,options,undefined,attachOnly);
    if(options.goalId&&!attachOnly){const goal=must(await this.admin.from('desktop_goals').select('objective,max_turns,token_budget,turns_used,status').eq('id',options.goalId).eq('user_id',user.id).single());if(this.pausedGoals.has(options.goalId)||goal.status!=='running'||!goalHasTurns(goal))throw new Error('Resume a goal with remaining turns before continuing.');request.nativeGoal={id:options.goalId,objective:goal.objective,maxTurns:goal.max_turns===null?null:goal.max_turns-goal.turns_used,tokenBudget:goal.token_budget??null,turnsUsed:goal.turns_used};}
-   await this.native.run(user,{...request,recalledMemory:memory,nativeCommands:this.terminal.permissions(user).enabled},withInstructionApps(agent,remote.sources,definitions),selected,pref.model,options,references,rows,definitions,async(name,args,id,signal,nativeThreadId)=>{if(!definitions.some(d=>d.name===name))throw new Error('This tool is not enabled for this conversation.');const result=await this.tools.execute(user,nativeThreadId&&this.native.childScope(user.id,request.id,nativeThreadId)?{...request,native_scope_id:'native:'+nativeThreadId}:request,{id,name,arguments:JSON.stringify(args)},options,signal,remote,agent.id,nativeThreadId);if(name==='read_agent_instance'&&result&&typeof result==='object'&&'instance' in result){const read=(result as any).instance;if(read&&['completed','failed','cancelled','interrupted'].includes(read.status))await this.acknowledgeNamedResult(user.id,request,read.id,typeof read.request_id==='string'?read.request_id:null,{id,threadId:nativeThreadId},(result as any).native_observations);}if(projectMemoryTools.includes(name)&&result&&typeof result==='object'&&Array.isArray((result as any).sources))for(const source of (result as any).sources)if(!memory.some(item=>item.message_id===source.message_id))memory.push(source);return result;},controller,async(nativeThreadId?:string)=>{const current=await this.identity();if(current.id!==user.id)throw new Error('Your Agentopia account changed.');if(options.permission==='full')this.terminal.authorize(current,true);if(options.goalId){const goal=must(await this.admin.from('desktop_goals').select('status').eq('id',options.goalId).eq('user_id',user.id).single());if(goal.status!=='running')throw new Error('Resume the parent goal before continuing this native task.');}must(await this.admin.from('agents').select('id').eq('id',agent.id).eq('user_id',user.id).eq('active',true).single());if(this.tools.deliverChat)await this.tools.deliveries.validateRequest(user.id,request.id);if(request.agent_profile)await this.tools.agents.validateExecution(user.id,request);await this.validateScheduledContext(user,request);if(request.agent_documents)await this.agentDocuments.validate(user.id,request.agent_documents);await this.tools.memory.validate(user.id,request,memory,options,nativeThreadId,!nativeThreadId);await this.tools.chats.validate(user.id,request,options,nativeThreadId);},attachOnly,()=>this.queuedWork(user.id,request.conversation_id));controller.signal.throwIfAborted();
+   let workspaceSkills:PreviewWorkspaceSkills|undefined;
+   const validateNative=async(nativeThreadId?:string)=>{controller.signal.throwIfAborted();if(options.files.some(id=>this.changingPreviewScopes?.has('file:'+user.id+':'+id)))throw Error('The selected workspace resources are being updated.');const current=await this.identity();if(current.id!==user.id)throw new Error('Your Agentopia account changed.');if(options.permission==='full')this.terminal.authorize(current,true);if(options.goalId){const goal=must(await this.admin.from('desktop_goals').select('status').eq('id',options.goalId).eq('user_id',user.id).single());if(goal.status!=='running')throw new Error('Resume the parent goal before continuing this native task.');}must(await this.admin.from('agents').select('id').eq('id',agent.id).eq('user_id',user.id).eq('active',true).single());if(this.tools.deliverChat)await this.tools.deliveries.validateRequest(user.id,request.id);if(request.agent_profile)await this.tools.agents.validateExecution(user.id,request);await this.validateScheduledContext(user,request);if(request.agent_documents)await this.agentDocuments.validate(user.id,request.agent_documents);await this.tools.memory.validate(user.id,request,memory,options,nativeThreadId,!nativeThreadId);await this.tools.chats.validate(user.id,request,options,nativeThreadId);controller.signal.throwIfAborted();if(workspaceSkills)await this.chatWorkspaceSkills.validate(user,options,workspaceSkills,controller.signal);};
+   workspaceSkills=attachOnly?request.workspace_skills:options.skills?.length?await this.chatWorkspaceSkills.capture(user,options,controller.signal,()=>validateNative()):undefined;if(workspaceSkills)await validateNative();request.workspace_skills=workspaceSkills;
+   const definitions=[...this.tools.computerDefinitions(user,options),...this.tools.browserDefinitions(options),...workspaceDefinitions(options),...previewWorkspaceSkillDefinitions(workspaceSkills,options),...await this.tools.pluginDefinitions(user.id,agent.id,options),...await this.tools.imageDefinitions(user.id,agent.id,options),...this.terminal.definitions(user,options),...remote.definitions,...await this.tools.planning.definitions(user.id,request.conversation_id,options),...this.tools.memory.definitions(request,options),...this.tools.chats.definitions(options),...this.agentDocuments.definitions(options),...(this.tools.deliveryDefinitions?.(options)??[]),...(this.tools.scheduleDefinitions?.(options)??[]),...(request.agent_profile?this.tools.agents.definitions(request.agent_profile,options):[])].filter(tool=>!request.agent_profile||allowsAgentTool(request.agent_profile.policy,tool)),skillScope=workspaceSkills&&options.permission!=='chat'?chatWorkspaceSkillScope({owner:user.id,request,options,policy:request.agent_profile?.policy??{tools:null,delegation:false,delegateAgents:[],memory:false,memoryWrite:false,maxDepth:0,maxTurns:1},workspaceSkills,validate:()=>validateNative()}):undefined;
+   await this.native.run(user,{...request,recalledMemory:memory,nativeCommands:this.terminal.permissions(user).enabled},withInstructionApps(agent,remote.sources,definitions),selected,pref.model,options,references,rows,definitions,async(name,args,id,signal,nativeThreadId)=>{if(!definitions.some(d=>d.name===name))throw new Error('This tool is not enabled for this conversation.');const result=await this.tools.execute(user,nativeThreadId&&this.native.childScope(user.id,request.id,nativeThreadId)?{...request,native_scope_id:'native:'+nativeThreadId}:request,{id,name,arguments:JSON.stringify(args)},options,signal,remote,agent.id,nativeThreadId,undefined,skillScope);if(name==='read_agent_instance'&&result&&typeof result==='object'&&'instance' in result){const read=(result as any).instance;if(read&&['completed','failed','cancelled','interrupted'].includes(read.status))await this.acknowledgeNamedResult(user.id,request,read.id,typeof read.request_id==='string'?read.request_id:null,{id,threadId:nativeThreadId},(result as any).native_observations);}if(projectMemoryTools.includes(name)&&result&&typeof result==='object'&&Array.isArray((result as any).sources))for(const source of (result as any).sources)if(!memory.some(item=>item.message_id===source.message_id))memory.push(source);return result;},controller,validateNative,attachOnly,()=>this.queuedWork(user.id,request.conversation_id));controller.signal.throwIfAborted();
   }catch(error){if(attachOnly)throw error;status=controller.signal.aborted||(error as Error).name==='AbortError'?'cancelled':'failed';failure=status==='cancelled'?undefined:(error as Error).message;}
   if(attachOnly)return;
   try{const native=must(await this.admin.from('desktop_codex_turns').select('state').eq('request_id',request.id).maybeSingle())?.state as import('./native-contracts').NativeState|undefined;
@@ -1138,5 +1292,5 @@ export class Broker {
    }
   }catch(error){const current=await this.admin.from('desktop_goals').select('status').eq('id',goal.id).eq('user_id',user.id).single();if(current.data?.status==='running')await update({status:'paused',note:(error as Error).message}).catch(()=>{});}finally{if(this.pausedGoals?.has(goal.id)&&goal.status==='running')await update({status:'paused',note:'Paused by you.'});await this.assignments.interruptGoal(user.id,goal.id);await this.native.stopGoal(user.id,goal.id);await this.terminal.sessions.cancelGoal(user.id,goal.id);}
  }
- async shutdown(){this.closing=true;const reportsStopped=this.agentReports?.close();void reportsStopped?.catch(()=>{});this.mcpOAuth.cancel();this.goalQueue.changed();await this.scheduled.close();await this.scheduledQueue.close();await this.chatQueue.close();await this.assignments.queue.close();this.workspaceMonitor.close();for(const operation of this.startingChats.values()){operation.cancelled=true;operation.controller.abort();}for(const request of this.active.values())request.controller.abort();await this.tools.stopComputer();await this.fileOperations.close();await this.terminal.close();await this.editor.close();for(const operation of this.startingChats.values()){operation.cancelled=true;operation.controller.abort();}for(const r of this.active.values())r.controller.abort();await this.files.documents.close();await Promise.allSettled([...this.active.values()].map(r=>r.done));for(const id of this.goals.keys())await this.admin.from('desktop_goals').update({status:'paused',note:'Agentopia closed. Resume when ready.'}).eq('id',id).eq('status','running');await Promise.allSettled(this.goals.values());await this.native.close();await reportsStopped;await this.assignments.queue.settled();}
+ async shutdown(){await this.editorDrafts?.flush();this.closing=true;await this.journalRecovery?.inventory.flush();this.previewAdmissions?.cancel();await this.previews.close();const reportsStopped=this.agentReports?.close();void reportsStopped?.catch(()=>{});this.mcpOAuth.cancel();await this.mcpOAuth.cancelAndWait?.(()=>true);await this.mcpOAuth.handoffs?.settled();this.goalQueue.changed();await this.scheduled.close();await this.scheduledQueue.close();await this.chatQueue.close();await this.assignments.queue.close();this.workspaceMonitor.close();for(const operation of this.startingChats.values()){operation.cancelled=true;operation.controller.abort();}for(const request of this.active.values())request.controller.abort();await this.tools.stopComputer();await this.fileOperations.close();await this.terminal.close();await this.editor.close();for(const operation of this.startingChats.values()){operation.cancelled=true;operation.controller.abort();}for(const r of this.active.values())r.controller.abort();await this.files.documents.close();await Promise.allSettled([...this.active.values()].map(r=>r.done));for(const id of this.goals.keys())await this.admin.from('desktop_goals').update({status:'paused',note:'Agentopia closed. Resume when ready.'}).eq('id',id).eq('status','running');await Promise.allSettled(this.goals.values());await this.native.close();await reportsStopped;await this.assignments.queue.settled();}
 }

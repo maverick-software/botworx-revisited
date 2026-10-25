@@ -1,0 +1,16 @@
+import type {AgentDraftPreviewInput} from './agent-draft-preview-contracts';
+import {matchesPreviewPluginScope,matchesPreviewRemoteScope,matchesPreviewCreationSkills,type PreviewScopeFilter,type PreviewRemoteSource} from './agent-draft-previews';
+export type PreviewAdmissionInput=Pick<AgentDraftPreviewInput,'sessionId'|'requestId'|'sourceAgentId'|'creationId'|'creationToolRevision'>&{snapshot:Pick<AgentDraftPreviewInput['snapshot'],'provider'|'execution'>;kind?:'skills'};
+export type PreviewAdmission={owner:string;input:PreviewAdmissionInput;cancelled:boolean;controller:AbortController};
+export function matchesPreviewAdmission(row:Pick<PreviewAdmission,'owner'|'input'>,filter:PreviewScopeFilter,accepted?:PreviewRemoteSource[]){return (!filter.creationOnly||!!row.input.creationId)&&(!filter.owner||row.owner===filter.owner)&&(!filter.sessionId||row.input.sessionId===filter.sessionId)&&(!filter.creationId||row.input.creationId===filter.creationId)&&(!filter.sourceAgentId||row.input.sourceAgentId===filter.sourceAgentId)&&(!filter.provider||row.input.snapshot.provider===filter.provider)&&(!filter.fileId||row.input.snapshot.execution?.files.includes(filter.fileId)===true)&&matchesPreviewPluginScope(row.input.sourceAgentId,row.input.snapshot.execution?.permission,filter,row.input.snapshot.execution?.skills,row.input.kind==='skills')&&matchesPreviewCreationSkills(row.input.creationId,row.input.snapshot.execution,filter,row.input.kind==='skills')&&(!(filter.remoteOnly||filter.remoteConnectionId||filter.remotePlugin)||row.input.kind!=='skills'&&matchesPreviewRemoteScope(row.input.sourceAgentId,row.input.snapshot.execution,filter,accepted,row.input.creationId));}
+/** Cover account lookup before the coordinator can register its own reservation. */
+export class PreviewAdmissions{
+ private entries=new Set<PreviewAdmission>();
+ get busy(){return this.entries.size>0;}
+ get activeRequests(){return [...this.entries].map(row=>({owner:row.owner,requestId:row.input.requestId,sessionId:row.input.sessionId,cancelling:row.cancelled}));}
+ reserve(owner:string,input:PreviewAdmissionInput){const pending=[...this.entries].find(row=>row.owner===owner&&row.input.sessionId===input.sessionId);if(pending&&(pending.input.requestId!==input.requestId||JSON.stringify(pending.input)!==JSON.stringify(input)))throw Error('This draft preview is already preparing a different message. Stop it or wait for its result.');const entry:PreviewAdmission={owner,input:structuredClone(input),cancelled:false,controller:new AbortController()};this.entries.add(entry);return entry;}
+ check(entry:PreviewAdmission){if(!this.entries.has(entry)||entry.cancelled)throw Error('The draft preview was stopped before it was submitted.');}
+ finish(entry:PreviewAdmission){this.entries.delete(entry);}
+ stopSkills(owner:string,sessionId:string,requestId:string){for(const row of this.entries)if(row.owner===owner&&row.input.kind==='skills'&&row.input.sessionId===sessionId&&row.input.requestId===requestId){row.cancelled=true;row.controller.abort();}}
+ cancel(filter:PreviewScopeFilter={},accepted?:(owner:string,input:PreviewAdmissionInput)=>PreviewRemoteSource[]|undefined){for(const row of this.entries)if(matchesPreviewAdmission(row,filter,accepted?.(row.owner,row.input))){row.cancelled=true;row.controller.abort();}}
+}

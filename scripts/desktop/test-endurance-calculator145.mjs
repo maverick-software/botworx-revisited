@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import {execFileSync} from 'node:child_process';
+import {mkdir,readFile,writeFile,readdir} from 'node:fs/promises';
+import {desktopOperation} from './operation-lock.mjs';
+import {json,hash} from './phased-backup-control.mjs';
+desktopOperation('qualify the read-only calculator using the pinned bundled Python and retained failed inputs');
+const root=path.resolve(import.meta.dirname,'../..'),proof=await json((await json(path.join(root,'.supabase/desktop-computer-repair76/installed-current.json'))).proof),cfg=await json(proof.qaIntent),manifest=await json(path.join(proof.source,'src/script-runtime-manifest.json')),python=path.join(cfg.program,'resources/resources/script-runtimes',manifest.python.directory,manifest.python.entry);
+assert.equal(await hash(python),manifest.files[manifest.python.directory+'/'+manifest.python.entry]);
+const out=path.join(root,'.supabase/desktop-endurance145/calculator-'+Date.now());await mkdir(out,{recursive:true});const helper=path.join(out,'reconcile145.py'),source=path.join(root,'scripts/desktop/endurance-calculator145.py');await writeFile(helper,await readFile(source),{flag:'wx'});
+const prior=await json((await json(path.join(root,'.supabase/desktop-endurance144/live-current.json'))).evidence),router=prior.cases.find(c=>c.provider==='openrouter'),batch=router.stages[1],csv=['invoice,quantity,unit_cents,credit_cents,status',...batch.inputRows.map(row=>Object.values(row).join(','))].join('\n')+'\n';await writeFile(path.join(out,'batch-02.csv'),csv,{flag:'wx'});
+const unchanged={helper:await hash(helper),input:await hash(path.join(out,'batch-02.csv')),retainedFailure:await hash(path.join(router.workspace,'stage-02.json'))},before=(await readdir(out)).sort(),run=args=>JSON.parse(execFileSync(python,[helper,...args],{cwd:out,windowsHide:true,encoding:'utf8',env:{...process.env,PYTHONNOUSERSITE:'1',PYTHONUTF8:'1',PYTHONDONTWRITEBYTECODE:'1'}}));
+const first=run(['2','0','0']);assert.equal(first.approved_cents,8160);assert.deepEqual(first,Object.fromEntries(['row_count','approved_rows','held_rows','approved_cents','shipping_cents','discount_cents','total_cents'].map(key=>[key,batch.receipt[key]])));
+const revised=run(['2','440','150']);assert.equal(revised.total_cents,8450);assert.equal(revised.shipping_cents,440);assert.equal(revised.discount_cents,150);
+assert.throws(()=>run(['0','0','0']));assert.throws(()=>run(['2','10000','0']));assert.deepEqual((await readdir(out)).sort(),before);assert.equal(await hash(helper),unchanged.helper);assert.equal(await hash(path.join(out,'batch-02.csv')),unchanged.input);assert.equal(await hash(path.join(router.workspace,'stage-02.json')),unchanged.retainedFailure);
+await writeFile(path.join(root,'.supabase/desktop-endurance145/calculator-qualification.json'),JSON.stringify({success:true,at:new Date().toISOString(),out,sourceSha256:await hash(source),bundledPythonVerified:true,originalFailedInputTotal:8160,revisedChargesTotal:8450,helperAndInputsUnchanged:true,failedReceiptUnchanged:true,providerRequests:0},null,2));console.log(JSON.stringify({success:true,exactOriginalInputTotal:8160,revisedChargesTotal:8450,readOnly:true,providerRequests:0}));

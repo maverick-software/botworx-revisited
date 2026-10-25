@@ -1,13 +1,13 @@
 import {app,shell,type BrowserWindow,type DownloadItem,type SaveDialogOptions} from 'electron';
 import path from 'node:path';import {randomUUID} from 'node:crypto';import {stat} from 'node:fs/promises';
 import {BrowserDataStore,activeDownload,downloadName,type BrowserDownload} from './browser-data';
-type Source={owner:string;tabId:string;conversation?:string;origin:string};
+type Source={owner:string;tabId:string;conversation?:string;scope?:'agent-draft-preview';origin:string};
 export class BrowserDownloads{
  private running=new Map<string,{owner:string;item:DownloadItem}>();private timers=new Map<string,ReturnType<typeof setTimeout>>();
  constructor(private data:BrowserDataStore,private window:BrowserWindow,private configure=(item:DownloadItem,options:SaveDialogOptions)=>item.setSaveDialogOptions(options)){}
  receive(event:Electron.Event,item:DownloadItem,source?:Source){
   if(!source){event.preventDefault();return;}try{const url=new URL(item.getURL());if(url.username||url.password||!['https:','blob:','data:'].includes(url.protocol)&&!(url.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(url.hostname))){event.preventDefault();return;}const initiator=item.getInitiatorOrigin();if(initiator&&initiator!=='null'){const origin=new URL(initiator);if(!['https:','http:'].includes(origin.protocol)){event.preventDefault();return;}source={...source,origin:origin.origin};}else if(['https:','http:'].includes(url.protocol))source={...source,origin:url.origin};}catch{event.preventDefault();return;}const rows=this.data.get(source.owner).downloads;
-  const row:BrowserDownload={id:randomUUID(),tabId:source.tabId,conversation:source.conversation,name:downloadName(item.getFilename()),origin:source.origin,state:'choosing',received:0,total:Math.max(0,item.getTotalBytes()),startedAt:new Date().toISOString()};
+  const row:BrowserDownload={id:randomUUID(),tabId:source.tabId,conversation:source.conversation,...(source.scope?{scope:source.scope}:{}),name:downloadName(item.getFilename()),origin:source.origin,state:'choosing',received:0,total:Math.max(0,item.getTotalBytes()),startedAt:new Date().toISOString()};
   if(rows.some(row=>row.state==='choosing')||[...this.running.values()].filter(value=>value.owner===source.owner).length>=4){event.preventDefault();row.state='cancelled';row.error='Finish choosing a save location or stop an existing download, then try again.';row.finishedAt=new Date().toISOString();rows.unshift(row);this.trim(rows);this.save(source.owner,true);return;}
   rows.unshift(row);this.trim(rows);this.running.set(row.id,{owner:source.owner,item});
   const update=()=>{row.received=Math.max(0,item.getReceivedBytes());row.total=Math.max(0,item.getTotalBytes());row.resumable=item.canResume();const saved=item.getSavePath();if(saved){row.path=saved;row.name=path.basename(saved);}};
@@ -17,7 +17,7 @@ export class BrowserDownloads{
  }
  private trim(rows:BrowserDownload[]){while(rows.length>50){let index=rows.length-1;while(index>=0&&activeDownload(rows[index]))index--;if(index<0)break;rows.splice(index,1);}}
  private save(owner:string,now=false){if(this.timers.has(owner)&&!now)return;clearTimeout(this.timers.get(owner));this.timers.delete(owner);if(now){void this.data.save(owner).catch(()=>{});return;}this.timers.set(owner,setTimeout(()=>{this.timers.delete(owner);void this.data.save(owner).catch(()=>{});},400));}
- list(owner:string,conversation?:string){const rows=this.data.get(owner).downloads;return {downloads:rows.filter(row=>conversation===undefined||row.conversation===conversation).map(row=>conversation===undefined?{...row}:{...row,path:undefined}),error:this.data.error(owner)};}
+ list(owner:string,conversation?:string,scope:'chat'|'agent-draft-preview'='chat'){const rows=this.data.get(owner).downloads;return {downloads:rows.filter(row=>conversation===undefined||row.conversation===conversation&&(row.scope??'chat')===scope).map(row=>conversation===undefined?{...row}:{...row,path:undefined}),error:this.data.error(owner)};}
  activeCount(owner:string){return this.data.get(owner).downloads.filter(activeDownload).length;}
  cancel(owner:string,id:string){const current=this.running.get(id);if(!current||current.owner!==owner)throw new Error('This download is no longer active for your account.');current.item.cancel();}
  pause(owner:string,id:string,resume=false){const current=this.running.get(id),row=this.data.get(owner).downloads.find(row=>row.id===id);if(!current||current.owner!==owner||!row)throw new Error('This download is no longer active for your account.');if(resume){if(!current.item.canResume()&&!current.item.isPaused())throw new Error('This download cannot resume. Start it again from the website.');current.item.resume();row.state='downloading';}else{if(!current.item.getSavePath())throw new Error('Choose a save location first.');current.item.pause();row.state='paused';}row.resumable=current.item.canResume()||current.item.isPaused();this.save(owner,true);}

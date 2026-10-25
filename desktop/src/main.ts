@@ -11,7 +11,7 @@ import {ComputerIndicator} from './computer-indicator';
 import {desktopProfile} from './desktop-profile';
 import {registeredPrivateRuntimeStorage} from './private-runtime-storage';
 import {ChromeRuntime} from './chrome-runtime';
-import {chromePluginName} from './chrome-contracts';
+import {chromePluginName,chromeConnectionId} from './chrome-contracts';
 import {spawn} from 'node:child_process';
 import {AgentBrowser} from './agent-browser';
 import {app,BrowserWindow,Notification,protocol,ipcMain,dialog,shell,screen,Menu,globalShortcut} from 'electron';
@@ -33,6 +33,8 @@ import {cleanDisplaySnapshot} from './display-state';
 import {createPortableBackup} from './portable-backup';
 import {captureAutomaticUpgradeRecovery} from './upgrade-workspace-backup';
 import {UpgradeRecoverySession} from './upgrade-recovery-session';
+import {EditorJournalInventory,preserveEditorJournalStorage} from './editor-journal-inventory';
+import {exportEditorJournal} from './editor-journal-export';
 app.setName('Agentopia');
 app.setAppUserModelId('com.squirrel.AgentopiaDesktop.Agentopia');
 const squirrelStartup=require('electron-squirrel-startup') as boolean;
@@ -63,13 +65,14 @@ let shuttingDown=false,starting=false,preparingClose=false;
 let closeReady:((value:boolean)=>void)|undefined,closeToken:string|undefined;
 let startupTask:Promise<void>|undefined;
 let sessionReady=false;
+let journalInventory:EditorJournalInventory|undefined,journalInventoryError:unknown;
 const storageControl=new StorageControl();
 const backupControl=new BackupControl({
  identity:()=>broker!.identity(),
  choose:async()=>{const result=await dialog.showOpenDialog(window!,{title:'Choose a private backup folder',properties:['openDirectory','createDirectory']});return result.canceled?undefined:result.filePaths[0];},
  locked:work=>broker!.backup(work),
- flush:async()=>{await browserOperations;await workspaceBrowser?.flush();},
- capture:(parent,progress,display)=>createPortableBackup({parent,name:'Agentopia-backup-'+new Date().toISOString().replaceAll(':','-')+'-'+randomUUID().slice(0,8),profile:app.getPath('userData'),publicRoot:path.join(app.getPath('home'),'Agentopia Files'),restoreHelper:path.join(resources,'runtime/Restore-Agentopia.ps1'),database:destination=>runtime!.databaseBackup(destination).then(()=>{}),references:owner=>broker!.backupReferences(owner),workspaces:(destination,owners,databaseSha)=>broker!.backupWorkspaces(destination,owners,databaseSha),image:(owner,id)=>broker!.backupImage(owner,id),settings:owner=>broker!.backupSettings(owner),checkExternalPath:file=>broker!.backupSourcePath(file),panes:owner=>broker!.backupLayouts(owner),display,window:window?{bounds:window.getNormalBounds(),maximized:window.isMaximized()}:undefined,progress}),
+ flush:async()=>{await browserOperations;await workspaceBrowser?.flush();if(journalInventory&&window)await preserveEditorJournalStorage(journalInventory,window.webContents);},
+ capture:(parent,progress,display)=>createPortableBackup({parent,windowsCredentials:process.platform==='win32',minimumRecoveryCapability:17,name:'Agentopia-backup-'+new Date().toISOString().replaceAll(':','-')+'-'+randomUUID().slice(0,8),profile:app.getPath('userData'),publicRoot:path.join(app.getPath('home'),'Agentopia Files'),restoreHelper:path.join(resources,'runtime/Restore-Agentopia.ps1'),database:destination=>runtime!.databaseBackup(destination).then(()=>{}),references:owner=>broker!.backupReferences(owner),workspaces:(destination,owners,databaseSha)=>broker!.backupWorkspaces(destination,owners,databaseSha),image:(owner,id)=>broker!.backupImage(owner,id),settings:owner=>broker!.backupSettings(owner),checkExternalPath:file=>broker!.backupSourcePath(file),panes:owner=>broker!.backupLayouts(owner),display,window:window?{bounds:window.getNormalBounds(),maximized:window.isMaximized()}:undefined,progress}),
 });
 const ownsInstance=!squirrelStartup&&app.requestSingleInstanceLock();
 if(!ownsInstance&&!squirrelStartup)app.quit();
@@ -78,6 +81,7 @@ const resources=app.isPackaged?path.join(process.resourcesPath,'resources'):path
 async function start(){
  if(starting)return;starting=true;sessionReady=false;
  try{
+  if(journalInventoryError){await preserveEditorJournalStorage(journalInventory!,window!.webContents,true);journalInventoryError=undefined;}
   if(pendingRecovery){
    recoveryController=new AbortController();
    await runQueuedRecovery(pendingRecovery,resources,message=>{runtime!.state={phase:'migration',message,ready:false};window?.webContents.send('agentopia:runtime',runtime!.state);},{signal:recoveryController.signal});
@@ -100,7 +104,7 @@ async function start(){
   };
   const notifications=new ScheduledNotifications(secrets,{owner:()=>broker?.notificationOwner??null,runs:owner=>broker!.scheduled.store.runs(owner),enabled:owner=>readNotificationPreferences(secrets,owner).tasks,show:(name,status,conversationId,owner)=>{if(owner)showNotification(owner,conversationId,name,status==='completed'?'Your scheduled task has a new result.':'Your scheduled task needs attention.');}});
   const responses=new ResponseNotifications(secrets,{owner:()=>broker?.notificationOwner??null,foreground:()=>!!window?.isFocused()&&!window.isMinimized(),scheduled:async(owner,id)=>(await broker!.scheduled.store.runs(owner)).some(run=>run.requestId===id),show:alert=>showNotification(alert.owner,alert.conversationId,alert.kind==='permission'?'Permission needed':alert.kind==='question'?'Answer needed':alert.kind==='goal'?'Goal complete':alert.status==='completed'?'Response ready':'Response needs attention',alert.status==='pending'?'Open Agentopia to review the waiting request.':'Open Agentopia to review the saved result.',alert.child)});
-  broker=new Broker(state.env,secrets,providers,event=>{if(!event.kind&&event.ownerId&&['completed','failed','interrupted','cancelled'].includes(event.status??''))computer?.finishRequest(event.ownerId,event.requestId);window?.webContents.send('agentopia:chat',event);if(!event.kind&&['completed','failed','interrupted'].includes(event.status??'')||event.kind==='goal'||event.kind==='native'||event.kind==='native-background'||event.kind==='tool')void responses.changed(event).catch(error=>console.warn('Response notification unavailable:',error.message));if(event.kind==='schedule'&&event.ownerId)void notifications.changed(event.ownerId).catch(error=>console.warn('Scheduled notification unavailable:',error.message));},[app.getPath('userData'),path.join(app.getPath('appData'),'Agentopia'),path.dirname(app.getPath('exe')),resources,...await registeredPrivateRuntimeStorage()],path.join(app.getPath('userData'),'attachments'),path.join(resources,'runtime/terminal.ps1'));broker.tools.browser=new AgentBrowser(workspaceBrowser!);workspaceBrowser!.configureAgents(async(owner,conversation)=>{if((await broker!.identity()).id!==owner)return false;const result=await broker!.admin.from('conversation_sessions').select('conversation_id').eq('conversation_id',conversation).eq('user_id',owner).maybeSingle();if(result.error)throw new Error('This browser conversation could not be checked.');return (await broker!.identity()).id===owner&&!!result.data;},async(owner,id)=>{const result=await broker!.admin.from('desktop_tool_calls').select('conversation_id').eq('user_id',owner).eq('name','browser_open').eq('status','completed').eq('result->>tab_id',id).limit(1).maybeSingle();if(result.error)throw new Error('Saved browser ownership could not be checked.');return result.data?.conversation_id;},async(owner,ids)=>{const result=await broker!.admin.from('conversation_sessions').select('conversation_id,title').eq('user_id',owner).in('conversation_id',ids);if(result.error)throw new Error('Browser chat titles could not be checked.');return Object.fromEntries((result.data??[]).map(row=>[row.conversation_id,(row.title||'Untitled chat').split('\n')[0].slice(0,100)]));});broker.tools.remote!.chrome=chromeRuntime;broker.tools.computer=computer;await broker.initialize();
+  broker=new Broker(state.env,secrets,providers,event=>{if(!event.kind&&event.ownerId&&['completed','failed','interrupted','cancelled'].includes(event.status??''))computer?.finishRequest(event.ownerId,event.requestId);window?.webContents.send('agentopia:chat',event);if(!event.kind&&['completed','failed','interrupted'].includes(event.status??'')||event.kind==='goal'||event.kind==='native'||event.kind==='native-background'||event.kind==='tool')void responses.changed(event).catch(error=>console.warn('Response notification unavailable:',error.message));if(event.kind==='schedule'&&event.ownerId)void notifications.changed(event.ownerId).catch(error=>console.warn('Scheduled notification unavailable:',error.message));},[app.getPath('userData'),path.join(app.getPath('appData'),'Agentopia'),path.dirname(app.getPath('exe')),resources,...await registeredPrivateRuntimeStorage()],path.join(app.getPath('userData'),'attachments'),path.join(resources,'runtime/terminal.ps1'));broker.tools.browser=new AgentBrowser(workspaceBrowser!);workspaceBrowser!.configureAgents(async(owner,conversation,scope)=>{if((await broker!.identity()).id!==owner)return false;const preview=scope==='agent-draft-preview',result=await broker!.admin.from(preview?'desktop_preview_sessions':'conversation_sessions').select(preview?'id':'conversation_id').eq(preview?'id':'conversation_id',conversation).eq('user_id',owner).maybeSingle();if(result.error)throw new Error('This browser conversation could not be checked.');return (await broker!.identity()).id===owner&&!!result.data;},async(owner,id)=>{const result=await broker!.admin.from('desktop_tool_calls').select('conversation_id').eq('user_id',owner).eq('name','browser_open').eq('status','completed').eq('result->>tab_id',id).limit(1).maybeSingle();if(result.error)throw new Error('Saved browser ownership could not be checked.');return result.data?.conversation_id;},async(owner,ids)=>{const result=await broker!.admin.from('conversation_sessions').select('conversation_id,title').eq('user_id',owner).in('conversation_id',ids);if(result.error)throw new Error('Browser chat titles could not be checked.');return Object.fromEntries((result.data??[]).map(row=>[row.conversation_id,(row.title||'Untitled chat').split('\n')[0].slice(0,100)]));});broker.tools.remote!.chrome=chromeRuntime;broker.tools.computer=computer;broker.native.commandIndicator={show:async(owner,key)=>{if(!computer?.indicator)throw Error('The native command indicator is unavailable.');await computer.indicator.showDesktop(owner,key);},end:(owner,key)=>computer?.indicator?.end(owner,key)};broker.previewRunner.native.commandIndicator=broker.native.commandIndicator;await broker.initialize();
   sessionReady=true;window?.webContents.send('agentopia:runtime',runtime!.state);
  }catch(error){if(upgradeReview&&!sessionReady){await upgradeReview.shutdown();upgradeReview=undefined;}runtime!.state={phase:'error',message:(error as Error).message,ready:false};window?.webContents.send('agentopia:runtime',runtime!.state);}
  finally{starting=false;}
@@ -111,6 +115,7 @@ if(ownsInstance)app.whenReady().then(async()=>{
  protocol.handle('agentopia',async request=>{
   const url=new URL(request.url);
   if(url.hostname!=='app'||request.method!=='GET')return new Response('Not found',{status:404});
+  if(url.pathname==='/draft-recovery-bootstrap')return new Response('<!doctype html><meta charset="utf-8"><title>Agentopia</title><p>Preserving your local drafts…</p>',{headers:{'Content-Type':'text/html','Content-Security-Policy':"default-src 'none'; base-uri 'none'; form-action 'none'"}});
   let relative:string;try{relative=decodeURIComponent(url.pathname);}catch{return new Response('Bad path',{status:400});}
   const requested=path.resolve(assets,'.'+relative);
   if(requested!==assets&&!requested.startsWith(assets+path.sep))return new Response('Forbidden',{status:403});
@@ -151,7 +156,7 @@ if(ownsInstance)app.whenReady().then(async()=>{
  ipcMain.handle('agentopia:call',async(event,action:unknown,args:unknown)=>{
   if(event.senderFrame!==window?.webContents.mainFrame||!event.senderFrame?.url.startsWith('agentopia://app/'))throw new Error('Untrusted desktop caller.');
   if(typeof action!=='string'||action.length>80||args===null||(args!==undefined&&(typeof args!=='object'||Array.isArray(args)))||JSON.stringify(args??{}).length>(action==='voice.transcribe'?5500000:action==='runtime.backup'?4*1024**2+64:action.startsWith('workspace.editor.')?1000000:desktopRequestLimit(action)))throw new Error('Invalid desktop request.');
-  if(action==='window.theme'){const dark=(args as Record<string,unknown>)?.dark;if(typeof dark!=='boolean')throw new Error('Invalid window theme.');window!.setTitleBarOverlay({color:dark?'#1c2429':'#eef1f4',symbolColor:dark?'#ececec':'#202123',height:32});return;}
+  if(action==='window.theme'){const dark=(args as Record<string,unknown>)?.dark;if(typeof dark!=='boolean')throw new Error('Invalid window theme.');window!.setTitleBarOverlay({color:dark?'#1a2226':'#eef1f4',symbolColor:dark?'#ececec':'#202123',height:32});return;}
   if(action==='window.menu'){
    const kind=(args as Record<string,unknown>)?.kind;
    const command=(name:string)=>()=>window?.webContents.send('agentopia:command',name);
@@ -205,7 +210,7 @@ if(ownsInstance)app.whenReady().then(async()=>{
    const value=args as any;if(typeof value?.id!=='string'||typeof value?.url!=='string')throw Error('Choose an available Chrome page.');
    return selectedBrowserSnapshot(owner.id,await chromeRuntime!.context.read(owner.id,value.id,value.url,signal,guard));
   }
-  if(action.startsWith('chrome.')){const owner=await broker.identity();if(action==='chrome.status')return chromeRuntime!.status(owner.id);if(action==='chrome.disconnect'||action==='chrome.cancel'){await chromeRuntime!.disconnect(owner.id);return chromeRuntime!.status(owner.id);}if(action==='chrome.connect')return chromeRuntime!.connect(owner.id,(args as any)?.mode,async()=>{if((await broker!.identity()).id!==owner.id)throw new Error('Your Agentopia account changed.');const plugins=await broker!.call('plugins.list') as any[];if(!plugins.some(p=>p.name===chromePluginName&&p.enabled))throw new Error('Enable the Chrome DevTools plugin before connecting Chrome.');});if(action==='chrome.settings'){const executable=await chromeRuntime!.chrome();if(!executable)throw new Error('Install Google Chrome first.');const child=spawn(executable,['chrome://inspect/#remote-debugging'],{windowsHide:false,detached:true,stdio:'ignore'});child.unref();return;}throw new Error('Unsupported Chrome connection operation.');}
+  if(action.startsWith('chrome.')){const owner=await broker.identity();if(action==='chrome.status')return chromeRuntime!.status(owner.id);if(action==='chrome.disconnect'||action==='chrome.cancel'){await broker.remoteConnectionChange(owner.id,{connectionId:'mcp:'+chromeConnectionId},()=>chromeRuntime!.disconnect(owner.id));return chromeRuntime!.status(owner.id);}if(action==='chrome.connect')return broker.remoteConnectionChange(owner.id,{connectionId:'mcp:'+chromeConnectionId},()=>chromeRuntime!.connect(owner.id,(args as any)?.mode,async()=>{if((await broker!.identity()).id!==owner.id)throw new Error('Your Agentopia account changed.');const plugins=await broker!.call('plugins.list') as any[];if(!plugins.some(p=>p.name===chromePluginName&&p.enabled))throw new Error('Enable the Chrome DevTools plugin before connecting Chrome.');}));if(action==='chrome.settings'){const executable=await chromeRuntime!.chrome();if(!executable)throw new Error('Install Google Chrome first.');const child=spawn(executable,['chrome://inspect/#remote-debugging'],{windowsHide:false,detached:true,stdio:'ignore'});child.unref();return;}throw new Error('Unsupported Chrome connection operation.');}
   if(action==='browser.preview'){const owner=await broker.identity(),value=await broker.tools.browser!.pointer.preview(owner.id,(args as any)?.id);if((await broker.identity()).id!==owner.id)throw new Error('Your Agentopia account changed.');return value;}
   if(action==='browser.context'){const owner=await broker.identity(),value=args as any;if(typeof value?.id!=='string'||typeof value?.url!=='string')throw new Error('Choose an available browser page.');return selectedBrowserSnapshot(owner.id,await broker.tools.browser!.context(owner.id,value.id,value.url,AbortSignal.timeout(15000),async()=>{if((await broker!.identity()).id!==owner.id)throw new Error('Your Agentopia account changed.');}));}
   if(action.startsWith('browser.')){const operation=browserOperations.catch(()=>{}).then(async()=>{const owner=await broker!.identity();return workspaceBrowser!.call(action,args as Record<string,unknown>??{},owner.id,async()=>{if((await broker!.identity()).id!==owner.id)throw new Error('Your Agentopia account changed.');});});browserOperations=operation;return operation;}
@@ -222,6 +227,11 @@ if(ownsInstance)app.whenReady().then(async()=>{
    if(action==='voice.speak')return voice!.speak(value?.text);
    if(action==='voice.stop'){microphoneUntil=0;await voice!.stop();return;}
    throw new Error('Unsupported voice operation.');
+  }
+  if(action==='editorRecovery.export'){
+   if(preparingClose)throw Error('Agentopia is closing. Reopen it before exporting recovery.');return storageControl.run(async()=>{
+    const value=args as Record<string,unknown>,owner=await broker!.identity();if(value.owner!==owner.id)throw Error('This recovery copy belongs to another account.');return exportEditorJournal({owner:owner.id,read:()=>broker!.call('editorRecovery.read',{owner:owner.id,id:value.id}),guard:async()=>{if((await broker!.identity()).id!==owner.id)throw Error('Your recovery account changed.');},checkPath:file=>broker!.files.checkPath(file),choose:async copy=>{const choice=await dialog.showSaveDialog(window!,{title:'Export retained draft',defaultPath:'Agentopia-draft-version-'+copy.id+'.json',filters:[{name:'JSON recovery copy',extensions:['json']}]});return choice.canceled?undefined:choice.filePath;}});
+   });
   }
   if(action==='images.export'){
    const owner=await broker.identity(),id=(args as any)?.id;if(typeof id!=='string')throw new Error('Choose a saved generated image.');
@@ -247,6 +257,9 @@ if(ownsInstance)app.whenReady().then(async()=>{
   if(action==='conversations.manage'&&(args as any)?.action==='delete'){const owner=await broker.identity(),result=await broker.call(action,args as Record<string,unknown>);await workspaceBrowser!.forgetConversation(owner.id,String((args as any).conversationId),async()=>{if((await broker!.identity()).id!==owner.id)throw new Error('Your Agentopia account changed.');});return result;}
   return broker.call(action,args as Record<string,unknown>|undefined);
  });
+ // Inspect the existing private origin before app scripts or a runtime upgrade
+ // can change it. A capture failure holds startup and leaves the source intact.
+ if(!pendingRecovery){journalInventory=new EditorJournalInventory(app.getPath('userData'));await window.loadURL('agentopia://app/draft-recovery-bootstrap');try{await preserveEditorJournalStorage(journalInventory,window.webContents,true);}catch(error){journalInventoryError=error;}}
  if(savedWindow.maximized)window.maximize();await window.loadURL('agentopia://app/login');window.show();
  ipcMain.on('agentopia:close-ready',(event,value)=>{if(event.senderFrame===window?.webContents.mainFrame&&value?.token===closeToken)closeReady?.(!value.error);});
  window.on('close',event=>{

@@ -1,0 +1,2 @@
+const assert=require('node:assert/strict');
+module.exports=owner=>{const run=async(who,guard,work)=>{assert.equal(who,owner);await guard();const result=await work();await guard();return result;};return {settled:async()=>{},mutate:(who,_creation,guard,work)=>run(who,guard,work),retire:(who,_creation,guard,work)=>run(who,guard,work),save:(who,_creation,_revision,guard,work)=>run(who,guard,work),packageChange:(who,_name,guard,work)=>run(who,guard,work)};};

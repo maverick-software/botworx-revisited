@@ -282,3 +282,24 @@ src/lib/utils/ssh_utils.ts:private-key:82
 supabase/functions/mcp-server-utils/index.ts:curl-auth-header:132
 # Default local development anon key
 supabase/functions/mcp-server-utils/index.ts:jwt:133
+
+# UI local-storage identifier for generated retirement fixtures; not a credential.
+scripts/desktop/agent-preview-ui-fixture.ts:generic-api-key:10
+
+# Synthetic later OAuth token in a Windows-encryption fixture; never a live account token.
+scripts/desktop/creation-handoff121-encryption.cjs:generic-api-key:9
+
+# Source-rewrite template for the generated UI local-storage identifier.
+scripts/desktop/prepare-creation-retirement118-ui.mjs:generic-api-key:6
+
+# Generated dummy bearer prefix for a controlled local MCP server.
+scripts/desktop/preview-remote110-postgres.mjs:generic-api-key:10
+
+# Generated dummy project-key prefix passed to a stubbed Composio client.
+scripts/desktop/preview-remote-isolation112.mjs:generic-api-key:18
+
+# Generated dummy search-key prefix in an isolated SQL authorization test.
+scripts/desktop/test-creation-transport116-postgres.mjs:generic-api-key:62
+
+# Generated dummy bearer prefix for a controlled local MCP server.
+scripts/desktop/test-normal-remote110-broker.mjs:generic-api-key:41

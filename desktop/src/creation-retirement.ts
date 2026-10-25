@@ -1,0 +1,8 @@
+import {draftPreviewId} from './agent-draft-preview-contracts';
+export type CreationRetirement={version:1;id:string;owner:string;creationId:string;writeId:string;revision:number;savedAgentId:string|null;retiredAt:string};
+const record=(value:unknown)=>{if(!value||typeof value!=='object'||Array.isArray(value))throw Error('Choose an owned creation retirement.');return value as Record<string,unknown>;};
+export function creationRetireInput(value:unknown){const v=record(value);if(Object.keys(v).some(key=>!['creationId','expectedRevision','writeId'].includes(key))||!Number.isSafeInteger(v.expectedRevision)||Number(v.expectedRevision)<0)throw Error('Review the current creation app revision before discarding.');return {creationId:draftPreviewId(v.creationId),expectedRevision:Number(v.expectedRevision),writeId:draftPreviewId(v.writeId)};}
+export function creationRetirement(value:unknown,owner:string,creationId:string):CreationRetirement{
+ const v=record(value);if(Object.keys(v).some(key=>!['version','id','owner','creationId','writeId','revision','savedAgentId','retiredAt'].includes(key))||v.version!==1||v.owner!==owner||v.creationId!==creationId||!Number.isSafeInteger(v.revision)||Number(v.revision)<0||typeof v.retiredAt!=='string'||v.retiredAt.length>100||!Number.isFinite(Date.parse(v.retiredAt)))throw Error('The creation retirement belongs to another account or draft.');
+ for(const key of ['id','owner','creationId','writeId'])if(draftPreviewId(v[key])!==v[key])throw Error('The creation retirement identity is invalid.');if(v.savedAgentId!==null&&draftPreviewId(v.savedAgentId)!==v.savedAgentId)throw Error('The retained saved identity is invalid.');return structuredClone(v) as CreationRetirement;
+}

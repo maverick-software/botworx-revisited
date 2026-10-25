@@ -13,8 +13,10 @@ from urllib.parse import unquote, urlparse
 from logical_row_fingerprints71 import Fingerprints, lines, IDENTIFIER
 
 
-def audit(archive, out, instance, expected_port):
+def audit(archive, out, instance, expected_port, additional_empty_tables=()):
     archive, out = Path(archive), Path(out)
+    assert len(set(additional_empty_tables)) == len(additional_empty_tables)
+    assert all(IDENTIFIER.fullmatch(name) for name in additional_empty_tables)
     assert out.is_dir() and archive.is_dir()
     assert str(uuid.UUID(instance)) == instance
     assert Path('/opt/agentopia/runtime-instance').read_text().strip() == instance
@@ -51,6 +53,9 @@ def audit(archive, out, instance, expected_port):
         begin, end = '__AUDIT_BEGIN_' + nonce + '__', '__AUDIT_END_' + nonce + '__'
         commands = ['BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;',
             "SELECT jsonb_build_object('publicTables',(SELECT coalesce(jsonb_agg(c.relname ORDER BY c.relname),'[]') FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN('r','p') AND NOT EXISTS(SELECT 1 FROM pg_depend d WHERE d.classid='pg_class'::regclass AND d.objid=c.oid AND d.deptype='e')),'migrations',(SELECT count(*) FROM agentopia_desktop.migrations),'readableVault',(SELECT count(decrypted_secret) FROM vault.decrypted_secrets));"]
+        if additional_empty_tables:
+            counts = ','.join("'" + name + "',(SELECT count(*) FROM public.\"" + name + '\")' for name in additional_empty_tables)
+            commands[1] = commands[1].replace("'migrations',", "'additionalEmptyTables',jsonb_build_object(" + counts + "),'migrations',")
         for name, record in expected.items():
             schema, table = name.split('.')
             assert all(IDENTIFIER.fullmatch(part) for part in [schema, table, *record['columns']])
@@ -82,7 +87,8 @@ def audit(archive, out, instance, expected_port):
                 code = process.wait(timeout=120)
             assert code == 0 and active is None and metadata, 'Live audit failed; inspect private diagnostics.'
         actual = store.result('live')
-        assert sorted('public.' + name for name in metadata['publicTables']) == sorted(name for name in expected if name.startswith('public.')), 'The archive must cover every application table.'
+        assert sorted('public.' + name for name in metadata['publicTables']) == sorted([name for name in expected if name.startswith('public.')] + ['public.' + name for name in additional_empty_tables]), 'The archive must cover every original application table; only explicitly named empty new tables are allowed.'
+        assert all(count == 0 for count in metadata.get('additionalEmptyTables', {}).values()), 'A newly added table has unexpected data.'
         assert metadata['migrations'] >= 71
         differences = sorted(name for name in expected.keys() | actual.keys() if expected.get(name) != actual.get(name))
         assert not differences, 'Saved rows differ: ' + ', '.join(differences)
@@ -101,7 +107,8 @@ def audit(archive, out, instance, expected_port):
             'readableVaultRecords': metadata['readableVault'], 'encryptionRootBindingsVerified': 4,
             'accountPasswordAndRoleRowsPreserved': True, 'mismatches': [], 'databaseReadOnly': True, 'servicesRestarted': 0,
             'providerRequests': 0, 'completeDecodedDumpBuffered': False, 'maximumCopyRowBytes': store.maximum_row_bytes,
-            'copyRowLimitBytes': 64 * 1024 * 1024, 'fingerprintAlgorithm': 'sorted row SHA-256 with duplicate multiplicity'}
+            'copyRowLimitBytes': 64 * 1024 * 1024, 'fingerprintAlgorithm': 'sorted row SHA-256 with duplicate multiplicity',
+            'additionalEmptyTablesVerified': len(additional_empty_tables)}
         (out / 'archive-table-fingerprints.json').write_text(json.dumps(expected, indent=2))
         return report
     finally:

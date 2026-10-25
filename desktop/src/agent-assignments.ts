@@ -13,6 +13,7 @@ export type AgentLaunch={parentInstanceId:string;instanceId:string;expectedRevis
 export class AgentAssignments{
  readonly queue:AgentQueue;
  preparing=0;
+ readonly preparingRequestIds=new Set<string>();
  constructor(private db:SupabaseClient,private agents:AgentService,available:()=>boolean,private launch:(record:NamedInvocation,instance:AgentInstance,context:AgentLaunch,accepted:()=>void)=>Promise<void>,private finished?:(record:NamedInvocation)=>Promise<void>){this.queue=new AgentQueue(available);}
  async recover(){
   const rows=data(await this.db.from('desktop_agent_invocations').select('request_id,child_instance_id').in('status',['queued','starting','running']));
@@ -28,7 +29,7 @@ export class AgentAssignments{
  }
  private schedule(record:NamedInvocation,authorityAgents:string[],authorityInstances:string[],goalIds:string[]){
   this.queue.enqueue({id:record.request_id,owner:record.user_id,agentId:record.target_agent_id,instanceId:record.child_instance_id,authorityAgents,authorityInstances,goalIds,interrupted:reason=>this.interrupted(record,reason),run:async()=>{
-   this.preparing++;let released=false;const accepted=()=>{if(!released){released=true;this.preparing--;}};
+   this.preparing++;this.preparingRequestIds.add(record.request_id);let released=false;const accepted=()=>{if(!released){released=true;this.preparing--;this.preparingRequestIds.delete(record.request_id);}};
    try{
    const claimed=data(await this.db.rpc('desktop_claim_agent_invocation',{p_user:record.user_id,p_request:record.request_id})) as NamedInvocation;if(!claimed.claimed)return;
    const instance=data(await this.db.from('desktop_agent_instances').select('*').eq('id',claimed.child_instance_id).eq('user_id',record.user_id).single()) as AgentInstance;

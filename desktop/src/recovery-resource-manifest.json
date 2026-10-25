@@ -1,7 +1,7 @@
 {
-  "format": 12,
+  "format": 18,
   "files": {
-    "runtime/prepare-desktop-recovery.py": "82f8a64cc2bd20a9405a34ece964d81f920088c2c0fd9bc57cdaa43469c9bd72",
-    "runtime/relocate-native-profile.py": "f32f1be790589796d0e7b6560d4ce1657ea2a50a7669f88a6b1118324abf0281"
+    "runtime/prepare-desktop-recovery.py": "26c6c1af0b3ff578e26db7d59bd03010374e9e03239c597d4dcd40e37df87594",
+    "runtime/relocate-native-profile.py": "55983613d2b306d881424642b7fcecbb7600cc41d1534a049ca383910e1af757"
   }
 }

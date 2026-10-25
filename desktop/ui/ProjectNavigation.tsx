@@ -1,16 +1,15 @@
 import {cleanDisplayState} from '../src/display-state';
 import {useScheduledWorkspace} from './ScheduledTasks';
 import {SidebarSection} from './SidebarSection';
-import {BackgroundAgents} from './BackgroundAgents';
 import React,{useEffect,useRef,useState} from 'react';
 import * as Popover from '@radix-ui/react-popover';
-import {Home,Bot,Plug,CalendarClock,FolderOpen,PanelRight,Settings,Plus,ChevronRight,ChevronDown,MoreHorizontal,Trash2,SquarePen,MessageSquare,Paperclip,X,Search} from 'lucide-react';
+import {Home,Bot,Plug,CalendarClock,FolderOpen,BookOpen,Settings,Plus,ChevronRight,ChevronDown,MoreHorizontal,Trash2,SquarePen,MessageSquare,Paperclip,X,Search} from 'lucide-react';
 import type {Conversation,FileReference,FileSelection,Project,ProjectsState} from '../src/contracts';
 import {call,Modal,Menu,MenuItem} from './ui';
 import {HistoryRow,type View} from './WorkspaceViews';
 export function NavigationRail({owner,view,open,workspace,settings,account}:{owner?:string;view:View;open:(v:View)=>void;workspace:()=>void;settings:()=>void;account?:React.ReactNode}){
  const schedules=useScheduledWorkspace();
- return <nav className="navigation-rail" aria-label="Application navigation"><button className={'rail-button '+(view==='chat'?'active':'')} title="Chats" aria-label="Chats" onClick={()=>{schedules?.setSelectedId(null);open('chat');}}><Home size={21}/></button><button className={'rail-button '+(view==='agents'?'active':'')} title="Agents" aria-label="Agent library" onClick={()=>open('agents')}><Bot size={21}/></button><button className={'rail-button '+(['plugins','tools','skills'].includes(view)?'active':'')} title="Plugins & connections" aria-label="Plugins and connections" onClick={()=>open('plugins')}><Plug size={21}/></button><button className={'rail-button '+(view==='scheduled'?'active':'')} title='Scheduled' aria-label='Scheduled tasks' onClick={()=>open('scheduled')}><CalendarClock size={21}/></button><BackgroundAgents owner={owner}/><div className="rail-divider"/><button className="rail-button" title="Files, canvas & browser" aria-label="Toggle workspace pane" onClick={workspace}><PanelRight size={21}/></button><button className="rail-button" title="Projects & folders" aria-label="Open workspace folders" onClick={workspace}><FolderOpen size={21}/></button>{account??<button className="rail-button rail-settings" title="Settings" aria-label="Open account settings" onClick={settings}><Settings size={21}/></button>}</nav>;
+ return <nav className="navigation-rail" aria-label="Application navigation"><button className={'rail-button '+(view==='chat'?'active':'')} title="Home" aria-label="Home" onClick={()=>{schedules?.setSelectedId(null);open('chat');}}><Home size={21}/></button><button className={'rail-button '+(view==='agents'?'active':'')} title="Agents" aria-label="Agent library" onClick={()=>open('agents')}><Bot size={21}/></button><button className={'rail-button '+(view==='scheduled'?'active':'')} title="Scheduled tasks" aria-label="Scheduled tasks" onClick={()=>open('scheduled')}><CalendarClock size={21}/></button><button className={'rail-button '+(view==='plugins'?'active':'')} title="Plugins" aria-label="Plugins" onClick={()=>open('plugins')}><Plug size={21}/></button><button className={'rail-button '+(view==='skills'?'active':'')} title="Skills" aria-label="Skills" onClick={()=>open('skills')}><BookOpen size={21}/></button>{account??<button className="rail-button rail-settings" title="Settings" aria-label="Open account settings" onClick={settings}><Settings size={21}/></button>}</nav>;
 }
 const emptyProjects:ProjectsState={projects:[],memberships:[]};
 export function useProjects(owner:string|undefined){

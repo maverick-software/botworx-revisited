@@ -1,17 +1,15 @@
-import {ChildChats} from './ChildChats';
-import React,{useContext,useEffect,useState} from 'react';
-import {Workflow} from 'lucide-react';
-import type {NativeChildView} from '../src/native-contracts';
+import React,{useContext,useEffect} from 'react';
+import {Workflow,X,ChevronRight} from 'lucide-react';
+import {ChildChats,childKey} from './ChildChats';
 import {NativeChildCard} from './NativeTurn';
-import {call,Modal} from './ui';
+import type {Conversation} from '../src/contracts';
 
-export function BackgroundAgents({owner}:{owner?:string}){
- const chats=useContext(ChildChats);
- const [open,setOpen]=useState(false),[children,setChildren]=useState<NativeChildView[]>([]),[error,setError]=useState('');
- useEffect(()=>{setOpen(false);setChildren([]);setError('');if(!owner)return;let disposed=false,loading=false,again=false,eventTimer:ReturnType<typeof setTimeout>|undefined;
-  const refresh=async()=>{if(loading){again=true;return;}loading=true;try{const rows=await call<NativeChildView[]>('native.children');if(!disposed){setChildren(rows);setError('');}}catch(e){if(!disposed)setError((e as Error).message);}finally{loading=false;if(again&&!disposed){again=false;void refresh();}}};
-  void refresh();const off=window.agentopia.onChat(e=>{if(e.ownerId===owner&&(e.kind==='native-background'||e.kind==='native')){if(!eventTimer)eventTimer=setTimeout(()=>{eventTimer=undefined;void refresh();},400);}});const timer=setInterval(()=>void refresh(),10000);return()=>{disposed=true;off();clearInterval(timer);if(eventTimer)clearTimeout(eventTimer);};
- },[owner]);
- if(!owner)return null;const working=children.filter(c=>c.child.status==='running'||c.child.delivery==='running').length;
- return <><button className="background-agents-button" aria-label="Background agents" title="Background agents" onClick={()=>setOpen(true)}><Workflow size={19}/>{working>0&&<span>{working}</span>}</button>{open&&<Modal title="Background agents" className="background-agents-dialog" close={()=>setOpen(false)}><p className="hint">Subagents keep working after their parent response ends while Agentopia is open. Their results return to the main agent. Closing or signing out stops active work; saved transcripts remain available.</p>{error&&<p role="alert" className="danger">{error}</p>}{children.map(c=><div key={c.requestId+c.child.threadId}><small>{c.provider==='openrouter'?'OpenRouter':'ChatGPT'} · {c.model}</small><button className="subtle-link" onClick={()=>{setOpen(false);chats.open(c);}}>Open subagent chat</button><NativeChildCard child={c.child} requestId={c.requestId}/></div>)}{!children.length&&<p>No subagents yet. Ask an agent to delegate work in the background.</p>}</Modal>}</>;
+export function BackgroundAgentsToggle({open,toggle}:{open:boolean;toggle:()=>void}){
+ const {rows}=useContext(ChildChats),working=rows.filter(row=>row.child.status==='running'||row.child.delivery==='running').length;
+ return <button className="icon-button background-agents-toggle" aria-label="Background agents" title="Background agents" aria-expanded={open} aria-controls="background-agents-panel" onClick={toggle}><Workflow size={18}/>{working>0&&<span>{working}</span>}</button>;
+}
+export function BackgroundAgents({conversations,close,error}:{conversations:Conversation[];close:()=>void;error?:string}){
+ const chats=useContext(ChildChats),groups=[...new Set(chats.rows.map(row=>row.conversationId))];
+ useEffect(()=>{const key=(event:KeyboardEvent)=>{if(event.key==='Escape'&&!event.defaultPrevented&&!(event.target instanceof Element&&event.target.closest('[role="dialog"]'))){event.preventDefault();close();}};document.addEventListener('keydown',key);return()=>document.removeEventListener('keydown',key);},[close]);
+ return <aside id="background-agents-panel" className="background-agents-panel" aria-label="Background agents"><header><h2>Background agents</h2><button className="icon-button" aria-label="Collapse background agents" onClick={close}><X size={18}/></button></header><div className="background-agent-tree">{error&&<p role="alert">{error}</p>}{groups.map(id=>{const rows=chats.rows.filter(row=>row.conversationId===id),working=rows.filter(row=>row.child.status==='running'||row.child.delivery==='running').length;return <details className="background-agent-group" key={id} open><summary><ChevronRight size={15}/><strong>{conversations.find(chat=>chat.conversation_id===id)?.title||'Conversation'}</strong><small>{working?working+' working':rows.length+' agents'}</small></summary>{rows.map(row=>{const child=row.child,needsInput=child.state.approvals.some(item=>item.status==='pending')||child.state.tools?.some(item=>item.status==='awaiting_approval');return <details className="background-agent-entry" key={childKey({requestId:row.requestId,threadId:child.threadId})}><summary><ChevronRight size={14}/><span><strong>{child.name}</strong><small>{needsInput?'Needs input':child.status==='running'?'Working':child.status}{child.delivery==='delivered'?' · Reported back':''}</small></span>{child.status==='running'&&<i className="native-running-dot"/>}</summary><button className="subtle-link" onClick={()=>chats.open(row)}>Open agent chat</button><NativeChildCard child={child} requestId={row.requestId} expandedActivity/></details>;})}</details>;})}{!groups.length&&<p className="hint">Delegated agents appear here with their live activity, controls and results.</p>}</div></aside>;
 }

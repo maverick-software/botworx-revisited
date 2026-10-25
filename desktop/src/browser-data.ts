@@ -1,5 +1,5 @@
 import {createHash} from 'node:crypto';
-export type BrowserDownload={id:string;tabId:string;conversation?:string;name:string;origin:string;state:'choosing'|'downloading'|'paused'|'completed'|'cancelled'|'interrupted';received:number;total:number;startedAt:string;finishedAt?:string;path?:string;error?:string;resumable?:boolean};
+export type BrowserDownload={id:string;tabId:string;conversation?:string;scope?:'agent-draft-preview';name:string;origin:string;state:'choosing'|'downloading'|'paused'|'completed'|'cancelled'|'interrupted';received:number;total:number;startedAt:string;finishedAt?:string;path?:string;error?:string;resumable?:boolean};
 export type BrowserData={rememberSignIns:boolean;downloads:BrowserDownload[]};
 export type BrowserStore={get<T>(key:string):T|undefined;set(key:string,value:unknown):Promise<void>};
 export const activeDownload=(row:BrowserDownload)=>['choosing','downloading','paused'].includes(row.state);

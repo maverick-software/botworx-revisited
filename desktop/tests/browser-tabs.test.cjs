@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),{randomUUID}=require('node:crypto');
-const {BrowserTabs}=require('../build/browser-tabs.js');
+const {BrowserTabs}=require(require('node:path').join(process.env.AGENTOPIA_PREVIEW_BUILD||require('node:path').resolve(__dirname,'../build'),'browser-tabs.js'));
 const row=(conversation=randomUUID())=>({id:randomUUID(),conversation,url:'https://example.test/start',title:'Owned page',updatedAt:new Date().toISOString()});
 function store(){const data=new Map();return {data,get:key=>structuredClone(data.get(key)),set:async(key,value)=>{await new Promise(r=>setTimeout(r,2));data.set(key,structuredClone(value));}};}
 test('saved agent tabs survive storage reload and keep account/conversation and close boundaries',async()=>{
@@ -10,4 +10,11 @@ test('saved agent-tab input cannot restore privileged URLs, credentials, duplica
 });
 test('failed closes remain open, queued URL updates are ordered and failed navigation metadata can be saved again',async()=>{
  const disk=store();let fail=false;const tabs=new BrowserTabs({get:disk.get,set:async(...args)=>{if(fail)throw new Error('Controlled disk failure');await disk.set(...args);}}),first=row();await tabs.put('a',first);await Promise.all([tabs.update('a',first.id,'https://example.test/one','One'),tabs.update('a',first.id,'https://example.test/two','Two')]);assert.equal(tabs.get('a',first.id).url,'https://example.test/two');fail=true;await assert.rejects(tabs.forget('a',first.id),/disk failure/);assert(tabs.get('a',first.id));assert(!tabs.closed('a',first.id));await assert.rejects(tabs.update('a',first.id,'https://example.test/three','Three'));assert(tabs.error('a'));assert.equal(tabs.error('b'),'');await assert.rejects(tabs.flush());fail=false;await tabs.put('a',row());assert(tabs.error('a'),'Another tab write must not hide a failed address update');await tabs.flush();assert.equal(tabs.error('a'),'');assert.equal(new BrowserTabs(disk).get('a',first.id).url,'https://example.test/three');await tabs.forget('a',first.id);assert(!tabs.get('a',first.id));
+});
+
+
+test('preview browser tabs remain separate from an identically named normal conversation after reopening',async()=>{
+ const disk=store(),tabs=new BrowserTabs(disk),normal=row(),preview={...row(normal.conversation),scope:'agent-draft-preview'};await tabs.put('a',normal);await tabs.put('a',preview);await tabs.flush();
+ for(const reader of [tabs,new BrowserTabs(disk)]){assert.deepEqual(reader.list('a',normal.conversation),[normal]);assert.deepEqual(reader.list('a',normal.conversation,'agent-draft-preview'),[preview]);assert.equal(reader.list('b',normal.conversation,'agent-draft-preview').length,0);assert.equal(reader.list('a').length,2);}
+ await assert.rejects(tabs.put('a',{...row(),scope:'foreign'}),/scope/);
 });

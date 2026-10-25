@@ -1,3 +1,4 @@
+import {editorDraftRecords} from './agent-editor-draft-contracts';
 import {createHash} from 'node:crypto';
 import {selectedContextFiles} from './selected-context';
 import {chatOptions,thinkingValues} from './composer';
@@ -9,7 +10,7 @@ import {composioState,portableComposioState} from './composio-contracts';
 import {googleDocumentJournal} from './google-document-contracts';
 import type {Secrets} from './secrets';
 
-export const portableSettingKeys=['preferences','model-choices','prefer-chatgpt','composer','chat-drafts','desktop-location','voice-preferences','notification-preferences','composio-state','google-documents'] as const;
+export const portableSettingKeys=['preferences','model-choices','prefer-chatgpt','composer','chat-drafts','desktop-location','voice-preferences','notification-preferences','composio-state','google-documents','agent-editor-drafts'] as const;
 type Key=typeof portableSettingKeys[number];
 export type PortableSettings=Partial<Record<Key,unknown>>;
 export type PortableSettingsRecord={format:1;kind:'agentopia-portable-settings';databaseManifestSha256:string;accounts:{owner:string;settings:PortableSettings}[];indexSha256:string};
@@ -27,6 +28,7 @@ export function cleanPortableSetting(key:Key,value:unknown):unknown{
   case 'notification-preferences':return notificationPreferences(value);
   case 'composio-state':return portableComposioState(value);
   case 'google-documents':return googleDocumentJournal(value);
+  case 'agent-editor-drafts':return editorDraftRecords(value);
   case 'chat-drafts':{
    object(value);if(Object.keys(value).length>100||JSON.stringify(value).length>2000000)throw Error('Portable chat drafts exceed the saved-draft limit.');const result:Record<string,ChatDraft>={};
    for(const [scope,draft]of Object.entries(value)){draftScope(scope);object(draft,['text','options','updatedAt']);if(typeof draft.text!=='string'||draft.text.length>100000||typeof draft.updatedAt!=='string'||!Number.isFinite(Date.parse(draft.updatedAt)))throw Error('Invalid portable chat draft.');result[scope]={text:draft.text,options:options(draft.options),updatedAt:draft.updatedAt};}return result;
@@ -35,8 +37,8 @@ export function cleanPortableSetting(key:Key,value:unknown):unknown{
 }
 export function portableSettingsId(record:Omit<PortableSettingsRecord,'indexSha256'>|PortableSettingsRecord){return createHash('sha256').update(JSON.stringify({format:record.format,kind:record.kind,databaseManifestSha256:record.databaseManifestSha256,accounts:record.accounts})).digest('hex');}
 export function validatePortableSettings(record:PortableSettingsRecord){
- object(record,['format','kind','databaseManifestSha256','accounts','indexSha256']);if(record.format!==1||record.kind!=='agentopia-portable-settings'||!/^[a-f0-9]{64}$/.test(record.databaseManifestSha256)||!Array.isArray(record.accounts)||record.accounts.length>10000||Buffer.byteLength(JSON.stringify(record),'utf8')>16*1024**2||record.indexSha256!==portableSettingsId(record))throw Error('The portable settings record is invalid or changed.');
- const owners=new Set<string>();for(const account of record.accounts){object(account,['owner','settings']);if(!uuid.test(account.owner)||owners.has(account.owner.toLowerCase()))throw Error('Invalid portable settings owner.');owners.add(account.owner.toLowerCase());object(account.settings,portableSettingKeys);for(const [key,value]of Object.entries(account.settings))cleanPortableSetting(key as Key,value);const settings=account.settings;if(settings['composio-state'])composioState(settings['composio-state'],true);if(settings.composer)selectedContextFiles((settings.composer as any).sources,account.owner,'ask');for(const draft of Object.values(settings['chat-drafts']??{}) as ChatDraft[])selectedContextFiles(draft.options.sources,account.owner,'ask');}return record;
+ object(record,['format','kind','databaseManifestSha256','accounts','indexSha256']);if(record.format!==1||record.kind!=='agentopia-portable-settings'||!/^[a-f0-9]{64}$/.test(record.databaseManifestSha256)||!Array.isArray(record.accounts)||record.accounts.length>10000||Buffer.byteLength(JSON.stringify(record),'utf8')>64*1024**2||record.indexSha256!==portableSettingsId(record))throw Error('The portable settings record is invalid or changed.');
+ const owners=new Set<string>();for(const account of record.accounts){object(account,['owner','settings']);if(!uuid.test(account.owner)||owners.has(account.owner.toLowerCase()))throw Error('Invalid portable settings owner.');owners.add(account.owner.toLowerCase());object(account.settings,portableSettingKeys);for(const [key,value]of Object.entries(account.settings))cleanPortableSetting(key as Key,value);const settings=account.settings;if(settings['agent-editor-drafts'])editorDraftRecords(settings['agent-editor-drafts'],account.owner);if(settings['composio-state'])composioState(settings['composio-state'],true);if(settings.composer)selectedContextFiles((settings.composer as any).sources,account.owner,'ask');for(const draft of Object.values(settings['chat-drafts']??{}) as ChatDraft[])selectedContextFiles(draft.options.sources,account.owner,'ask');}return record;
 }
 export function capturePortableSettings(owners:string[],databaseManifestSha256:string,read:(owner:string)=>PortableSettings){
  const accounts=owners.map(owner=>{const input=read(owner);object(input,portableSettingKeys);return {owner,settings:Object.fromEntries(Object.entries(input).map(([key,value])=>[key,cleanPortableSetting(key as Key,value)]))};});

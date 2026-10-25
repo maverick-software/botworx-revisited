@@ -40,14 +40,16 @@ function Read-AgentopiaDesktopRecoveryDescriptor([string]$Source){
  $descriptorPath=Join-Path $Source 'desktop-recovery.json'
  $descriptorItem=Get-Item -LiteralPath $descriptorPath -Force;if($descriptorItem.PSIsContainer -or ($descriptorItem.Attributes -band [IO.FileAttributes]::ReparsePoint)){throw 'The desktop recovery descriptor is linked or invalid.'}
  $descriptor=Get-Content -LiteralPath $descriptorPath -Raw | ConvertFrom-Json
- if($descriptor.format -ne 2 -or $descriptor.kind -ne 'agentopia-desktop-recovery' -or $descriptor.requiresDesktopRecoveryFormat -notin @(2,3,4,5,6,7,8,9,10,11,12) -or $descriptor.codex -ne '0.163.0'){throw 'This bundle requires a compatible Agentopia desktop recovery release.'}
+ if($descriptor.format -ne 2 -or $descriptor.kind -ne 'agentopia-desktop-recovery' -or $descriptor.requiresDesktopRecoveryFormat -notin @(2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18) -or $descriptor.codex -ne '0.163.0'){throw 'This bundle requires a compatible Agentopia desktop recovery release.'}
+ if($descriptor.requiresDesktopRecoveryFormat -lt 18 -and $descriptor.PSObject.Properties.Name -contains 'windowsProfileManifest'){throw 'Encrypted Windows credentials require a newer recovery capability.'}
  if($descriptor.requiresDesktopRecoveryFormat -lt 12 -and ($descriptor.PSObject.Properties.Name -contains 'workspaceArchive' -or $descriptor.PSObject.Properties.Name -contains 'workspaceManifest')){throw 'Scheduled workspace files require a newer recovery capability.'}
  if($descriptor.requiresDesktopRecoveryFormat -lt 6 -and $descriptor.PSObject.Properties.Name -contains 'layoutsManifest'){throw 'Workspace layouts require a newer recovery capability.'}
  if($descriptor.requiresDesktopRecoveryFormat -lt 5 -and ($descriptor.PSObject.Properties.Name -contains 'externalArchive' -or $descriptor.PSObject.Properties.Name -contains 'externalManifest')){throw 'External files require a newer recovery capability.'}
  if($descriptor.requiresDesktopRecoveryFormat -lt 4 -and $descriptor.PSObject.Properties.Name -contains 'settingsManifest'){throw 'Portable settings require a newer recovery capability.'}
  $prefix=[IO.Path]::GetFullPath($Source).TrimEnd([IO.Path]::DirectorySeparatorChar)+[IO.Path]::DirectorySeparatorChar
  $fields=@('databaseManifest','profileArchive','profileManifest','publicArchive','publicManifest','references');if($descriptor.requiresDesktopRecoveryFormat -ge 3){$fields+=@('clipboardArchive','clipboardManifest')};if($descriptor.requiresDesktopRecoveryFormat -ge 4){$fields+=@('settingsManifest')};if($descriptor.requiresDesktopRecoveryFormat -ge 5){$fields+=@('externalArchive','externalManifest')};if($descriptor.requiresDesktopRecoveryFormat -ge 6){$fields+=@('layoutsManifest')}
- if($descriptor.requiresDesktopRecoveryFormat -ge 12){$fields+=@('workspaceManifest','workspaceArchive')}
+ if($descriptor.requiresDesktopRecoveryFormat -eq 12 -or $descriptor.PSObject.Properties.Name -contains 'workspaceManifest' -or $descriptor.PSObject.Properties.Name -contains 'workspaceArchive'){$fields+=@('workspaceManifest','workspaceArchive')}
+ if($descriptor.requiresDesktopRecoveryFormat -ge 18){$fields+=@('windowsProfileManifest')}
  foreach($field in $fields){
   $entry=$descriptor.$field
   if($entry.file -isnot [string] -or -not $entry.file -or [IO.Path]::IsPathRooted($entry.file) -or $entry.file -match '[\x00-\x1f\x7f<>:"|?*]' -or @($entry.file -split '[\\/]'|Where-Object {$_ -eq '..' -or $_ -eq '.' -or -not $_}).Count -or $entry.sha256 -isnot [string] -or $entry.sha256 -cnotmatch '^[a-f0-9]{64}$'){throw 'Invalid desktop recovery resource.'}

@@ -29,7 +29,9 @@ intent = json.loads((job/'intent.json').read_text())
 if mode == 'rollback':
     saved = json.loads((job/'program-rollback.json').read_text())
     expected = saved['files']
-    verify_tree(Path('/mnt/c/Users/charl/AppData/Local/AgentopiaDesktop/app-0.44.74'), expected)
+    source=mapped(intent['sourceProgram'])
+    assert source in [Path('/mnt/c/Users/charl/AppData/Local/AgentopiaDesktop/app-0.44.74'),Path('/mnt/c/Users/charl/AppData/Local/AgentopiaDesktop/app-0.44.75')]
+    verify_tree(source, expected)
     verify_tree(job/'rollback/program', expected)
     for name, record in saved['rootFiles'].items():
         assert digest(mapped(record['source'])) == record['sha256'] == digest(mapped(record['saved']))
@@ -38,12 +40,13 @@ if mode == 'rollback':
         assert digest(source) == saved['identityFiles'][name] == digest(job/'rollback'/name)
 else:
     proof = json.loads(mapped(intent['packageProof']).read_text())
+    assert proof['version'] in ['0.44.75','0.44.76']
     expected = dict(proof['programFiles'])
     assert expected['squirrel.exe'] == '76359cd4b0349a83337b941332ad042c90351c2bb0a4628307740324c97984cc'
     verified_installer = json.loads(mapped(str(PurePosixPath(intent['packageProof'].replace('\\','/')).parent/'installer-verification/evidence.json')).read_text())
     assert verified_installer['success']
     expected.update({'resources/resources/'+k: v for k, v in proof['resourceFiles'].items()})
-    root = Path('/mnt/c/Users/charl/AppData/Local/AgentopiaDesktop/app-0.44.75')
+    root = Path('/mnt/c/Users/charl/AppData/Local/AgentopiaDesktop/app-'+proof['version'])
     verify_tree(root, expected)
     # Squirrel routes *_ExecutionStub.exe to the installation root as App.exe.
     assert digest(root.parent/'Agentopia.exe') == verified_installer['generatedLauncher']['launcherSha256']

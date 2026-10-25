@@ -1,7 +1,7 @@
 import {lstat,realpath,readFile,writeFile,rename} from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import {randomUUID} from 'node:crypto';
+import {randomUUID,createHash} from 'node:crypto';
 import {validateClipboardRecord} from './clipboard-recovery';
 import {verifyRecoveredClipboard} from './restored-clipboard';
 import {loadRestoredSettings} from './restored-settings';
@@ -9,12 +9,13 @@ import {loadRestoredExternal} from './restored-external';
 import {loadRestoredLayouts} from './restored-layouts';
 import {verifyExternalReferences} from './external-backup';
 import {prepareRestoredWorkspaces} from './restored-workspaces';
-type PreparedRecovery={format:2;operationId:string;descriptorSha256:string;profile:string;publicRoot:string;status:string;phase:string;clipboardIndexSha256?:string;settingsIndexSha256?:string;externalIndexSha256?:string;layoutsIndexSha256?:string;workspaceIndexSha256?:string};
+type PreparedRecovery={format:2;operationId:string;descriptorSha256:string;profile:string;publicRoot:string;status:string;phase:string;clipboardIndexSha256?:string;settingsIndexSha256?:string;externalIndexSha256?:string;layoutsIndexSha256?:string;workspaceIndexSha256?:string;windowsCredentialsImported?:boolean;windowsCredentialsManifestSha256?:string};
 const same=(a:string,b:string)=>process.platform==='win32'?a.toLowerCase()===b.toLowerCase():a===b;
 async function record(file:string,maximum=64*1024){const info=await lstat(file);if(!info.isFile()||info.isSymbolicLink()||info.nlink!==1||info.size>maximum||!same(await realpath(file),file))throw Error('The recovery startup record is linked or invalid.');return JSON.parse(await readFile(file,'utf8'));}
 export async function recoveryStartup(profile:string,home=os.homedir()):Promise<{file:string;record:PreparedRecovery}|undefined>{
  const file=path.join(home,'.agentopia/recovery-state.json');let state:PreparedRecovery;try{state=await record(file);}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;for(const name of ['.agentopia-recovery-operation.json','.agentopia-workspaces-required.json','restored-workspaces']){try{await lstat(path.join(profile,name));}catch(markerError){if((markerError as NodeJS.ErrnoException).code==='ENOENT')continue;throw markerError;}throw Error('The restored profile is missing its recovery startup record. Preserve the profile and resume recovery.');}return;}
  if(state?.format!==2||!/^[a-f0-9-]{36}$/i.test(state.operationId)||!/^[a-f0-9]{64}$/.test(state.descriptorSha256))throw Error('The desktop recovery record is invalid. Preserve it before continuing.');
+ if(state.windowsCredentialsManifestSha256){const sha=(bytes:Buffer|string)=>createHash('sha256').update(bytes).digest('hex'),manifestFile=path.join(profile,'.agentopia-windows-profile.json'),manifest=await record(manifestFile,1024*1024),choice=await record(path.join(profile,'.agentopia-windows-credentials.json'),1024*1024);if(sha(await readFile(manifestFile))!==state.windowsCredentialsManifestSha256||choice.format!==1||choice.imported!==state.windowsCredentialsImported||JSON.stringify(choice.manifest)!==JSON.stringify(manifest))throw Error('The Windows credential recovery binding changed. Preserve this profile.');if(state.status!=='completed'&&state.windowsCredentialsImported){const credentials=path.join(profile,'credentials.bin'),info=await lstat(credentials),localState=await record(path.join(profile,'Local State'),32*1024**2),key=localState.os_crypt;if(!info.isFile()||info.isSymbolicLink()||info.nlink!==1||!same(await realpath(credentials),credentials)||sha(await readFile(credentials))!==manifest.files['credentials.bin'].sha256||!key||sha(JSON.stringify([key.encrypted_key,key.app_bound_encrypted_key??null]))!==manifest.encryptionKeySha256)throw Error('The restored Windows credentials or encryption key changed before startup.');}}
  if(state.status!=='completed'&&(state.status!=='prepared'||state.phase!=='prepared'))throw Error('Desktop recovery preparation is incomplete. Resume the same verified recovery before starting the database. Existing data has been preserved.');
  if(state.workspaceIndexSha256)await prepareRestoredWorkspaces(profile,state.workspaceIndexSha256);
  else try{await lstat(path.join(profile,'.agentopia-workspaces-required.json'));throw Error('Required workspace recovery is absent from the database startup record.');}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;}

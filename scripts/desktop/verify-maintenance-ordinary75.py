@@ -14,7 +14,8 @@ with tarfile.open(raw['destination'],'r|gz') as archive:
 assert set(files)==set(expected['files']) and sorted(directories)==sorted(expected['directories'])
 with Path(raw['destination']).open('rb') as stream:assert hashlib.file_digest(stream,'sha256').hexdigest()==raw['archiveSha256']
 spec=importlib.util.spec_from_file_location('ordinary_recovery',Path(cfg['assets'])/'runtime/prepare-desktop-recovery.py');module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
-bundle=module.validate_bundle(Path(receipt['destination']));descriptor=bundle['descriptor'];assert descriptor['requiresDesktopRecoveryFormat']==12
+bundle=module.validate_bundle(Path(receipt['destination']));descriptor=bundle['descriptor'];capability=cfg.get('expectedRecoveryCapability',12);assert capability in [12,18];assert descriptor['requiresDesktopRecoveryFormat']==capability
+if capability==18:assert 'windowsProfileManifest' in descriptor
 workspace=bundle['workspace'];assert workspace and workspace['kind']=='agentopia-portable-workspaces';owners=set(bundle['database']['accountIds'])
 assert {row['owner'] for row in workspace['records']['accounts']}==owners
 assert all(row['owner'] in owners for row in workspace['nodes']+workspace['captures']+workspace.get('references',[]))
@@ -25,5 +26,5 @@ assert declared['externalContentsCaptured'] is False and declared['externalPaths
 external=json.loads((Path(receipt['destination'])/'external-files.json').read_text());assert all(not row['references'] for row in external['accounts']) and not external['manifest']['files']
 assert len(declared['externalReferences'])==receipt['externalReferencesPreservedInPlace']
 assert all(row['owner'] in owners and Path(row['reference']['path']).is_absolute() for row in declared['externalReferences'])
-report={'success':True,'rawProfileFiles':len(files),'portableCapability':12,'portableDatabaseAndAllResourcesVerified':True,'workspaceNodes':len(workspace['nodes']),'workspaceReferences':len(workspace.get('references',[])),'scope':'application-update','externalReferencesRetainedInPlace':len(declared['externalReferences']),'sourceProfileUnchanged':receipt['sourceUnchanged'],'providerRequests':0}
+report={'success':True,'rawProfileFiles':len(files),'portableCapability':capability,'portableDatabaseAndAllResourcesVerified':True,'workspaceNodes':len(workspace['nodes']),'workspaceReferences':len(workspace.get('references',[])),'scope':'application-update','externalReferencesRetainedInPlace':len(declared['externalReferences']),'sourceProfileUnchanged':receipt['sourceUnchanged'],'providerRequests':0}
 (out/'ordinary-independent-verification.json').write_text(json.dumps(report,indent=2));print(json.dumps(report),flush=True)

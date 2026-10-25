@@ -93,63 +93,64 @@ def repair(destination):
         raise ValueError('The original and staged profiles must be separate.')
     if manifest.get('state') not in ['copied', 'rebasing', 'rebased']:
         raise ValueError('The staged copy is incomplete.')
-    native = destination / 'codex'
-    no_links(native)
     work = []
-    if native.exists():
-        # Only Agentopia's exact owner/provider/scope home depth is eligible.
-        for owner in native.iterdir():
-            no_links(owner)
-            if not owner.is_dir():
-                raise ValueError('Unexpected native owner entry.')
-            for provider in owner.iterdir():
-                no_links(provider)
-                if not provider.is_dir():
-                    raise ValueError('Unexpected native provider entry.')
-                for home in provider.iterdir():
-                    no_links(home)
-                    database = home / 'state_5.sqlite'
-                    for file in [database, Path(str(database) + '-wal'), Path(str(database) + '-shm')]:
-                        no_links(file)
-                    if not home.is_dir():
-                        raise ValueError('A copied native home is incomplete.')
-                    if uninitialized_home(home, owner, provider):
-                        continue
-                    old_home = source / home.relative_to(destination)
-                    changes = []
-                    connection = sqlite3.connect(database)
-                    try:
-                        if connection.execute('PRAGMA integrity_check').fetchone() != ('ok',):
-                            raise ValueError('A copied native index failed its integrity check.')
-                        columns = {row[1] for row in connection.execute('PRAGMA table_info(threads)')}
-                        if not {'id', 'rollout_path', 'cwd', 'agent_path'} <= columns:
-                            raise ValueError('The native index has an unsupported schema.')
-                        for identifier, rollout, cwd, agent_path in connection.execute('SELECT id,rollout_path,cwd,agent_path FROM threads'):
-                            # Already repaired indexes may be verified again after interruption.
-                            if not within(rollout, old_home) and not within(rollout, home):
-                                raise ValueError('A native rollout points outside its own copied home.')
-                            new_rollout = Path(mapped(rollout, source, destination))
-                            no_links(new_rollout)
-                            if not within(new_rollout, home) or not new_rollout.is_file():
-                                raise ValueError('A copied native rollout is missing.')
-                            with new_rollout.open(encoding='utf-8') as stream:
-                                first = json.loads(stream.readline())
-                            if first.get('type') != 'session_meta' or first.get('payload', {}).get('id') != identifier:
-                                raise ValueError('A copied rollout does not match its indexed thread.')
-                            new_cwd = mapped(cwd, source / 'workspaces', destination / 'workspaces')
-                            if new_cwd != cwd:
-                                no_links(Path(new_cwd))
-                                if not Path(new_cwd).is_dir():
-                                    raise ValueError('A managed native workspace is missing from the copy.')
-                            new_agent = mapped(agent_path, source, destination)
-                            if new_agent != agent_path:
-                                no_links(Path(new_agent))
-                                if not Path(new_agent).exists():
-                                    raise ValueError('A managed agent configuration is missing from the copy.')
-                            changes.append((str(new_rollout), new_cwd, new_agent, identifier))
-                    finally:
-                        connection.close()
-                    work.append((database, changes))
+    for native in [destination / 'codex', destination / 'draft-previews' / 'codex']:
+        no_links(native)
+        if native.exists():
+            # Only Agentopia's exact owner/provider/scope home depth is eligible.
+            for owner in native.iterdir():
+                no_links(owner)
+                if not owner.is_dir():
+                    raise ValueError('Unexpected native owner entry.')
+                for provider in owner.iterdir():
+                    no_links(provider)
+                    if not provider.is_dir():
+                        raise ValueError('Unexpected native provider entry.')
+                    for home in provider.iterdir():
+                        no_links(home)
+                        database = home / 'state_5.sqlite'
+                        for file in [database, Path(str(database) + '-wal'), Path(str(database) + '-shm')]:
+                            no_links(file)
+                        if not home.is_dir():
+                            raise ValueError('A copied native home is incomplete.')
+                        if uninitialized_home(home, owner, provider):
+                            continue
+                        old_home = source / home.relative_to(destination)
+                        changes = []
+                        connection = sqlite3.connect(database)
+                        try:
+                            if connection.execute('PRAGMA integrity_check').fetchone() != ('ok',):
+                                raise ValueError('A copied native index failed its integrity check.')
+                            columns = {row[1] for row in connection.execute('PRAGMA table_info(threads)')}
+                            if not {'id', 'rollout_path', 'cwd', 'agent_path'} <= columns:
+                                raise ValueError('The native index has an unsupported schema.')
+                            for identifier, rollout, cwd, agent_path in connection.execute('SELECT id,rollout_path,cwd,agent_path FROM threads'):
+                                # Already repaired indexes may be verified again after interruption.
+                                if not within(rollout, old_home) and not within(rollout, home):
+                                    raise ValueError('A native rollout points outside its own copied home.')
+                                new_rollout = Path(mapped(rollout, source, destination))
+                                no_links(new_rollout)
+                                if not within(new_rollout, home) or not new_rollout.is_file():
+                                    raise ValueError('A copied native rollout is missing.')
+                                with new_rollout.open(encoding='utf-8') as stream:
+                                    first = json.loads(stream.readline())
+                                if first.get('type') != 'session_meta' or first.get('payload', {}).get('id') != identifier:
+                                    raise ValueError('A copied rollout does not match its indexed thread.')
+                                new_cwd = mapped(cwd, source / 'workspaces', destination / 'workspaces')
+                                new_cwd = mapped(new_cwd, source / 'draft-previews' / 'workspaces', destination / 'draft-previews' / 'workspaces')
+                                if new_cwd != cwd:
+                                    no_links(Path(new_cwd))
+                                    if not Path(new_cwd).is_dir():
+                                        raise ValueError('A managed native workspace is missing from the copy.')
+                                new_agent = mapped(agent_path, source, destination)
+                                if new_agent != agent_path:
+                                    no_links(Path(new_agent))
+                                    if not Path(new_agent).exists():
+                                        raise ValueError('A managed agent configuration is missing from the copy.')
+                                changes.append((str(new_rollout), new_cwd, new_agent, identifier))
+                        finally:
+                            connection.close()
+                        work.append((database, changes))
     # Validate every copied home before changing any index. A failure leaves the
     # original untouched, and a partially repaired stage can be safely resumed.
     manifest['state'] = 'rebasing'

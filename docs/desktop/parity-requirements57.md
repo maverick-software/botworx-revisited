@@ -1,3 +1,15 @@
+Current checkpoint136: native commands and supplied helpers before Save are installed and verified. See [the current report](continuation-brief136.md) and [full goal table](goal-status76.md). Earlier checkpoint statements below are historical.
+
+Current checkpoint135: browser execution before Save is installed and verified. See [the current report](continuation-brief135.md) and [full goal table](goal-status76.md). Earlier checkpoint statements below are historical.
+
+Current checkpoint134: shared-window Computer Use before Save is installed and verified. See [the current report](continuation-brief134.md) and [full goal table](goal-status76.md). Earlier checkpoint statements below are historical.
+
+# Current requirements and evidence — installed 0.44.76
+
+Current checkpoint133 verifies real before-Save file-and-reviewed-skill execution and cold zero replay on the checkpoint132 installed archive. The full goal remains active. Use the [32-element current table](goal-status76.md), [checkpoint133 report](continuation-brief133.md) and [next preview Computer Use requirements](preview-computer-scope133.md). Historical entries below retain their original dates and scopes; old statements that preview or recovery18 support is uninstalled are superseded by checkpoint131.
+
+## Historical requirements and evidence
+
 # Current requirements and evidence — installed0.44.75
 
 October 23 current installed checkpoint: ordinary 0.44.75 now includes the purple Computer Use monitor/cursor layer and Unicode-safe helper 1.0.3. Real Computer Use passed on ChatGPT OAuth and OpenRouter with helper 1.0.2; the current helper passes an exact 2,000-unit real Windows entry and a 576 ms cancellation with an exact valid prefix. Current packaged approval/receipt checks pass. Two simultaneous real-provider goals completed 20 and 12 stages/turns in about thirteen minutes with exact calculations, saved definitions/drafts, pause isolation and cold zero replay using unchanged context settings. Fresh recovery, all 1,809 saved rows/128 table comparisons, protected values, 7,467 external resources and ordinary native inspection pass. The original installer is unchanged and the separate draft-preview work remains uninstalled. Full parity remains active. See [current evidence and limits](computer-autonomy76.md) and the [element-by-element goal table](goal-status76.md).

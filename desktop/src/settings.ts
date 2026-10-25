@@ -82,8 +82,8 @@ export class ProjectSettings {
    try{new Intl.DateTimeFormat('en',{timeZone:timezone});}catch{throw new Error('Enter a valid time zone, for example America/Los_Angeles.');}
    try{new Cron(cron,{paused:true,timezone}).stop();}catch{throw new Error('Enter a valid five-field cron schedule.');}
    const row={name,instructions,cron_expression:cron,timezone,status:'paused',updated_at:new Date().toISOString()};
-   if(args.id)data(await db.from('agent_tasks').update(row).eq('id',id(args.id)).eq('agent_id',agent).eq('user_id',user.id).select('id').single());
-   else data(await db.from('agent_tasks').insert({...row,agent_id:agent,user_id:user.id,created_by:user.id}));return;
+   if(args.id)return data(await db.from('agent_tasks').update(row).eq('id',id(args.id)).eq('agent_id',agent).eq('user_id',user.id).select('id').single());
+   return data(await db.from('agent_tasks').insert({...row,agent_id:agent,user_id:user.id,created_by:user.id}).select('id').single());
   }
   if(action==='agentSettings.task.remove'){
    const agent=await this.agent(user,args.agentId);data(await db.from('agent_tasks').delete().eq('id',id(args.id)).eq('agent_id',agent).eq('user_id',user.id));return;

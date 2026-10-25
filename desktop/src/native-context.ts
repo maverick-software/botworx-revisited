@@ -1,4 +1,11 @@
 import type {NativeState} from './native-contracts';
+import {providerHistory} from './composer';
+
+/** Reuse the normal bounded receipt formatter without reattaching old media. */
+export function nativeConversationContext(rows:any[],allowTools:boolean){
+ const textRows=rows.map(row=>({...row,content:{...row.content,files:[]}}));
+ return providerHistory(textRows,'openai-oauth',allowTools).map(row=>row.role+': '+row.content).join('\n\n').slice(-200000);
+}
 
 export async function waitForNativeReport(report:Promise<void>,signal:AbortSignal){
  signal.throwIfAborted();await new Promise<void>((resolve,reject)=>{const abort=()=>reject(signal.reason??new DOMException('Cancelled','AbortError'));signal.addEventListener('abort',abort,{once:true});const finish=(error?:unknown)=>{signal.removeEventListener('abort',abort);if(error)reject(error);else resolve();};report.then(()=>finish(),finish);});

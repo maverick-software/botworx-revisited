@@ -11,6 +11,16 @@ These are testing preferences. Preserve OpenRouter support and the user's config
 
 The user requested that image generation remain disabled for now. Retain the configured OpenRouter connection so image generation can be enabled later. Do not enable image generation on the user's account as part of tests, migrations or routine updates without the user's explicit request.
 
+# Delivery discipline
+
+The user requested on October 24, 2026 that this work avoid overengineering.
+
+- Tie each work slice to a specific user-visible outcome and define its acceptance checks before implementation. Keep the full parity goal intact while delivering it in usable increments.
+- Extend existing product paths first. Add a new abstraction or dependency only when an identified requirement or reproduced failure needs it; explain why the existing path cannot serve it.
+- Keep required account/data preservation, recovery, ownership and permission checks. Scale other verification to the actual change, reuse applicable evidence, and rerun only when changed behavior or a failure justifies it.
+- Once the slice works and required checks pass, move toward packaging and installed verification. Record further optional cases for later work instead of indefinitely expanding the slice.
+- Remove unused scaffolding introduced during the work. Report what the user can actually use, what has been demonstrated, and what remains uninstalled or unverified; test counts alone are not delivery.
+
 # Attachment consent
 
 Selecting attachments and sending a message authorizes those files, folders, or images as context for the selected AI connection. Do not add a separate native file-sharing approval dialog or repeat consent for saved attachment context on follow-up turns. Keep account ownership, sensitive-path exclusions, and explicit Chat only behavior enforced. Agent actions such as website uploads, file edits, and commands retain their own inline reviews.

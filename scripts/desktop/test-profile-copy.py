@@ -51,6 +51,14 @@ class CopyTests(unittest.TestCase):
         self.assertTrue(all(len(row['sha256']) == 64 for row in entries))
         self.assertEqual(self.copy(True)['files'], 4)
 
+    def test_preview_copy_retains_history_and_custom_skills_while_omitting_seeded_transients(self):
+        keep=['draft-previews/codex/owner/openrouter/scope/sessions/saved.jsonl','draft-previews/codex/owner/openrouter/scope/skills/custom/tmp/notes.md','draft-previews/workspaces/owner/scope/output.md']
+        omitted=['draft-previews/codex/owner/openrouter/scope/tmp/helper.exe','draft-previews/codex/owner/openrouter/scope/skills/.system/seed/SKILL.md']
+        for name in keep+omitted:self.put(name)
+        self.assertEqual(self.copy()['files'],len(keep))
+        for name in keep:self.assertEqual((self.source/name).read_bytes(),(self.destination/name).read_bytes())
+        for name in omitted:self.assertFalse((self.destination/name).exists())
+
     def test_only_known_transient_paths_are_excluded(self):
         for name in ['wsl/ext4.vhdx', 'Cache/cache', 'test-profiles/fixture/file', 'upload-probe-old/file', 'codex/owner/openai-oauth/scope/.tmp/cache', 'codex/owner/openai-oauth/scope/skills/.system/system.md', 'lockfile']:
             self.put(name)

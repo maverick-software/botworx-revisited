@@ -1,5 +1,7 @@
 # Desktop recovery launcher and first-start candidate
 
+October 24 checkpoint130: the ordinary 0.44.75 app includes all 228 imported Codex skills and the requested navigation/voice/right-sidebar slice. Complete post-import preservation compares 128 tables and 1,898 rows; both accounts/passwords/roles, 122 chats, 420 messages and 191 readable protected records match recovery. Frozen 0.44.76 is retained and must include checkpoint130 before upgrade acceptance. [Current installed evidence](continuation-brief130.md).
+
 October 19, 2026: **0.44.47 recovery-bootstrap-15 is installed and accepted for ordinary reopening and saved-data preservation.** The recovery launcher and startup behavior retain their qualified scope below; complete recovery into a fresh backend remains unproven. The requested chat details card and sidebar icon changes remain installed. The original chat, attachment, empty draft and collapsed project state are restored.
 
 The Windows restore helper recognizes a sealed full recovery bundle and writes a request for the current fresh Windows profile. Checking the bundle writes nothing. Repeating the same request retains its identity; changed bundles, existing Agentopia data and incompatible recovery records are refused. The earlier database-only restore path remains available.

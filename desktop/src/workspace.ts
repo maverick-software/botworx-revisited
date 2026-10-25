@@ -121,7 +121,7 @@ export class WorkspaceFiles {
   if(options.original&&(extension==='.pdf'||extension==='.docx'||extension==='.pptx'))return {...document,visual:{extension,base64:bytes!.toString('base64')}};
   return document;
  }
- async context(user:string,ids:unknown,permission:ChatOptions['permission'],signal?:AbortSignal):Promise<FileContext[]>{
+ async context(user:string,ids:unknown,permission:ChatOptions['permission'],signal?:AbortSignal,onClipboardImage?:(reference:FileReference,image:string)=>void):Promise<FileContext[]>{
   signal?.throwIfAborted();
   if(!Array.isArray(ids)||ids.length>20||ids.some(i=>typeof i!=='string'))throw new Error('Choose up to 20 file or folder references.');
   const references=[...new Set(ids)].map(id=>{const r=this.list(user).find(r=>r.id===id);if(!r)throw new Error('A file reference is missing or belongs to another account. Remove it and select the file again.');return r;});
@@ -135,7 +135,7 @@ export class WorkspaceFiles {
   const includeImage=(name:string,image:string)=>{imageBytes+=Buffer.byteLength(image.slice(image.indexOf(',')+1),'base64');result.push({name,image});images++;};
   for(const reference of references){
    signal?.throwIfAborted();
-   if(reference.source==='clipboard'){if(images>=4)throw new Error('Attach up to four images per message.');const preview=await this.preview(user,reference.id);includeImage(reference.name,preview.image);continue;}
+   if(reference.source==='clipboard'){if(images>=4)throw new Error('Attach up to four images per message.');const preview=await this.preview(user,reference.id);includeImage(reference.name,preview.image);onClipboardImage?.(reference,preview.image);continue;}
    this.checkPath(reference.path);const root=await realpath(reference.path);this.checkPath(root);if(root!==reference.path)throw new Error('An attached path changed. Select the file or folder again.');
    if(reference.kind==='file'){
     const ext=path.extname(root).toLowerCase();

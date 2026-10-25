@@ -12,8 +12,8 @@ function requireValue(value:unknown,message:string):asserts value{if(!value)thro
 export const backupHash=async(file:string)=>{const hash=createHash('sha256');for await(const bytes of createReadStream(file))hash.update(bytes);return hash.digest('hex');};
 export function backupMember(name:string){requireValue(!!name&&name===path.posix.normalize(name)&&!path.posix.isAbsolute(name)&&!/[\\:\x00-\x1f\x7f]/.test(name)&&name.split('/').every(part=>part!=='.'&&part!=='..'&&!!part&&!/[. ]$/.test(part)&&!/[<>"|?*]/.test(part)&&!/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(part)),'A backup filename is invalid.');return name;}
 export async function backupDirectory(file:string){for(let current=path.resolve(file);;current=path.dirname(current)){const info=await lstat(current);requireValue(info.isDirectory()&&!info.isSymbolicLink()&&same(await realpath(current),current),'A backup folder is linked or redirected.');if(path.dirname(current)===current)break;}}
-export function portableProfileEntry(name:string){
- const parts=name.split('/');if(!['codex','workspaces','attachments','chrome-tools'].includes(parts[0]))return false;
+export function portableProfileEntry(name:string):boolean{
+ const parts=name.split('/');if(parts[0]==='editor-draft-journals')return parts.length===1||parts.length===2&&/^[0-9]{16}-[a-f0-9]{64}\.json$/.test(parts[1]);if(parts[0]==='draft-previews')return parts.length===1||['codex','workspaces'].includes(parts[1])&&portableProfileEntry(parts.slice(1).join('/'));if(!['codex','workspaces','attachments','chrome-tools'].includes(parts[0]))return false;
  if(parts[0]==='chrome-tools')return parts.length===1||/^[a-f0-9-]{36}$/i.test(parts[1])&&(parts.length===2||parts[2]==='artifacts');
  if(parts[0]==='codex'&&parts.length>=5){const inner=parts.slice(4);if(['auth.json','config.toml','.sandbox','.sandbox_migration','cap_sid','tmp','.tmp'].includes(inner[0])||inner[0]==='skills'&&inner[1]==='.system')return false;}
  return true;

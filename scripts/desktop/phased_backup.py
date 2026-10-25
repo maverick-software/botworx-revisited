@@ -236,6 +236,8 @@ def reader(out, config):
 def profile_data_entry(name):
     """Match Runtime.nativeBackupEntry for native homes; retain custom skills."""
     parts = PurePosixPath(name).parts
+    if parts and parts[0] == 'draft-previews':
+        parts = parts[1:]
     if parts and parts[0] == 'codex':
         inner = parts[4:]
         if inner and inner[0] in ('tmp', '.tmp'): return False

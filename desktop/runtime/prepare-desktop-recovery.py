@@ -7,6 +7,7 @@ operation remains visible and must be resumed with the same sealed bundle.
 from pathlib import Path, PurePosixPath
 import argparse, base64, hashlib, importlib.util, json, ntpath, os, re, shutil, sqlite3, subprocess, tarfile, uuid
 from contextlib import contextmanager
+from datetime import datetime
 
 DATABASE_FILES={'auth.dump','application.dump','vault.dump','database.dump','recovery.dump','pgsodium_root.key'}
 UUID=re.compile(r'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$',re.I)
@@ -41,6 +42,31 @@ def save(file,value):
     with temporary.open('x',encoding='utf-8') as stream:json.dump(value,stream,indent=2);stream.flush();os.fsync(stream.fileno())
     os.replace(temporary,file)
 
+def json_with_js_strings(value):
+    """Keep compact producer JSON and JavaScript's well-formed UTF-16 strings.
+
+    Lone surrogates must be escaped; a pair represents one Unicode code point.
+    The saved-draft envelope uses only bounded integers outside its raw text.
+    """
+    text=json.dumps(value,ensure_ascii=False,separators=(',',':'),allow_nan=False)
+    def replacement(match):
+        value=match[0];code=ord(value[0])
+        return chr(0x10000+((code-0xD800)<<10)+ord(value[1])-0xDC00) if len(value)==2 else '\\u%04x'%code
+    return re.sub(r'[\ud800-\udbff][\udc00-\udfff]|[\ud800-\udfff]',replacement,text)
+
+def utf16_length(value):return len(value.encode('utf-16-le','surrogatepass'))//2
+
+def editor_timestamp(value):
+    if not isinstance(value,str) or not re.fullmatch(r'(?!0000)[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z',value):return False
+    try:moment=datetime.fromisoformat(value[:-1]+'+00:00')
+    except ValueError:return False
+    return moment.isoformat(timespec='milliseconds').replace('+00:00','Z')==value
+
+def save_compact_settings(file,value):
+    file=Path(file);temporary=file.with_name(file.name+'.'+str(uuid.uuid4())+'.tmp')
+    with temporary.open('x',encoding='utf-8',newline='') as stream:stream.write(json_with_js_strings(value));stream.flush();os.fsync(stream.fileno())
+    os.replace(temporary,file)
+
 def resource(root,record):
     file=root.joinpath(*safe_name(record['file']));no_links(file,True)
     fail(re.fullmatch('[a-f0-9]{64}',record['sha256']) and digest(file)==record['sha256'],'A sealed recovery resource changed')
@@ -73,11 +99,34 @@ def verify_archive(archive,manifest):
                 files.add(name)
     fail(files==set(manifest['files']) and directories==set(manifest['directories']),'Archive is incomplete')
 
+def validate_editor_journal_archive(archive,capability):
+    """Preserve opaque journal bytes; validate their sealed file envelopes.
+
+    Receipt interpretation and reference checks occur in the application before
+    startup uses a retirement. An older reader must not bypass that behavior.
+    """
+    count=0;total=0
+    with tarfile.open(archive,'r:gz') as tar:
+        for member in tar:
+            parts=PurePosixPath(member.name).parts
+            if not parts or parts[0]!='editor-draft-journals' or member.isdir():continue
+            match=re.fullmatch(r'([0-9]{16})-([a-f0-9]{64})\.json',parts[-1]);count+=1;total+=member.size
+            fail(len(parts)==2 and match is not None and count<=10000 and total<=512*1024**2 and member.size<=128*1024**2,'Editor journal envelope exceeds its recovery limit')
+            with tar.extractfile(member) as stream:data=stream.read()
+            fail(hashlib.sha256(data).hexdigest()==match[2],'Editor journal content seal differs')
+            row=json.loads(data.decode('utf-8'))
+            fail(isinstance(row,dict) and set(row)=={'version','sequence','key','raw'} and type(row['version']) is int and row['version']==1 and type(row['sequence']) is int and 1<=row['sequence']<=9007199254740991 and row['sequence']==int(match[1]),'Invalid editor journal envelope')
+            fail(isinstance(row['key'],str) and utf16_length(row['key'])<=512 and '\0' not in row['key'] and row['key'].startswith(('agentopia.editor-draft.','agentopia.preview.')) and isinstance(row['raw'],str) and utf16_length(row['raw'])<=16000000,'Invalid editor journal text')
+            if re.fullmatch(r'agentopia\.(?:editor-draft\.[a-f0-9-]{36}:preview:new:|preview\.[a-f0-9-]{36}:new:)[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}',row['key']):fail(capability>=17,'Creation-bound preview journals require a newer recovery capability')
+            try:marker=json.loads(row['raw'])
+            except (ValueError,TypeError):continue
+            if isinstance(marker,dict) and marker.get('kind')=='agentopia-editor-draft-retirement':fail(capability>=16,'Editor draft retirements require a newer recovery capability')
+
 def validate_bundle(root):
     root=no_links(root,True);descriptor=load(root/'desktop-recovery.json')
     fail(not (root/'BACKUP-INCOMPLETE.txt').exists() and not (root/'WORKSPACE-BACKUP-INCOMPLETE.txt').exists(),'This recovery bundle was marked incomplete')
     fail(descriptor.get('format')==2 and descriptor.get('kind')=='agentopia-desktop-recovery' and descriptor.get('codex')=='0.163.0','Unsupported desktop recovery format')
-    capability=descriptor.get('requiresDesktopRecoveryFormat',2);fail(capability in (2,3,4,5,6,7,8,9,10,11,12),'Unsupported desktop recovery capability')
+    capability=descriptor.get('requiresDesktopRecoveryFormat',2);fail(capability in (2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18),'Unsupported desktop recovery capability')
     fail(capability>=3 or not any(name in descriptor for name in ('clipboardArchive','clipboardManifest')),'Clipboard recovery requires a newer recovery capability')
     database_path=resource(root,descriptor['databaseManifest']);database=load(database_path);fail(database.get('format')==1,'Unsupported database recovery format')
     names=set()
@@ -87,6 +136,8 @@ def validate_bundle(root):
     fail({'auth.dump','application.dump','vault.dump','pgsodium_root.key'}<=names,'Database recovery is missing required resources')
     profile_archive=resource(root,descriptor['profileArchive']);profile=load(resource(root,descriptor['profileManifest']));inventory(profile['manifest'])
     fail(profile.get('success') and profile['archiveSha256']==descriptor['profileArchive']['sha256'],'Private profile checkpoint mismatch')
+    fail(capability>=13 or not any(name.split('/')[0]=='draft-previews' for name in [*profile['manifest']['directories'],*profile['manifest']['files']]),'Agent draft preview histories require a newer recovery capability')
+    fail(capability>=14 or not any(name.split('/')[0]=='editor-draft-journals' for name in [*profile['manifest']['directories'],*profile['manifest']['files']]),'Emergency editor journals require a newer recovery capability')
     public_archive=resource(root,descriptor['publicArchive']);public=load(resource(root,descriptor['publicManifest']));inventory(public['manifest'],True)
     fail(public.get('success') and public['archiveSha256']==descriptor['publicArchive']['sha256'],'Public output checkpoint mismatch')
     references=load(resource(root,descriptor['references']));index=references['index']
@@ -103,7 +154,7 @@ def validate_bundle(root):
             if 'formerPaths' in ref:fail(isinstance(ref['formerPaths'],list) and len(ref['formerPaths'])<=32 and all(isinstance(name,str) and len(name)<=4000 and (ntpath.isabs(name) or Path(name).is_absolute()) and not re.search(r'[\x00-\x1f\x7f]',name) for name in ref['formerPaths']),'Invalid former attachment paths')
             ids.add(ref['id'].casefold());paths.add(ref['relativePath'].casefold())
     fail(public.get('privateProfileArchiveSha256')==profile['archiveSha256'] and public.get('logicalManifestSha256')==descriptor['databaseManifest']['sha256'],'Recovery parts were captured from different checkpoints')
-    verify_archive(profile_archive,profile['manifest']);verify_archive(public_archive,public['manifest'])
+    verify_archive(profile_archive,profile['manifest']);validate_editor_journal_archive(profile_archive,capability);verify_archive(public_archive,public['manifest'])
     clipboard=None;clipboard_archive=None
     fail(capability>=4 or 'settingsManifest' not in descriptor,'Settings recovery requires a newer recovery capability')
     if capability>=3:
@@ -115,7 +166,10 @@ def validate_bundle(root):
     settings=None
     if capability>=4:
         fail('settingsManifest' in descriptor,'Portable settings resource is required')
-        settings=load(resource(root,descriptor['settingsManifest']));validate_settings(settings,owners,descriptor['databaseManifest']['sha256'])
+        settings=load(resource(root,descriptor['settingsManifest']),64*1024**2);validate_settings(settings,owners,descriptor['databaseManifest']['sha256'])
+        fail(capability>=13 or not any('agent-editor-drafts' in account['settings'] for account in settings['accounts']),'Agent editor draft recovery requires a newer recovery capability')
+        fail(capability>=15 or not any(len(account['settings'].get('agent-editor-drafts',{}))>100 for account in settings['accounts']),'Saved draft revision history requires a newer recovery capability')
+        fail(capability>=17 or not any(scope.startswith('preview:new:') for account in settings['accounts'] for scope in account['settings'].get('agent-editor-drafts',{})),'Creation-bound preview drafts require a newer recovery capability')
         fail(capability>=10 or not any('composio-state' in account['settings'] for account in settings['accounts']),'Composio connections require a newer recovery capability')
         fail(capability>=11 or not any('google-documents' in account['settings'] for account in settings['accounts']),'Google document operations require a newer recovery capability')
         fail(capability>=7 or not any('notification-preferences' in account['settings'] for account in settings['accounts']),'Notification settings require a newer recovery capability')
@@ -129,7 +183,7 @@ def validate_bundle(root):
         public_names={name.casefold() for name in [*public['manifest']['directories'],*public['manifest']['files']]};fail(not any(name.casefold() in public_names for name in [*external['manifest']['directories'],*external['manifest']['files']]),'External files overlap the public checkpoint')
     workspace=None;workspace_archive=None;workspace_path=None
     fail(capability>=12 or not any(name in descriptor for name in ('workspaceManifest','workspaceArchive')),'Scheduled workspaces require a newer recovery capability')
-    if capability>=12:
+    if capability==12 or 'workspaceManifest' in descriptor or 'workspaceArchive' in descriptor:
         fail('workspaceManifest' in descriptor and 'workspaceArchive' in descriptor,'Scheduled workspace recovery resources are required')
         workspace_path=resource(root,descriptor['workspaceManifest']);workspace=load(workspace_path,64*1024**2);workspace_archive=resource(root,descriptor['workspaceArchive'])
         fail(workspace.get('format')==1 and workspace.get('kind')=='agentopia-portable-workspaces' and re.fullmatch('[a-f0-9]{64}',workspace.get('indexSha256','')) and workspace.get('archiveSha256')==descriptor['workspaceArchive']['sha256'],'Invalid scheduled workspace checkpoint')
@@ -146,7 +200,29 @@ def validate_bundle(root):
     if capability>=6:
         fail('layoutsManifest' in descriptor,'Portable layout resource is required')
         layouts=load(resource(root,descriptor['layoutsManifest']));validate_layouts(layouts,owners,descriptor['databaseManifest']['sha256'],index,external,workspace)
-    return {'root':root,'descriptor':descriptor,'descriptorSha256':digest(root/'desktop-recovery.json'),'databasePath':database_path,'database':database,'profileArchive':profile_archive,'profile':profile,'publicArchive':public_archive,'public':public,'references':references,'clipboardArchive':clipboard_archive,'clipboard':clipboard,'settings':settings,'externalArchive':external_archive,'external':external,'layouts':layouts,'workspace':workspace,'workspacePath':workspace_path,'workspaceArchive':workspace_archive}
+    windows=None
+    fail(capability>=18 or 'windowsProfileManifest' not in descriptor,'Windows credential recovery requires a newer recovery capability')
+    if capability>=18:
+        fail('windowsProfileManifest' in descriptor,'The encrypted Windows credential checkpoint is required')
+        windows=load(resource(root,descriptor['windowsProfileManifest']),1024*1024)
+        fail(isinstance(windows,dict) and set(windows)=={'format','kind','databaseManifestSha256','accountIds','windowsSid','encryptionKeySha256','requiresOriginalWindowsAccount','files'} and windows['format']==1 and windows['kind']=='agentopia-same-windows-profile' and windows['databaseManifestSha256']==descriptor['databaseManifest']['sha256'] and windows['requiresOriginalWindowsAccount'] is True,'Invalid Windows credential checkpoint binding')
+        fail(isinstance(windows['accountIds'],list) and len(windows['accountIds'])==len(owners) and set(windows['accountIds'])==owners and set(database.get('accountIds',[]))==owners,'Windows credential owners differ from the database snapshot')
+        fail(isinstance(windows['windowsSid'],str) and re.fullmatch(r'S-1-\d+(?:-\d+){1,15}',windows['windowsSid']) and re.fullmatch(r'[a-f0-9]{64}',windows['encryptionKeySha256']),'Invalid Windows credential account or encryption binding')
+        fail(isinstance(windows['files'],dict) and set(windows['files'])=={'credentials.bin','Local State'},'Invalid Windows credential checkpoint files')
+        for name,row in windows['files'].items():
+            fail(isinstance(row,dict) and set(row)=={'bytes','sha256'} and type(row['bytes']) is int and 0<row['bytes']<=(64 if name=='credentials.bin' else 32)*1024**2 and isinstance(row['sha256'],str) and re.fullmatch(r'[a-f0-9]{64}',row['sha256']),'Invalid Windows credential checkpoint file seal')
+            file=resource(root,{'file':'windows-profile/'+name,'sha256':row['sha256']});fail(file.stat().st_size==row['bytes'],'Windows credential checkpoint size changed')
+        fail(windows_encryption_key(load(root/'windows-profile/Local State',32*1024**2))==windows['encryptionKeySha256'],'Windows credential encryption key changed')
+    return {'root':root,'descriptor':descriptor,'descriptorSha256':digest(root/'desktop-recovery.json'),'databasePath':database_path,'database':database,'profileArchive':profile_archive,'profile':profile,'publicArchive':public_archive,'public':public,'references':references,'clipboardArchive':clipboard_archive,'clipboard':clipboard,'settings':settings,'externalArchive':external_archive,'external':external,'layouts':layouts,'workspace':workspace,'workspacePath':workspace_path,'workspaceArchive':workspace_archive,'windows':windows}
+
+def windows_encryption_key(local_state):
+    key=local_state.get('os_crypt',{});fail(isinstance(key,dict) and isinstance(key.get('encrypted_key'),str) and key['encrypted_key'],'Missing Windows encryption key')
+    return hashlib.sha256(json.dumps([key['encrypted_key'],key.get('app_bound_encrypted_key')],ensure_ascii=False,separators=(',',':')).encode()).hexdigest()
+
+def current_windows_sid():
+    if os.name!='nt':return None
+    result=subprocess.run(['powershell.exe','-NoProfile','-NonInteractive','-Command','[Security.Principal.WindowsIdentity]::GetCurrent().User.Value'],capture_output=True,text=True,encoding='utf-8',timeout=10,creationflags=0x08000000)
+    sid=result.stdout.strip();fail(result.returncode==0 and re.fullmatch(r'S-1-\d+(?:-\d+){1,15}',sid),'The current Windows recovery account could not be identified');return sid
 
 def validate_layouts(record,owners,database_sha,index,external,workspace=None):
     fail(record.get('format')==1 and record.get('kind')=='agentopia-portable-layouts' and record.get('databaseManifestSha256')==database_sha and isinstance(record.get('accounts'),list),'Invalid portable layout record')
@@ -250,17 +326,40 @@ def validate_google_documents(journal):
 def validate_settings(record,owners,database_sha):
     fail(isinstance(record,dict) and set(record)=={'format','kind','databaseManifestSha256','accounts','indexSha256'} and record['format']==1 and record['kind']=='agentopia-portable-settings' and record['databaseManifestSha256']==database_sha and isinstance(record['accounts'],list),'Invalid portable settings record')
     base={key:record[key] for key in ('format','kind','databaseManifestSha256','accounts')}
-    fail(hashlib.sha256(json.dumps(base,ensure_ascii=False,separators=(',',':')).encode()).hexdigest()==record['indexSha256'] and len(json.dumps(record,ensure_ascii=False).encode())<=16*1024**2,'Portable settings record changed')
-    found=set();allowed={'preferences','model-choices','prefer-chatgpt','composer','chat-drafts','desktop-location','voice-preferences','notification-preferences','composio-state','google-documents'}
+    fail(hashlib.sha256(json_with_js_strings(base).encode()).hexdigest()==record['indexSha256'] and len(json_with_js_strings(record).encode())<=64*1024**2,'Portable settings record changed')
+    found=set();allowed={'preferences','model-choices','prefer-chatgpt','composer','chat-drafts','desktop-location','voice-preferences','notification-preferences','composio-state','google-documents','agent-editor-drafts'}
     for account in record['accounts']:
         fail(isinstance(account,dict) and set(account)=={'owner','settings'} and account['owner'] in owners and account['owner'] not in found and isinstance(account['settings'],dict) and set(account['settings'])<=allowed,'Invalid portable settings account or fields');found.add(account['owner'])
         if 'composio-state' in account['settings']:validate_composio(account['settings']['composio-state'])
         if 'google-documents' in account['settings']:validate_google_documents(account['settings']['google-documents'])
+        if 'agent-editor-drafts' in account['settings']:validate_editor_drafts(account['settings']['agent-editor-drafts'],account['owner'])
         for value in [account['settings'].get('composer',{}),*[draft.get('options',{}) for draft in account['settings'].get('chat-drafts',{}).values()]]:
             if 'sources' in value:validate_selected_sources(value['sources'],account['owner'])
         if 'notification-preferences' in account['settings']:
             preferences=account['settings']['notification-preferences'];legacy=isinstance(preferences,dict) and set(preferences)=={'responses','tasks'} and all(type(value) is bool for value in preferences.values());modern=isinstance(preferences,dict) and set(preferences)=={'completion','permissions','questions','tasks'} and preferences['completion'] in ('never','unfocused','always') and all(type(preferences[key]) is bool for key in ('permissions','questions','tasks'));fail(legacy or modern,'Invalid portable notification settings')
     fail(found==owners,'Portable settings owners differ from the database snapshot')
+
+def validate_editor_drafts(rows,owner):
+    fail(isinstance(rows,dict) and utf16_length(json_with_js_strings(rows))<=8000000,'Invalid or oversized agent editor drafts');active=0
+    editor_uuid=r'[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}'
+    fail(isinstance(owner,str) and re.fullmatch(editor_uuid,owner),'Invalid saved-draft owner')
+    for scope,row in rows.items():
+        match=re.fullmatch(r'(preview|editor):(new|'+editor_uuid+r')(?::('+editor_uuid+r'))?',scope)
+        fail(match and (match[3] is None or match[1]=='preview' and match[2]=='new'),'Invalid saved creation preview location')
+        fail(match and isinstance(row,dict) and set(row)=={'version','owner','scope','revision','writeId','payload','updatedAt'} and type(row['version']) is int and row['version']==1 and row['owner']==owner and row['scope']==scope and type(row['revision']) is int and 1<=row['revision']<=9007199254740991 and isinstance(row['writeId'],str) and re.fullmatch(editor_uuid,row['writeId'],re.I) and editor_timestamp(row['updatedAt']),'Invalid or foreign saved agent draft')
+        payload=row['payload']
+        if payload is None:continue
+        active+=1;fail(active<=100,'Too many active saved agent drafts')
+        fail(isinstance(payload,str) and utf16_length(payload)<=4000000 and '\x00' not in payload,'Invalid agent draft text')
+        value=json.loads(payload);source=None if match[2]=='new' else match[2];creation=match[3]
+        fail(isinstance(value,dict) and type(value.get('version')) is int and value.get('version')==(2 if creation else 1) and value.get('creationId')==creation and value.get('owner')==owner and value.get('source')==source,'Saved agent draft changed account or source')
+        if match[1]=='editor':fail(set(value)=={'version','owner','source','form'} and isinstance(value['form'],dict),'Invalid saved editor form')
+        else:
+            fail(set(value)==({'version','owner','source','sessionId','prompt','thinking','execution','pending'}|({'creationId'} if creation else set())) and isinstance(value['sessionId'],str) and re.fullmatch(editor_uuid,value['sessionId'],re.I) and isinstance(value['prompt'],str) and utf16_length(value['prompt'])<=100000 and value['thinking'] in ('default','none','minimal','low','medium','high','xhigh','max','ultra') and isinstance(value['execution'],dict),'Invalid saved preview composer')
+            if value['execution'].get('sources'):validate_selected_sources(value['execution']['sources'],owner)
+            pending=value['pending']
+            if pending is not None:fail(isinstance(pending,dict) and pending.get('sessionId')==value['sessionId'] and pending.get('sourceAgentId')==source and ((isinstance(pending.get('creationId'),str) and pending['creationId'].lower()==creation) if creation else 'creationId' not in pending) and isinstance(pending.get('requestId'),str) and UUID.fullmatch(pending['requestId']),'Saved preview request changed scope')
+
 
 def validate_clipboard(record,owners,database):
     fail(record.get('format')==1 and record.get('kind')=='agentopia-portable-clipboard' and isinstance(record.get('accounts'),list),'Invalid portable clipboard record')
@@ -278,6 +377,8 @@ def validate_clipboard(record,owners,database):
 
 def selected_profile_entry(name):
     parts=name.split('/')
+    if parts[0]=='editor-draft-journals':return len(parts)==1 or len(parts)==2 and re.fullmatch('[0-9]{16}-[a-f0-9]{64}\\.json',parts[1]) is not None
+    if parts[0]=='draft-previews':return len(parts)==1 or parts[1] in ('codex','workspaces') and selected_profile_entry('/'.join(parts[1:]))
     if parts[0] not in ('codex','workspaces','attachments','chrome-tools'):return False
     if parts[0]=='chrome-tools':return len(parts)==1 or UUID.fullmatch(parts[1]) and (len(parts)==2 or parts[2]=='artifacts')
     if parts[0]=='codex' and len(parts)>=5:
@@ -339,7 +440,7 @@ def copy_archive(archive,manifest,destination,headroom,select=lambda _:True):
 def native_fingerprints(profile,source_profile):
     spec=importlib.util.spec_from_file_location('agentopia_native_relocation',Path(__file__).with_name('relocate-native-profile.py'));module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
     records={}
-    for database in sorted((profile/'codex').glob('*/*/*/state_5.sqlite')):
+    for database in sorted([*(profile/'codex').glob('*/*/*/state_5.sqlite'),*(profile/'draft-previews/codex').glob('*/*/*/state_5.sqlite')]):
         no_links(database,True);connection=sqlite3.connect('file:'+str(database)+'?mode=ro',uri=True)
         try:
             fail(connection.execute('PRAGMA integrity_check').fetchone()==('ok',),'Native history index failed its integrity check');tables={}
@@ -366,12 +467,13 @@ def inspect_environment(home,appdata,registered,app_running=False):
     if not (home/'.agentopia/recovery-state.json').exists():fail(not (appdata/'Agentopia').exists() and not (home/'Agentopia Files').exists(),'Existing profile or public outputs must be preserved before recovery')
     return home,appdata
 
-def prepare(root,home,appdata,registered,app_running=False,headroom=512*1024**2,compress=False,phase_hook=lambda _:None):
+def prepare(root,home,appdata,registered,app_running=False,headroom=512*1024**2,compress=False,phase_hook=lambda _:None,windows_sid=None):
     home,appdata=inspect_environment(home,appdata,registered,app_running)
     bundle=validate_bundle(root)
-    with recovery_lock(home):return prepare_locked(bundle,home,appdata,headroom,compress,phase_hook)
+    identity=current_windows_sid() if bundle.get('windows') and windows_sid is None else windows_sid
+    with recovery_lock(home):return prepare_locked(bundle,home,appdata,headroom,compress,phase_hook,identity)
 
-def prepare_locked(bundle,home,appdata,headroom,compress,phase_hook):
+def prepare_locked(bundle,home,appdata,headroom,compress,phase_hook,windows_sid=None):
     profile=appdata/'Agentopia';public=home/'Agentopia Files';private=home/'.agentopia/desktop'
     workspace=bundle.get('workspace');workspace_required=None
     if workspace:workspace_required={'format':1,'indexSha256':workspace['indexSha256'],'descriptorSha256':bundle['descriptor']['workspaceManifest']['sha256'],'archiveSha256':bundle['descriptor']['workspaceArchive']['sha256'],'databaseManifestSha256':bundle['descriptor']['databaseManifest']['sha256'],'owners':bundle['database']['accountIds']}
@@ -381,9 +483,18 @@ def prepare_locked(bundle,home,appdata,headroom,compress,phase_hook):
         for name,key in [('workspace-data.json','descriptorSha256'),('workspace-data.tar.gz','archiveSha256')]:fail(digest(no_links(destination/'restored-workspaces'/name,True))==workspace_required[key],'Staged workspace recovery bytes changed')
     fail(not any((private/name).exists() for name in ('profile','profile-location.json','migration.lock')),'An existing private profile or migration was found')
     journal=home/'.agentopia/recovery-state.json';state=load(journal) if journal.exists() else None
+    windows=bundle.get('windows');import_windows=bool(windows and windows['windowsSid']==windows_sid)
+    def verify_windows(destination):
+        if not windows:return
+        fail(digest(no_links(destination/'.agentopia-windows-profile.json',True))==bundle['descriptor']['windowsProfileManifest']['sha256'],'The restored Windows credential manifest changed')
+        fail(load(destination/'.agentopia-windows-credentials.json')=={'format':1,'manifest':windows,'imported':import_windows},'Windows credential recovery choice changed')
+        if import_windows:
+            fail(digest(no_links(destination/'credentials.bin',True))==windows['files']['credentials.bin']['sha256'] and windows_encryption_key(load(destination/'Local State',32*1024**2))==windows['encryptionKeySha256'],'Recovered Windows credentials or their key changed')
+        else:fail(not (destination/'credentials.bin').exists() and not (destination/'Local State').exists(),'Credentials cannot be imported under another Windows account')
     if state:
         fail(state.get('format')==2 and state.get('descriptorSha256')==bundle['descriptorSha256'] and state.get('profile')==str(profile) and state.get('publicRoot')==str(public),'A different recovery operation already owns this home')
         fail(UUID.fullmatch(state['operationId']),'Invalid recovery operation identity')
+        if windows:fail(state.get('windowsCredentialsImported')==import_windows,'The Windows account changed during recovery')
         if state['status']=='prepared':
             marker={'format':2,'operationId':state['operationId'],'descriptorSha256':bundle['descriptorSha256']}
             fail(load(profile/'.agentopia-recovery-operation.json')==marker and load(home/'.agentopia/public-output-recovery-operation.json')==marker,'Prepared recovery ownership changed')
@@ -394,10 +505,12 @@ def prepare_locked(bundle,home,appdata,headroom,compress,phase_hook):
                 fail(load(profile/'restored-layouts.json')==bundle['layouts'] and load(profile/'.agentopia-layouts-required.json')=={'format':1,'indexSha256':bundle['layouts']['indexSha256']},'Prepared workspace layout recovery changed')
                 if bundle['layouts']['window'] is not None:fail(load(profile/'window.json')==bundle['layouts']['window'],'Prepared window geometry changed')
             verify_workspace(profile)
+            verify_windows(profile)
             return state
     else:
         fail(not profile.exists() and not public.exists(),'Existing profile or public outputs must be preserved before recovery')
         state={'format':2,'operationId':str(uuid.uuid4()),'descriptorSha256':bundle['descriptorSha256'],'profile':str(profile),'publicRoot':str(public),'status':'preparing','phase':'validating'}
+        if windows:state.update(windowsCredentialsImported=import_windows,windowsCredentialsManifestSha256=bundle['descriptor']['windowsProfileManifest']['sha256'])
         journal.parent.mkdir(parents=True,exist_ok=True);save(journal,state)
     stage=home/'.agentopia/recovery-staging'/state['operationId'];state['stage']=str(stage)
     def phase(name):state.update(status='preparing',phase=name);save(journal,state);phase_hook(name)
@@ -426,7 +539,15 @@ def prepare_locked(bundle,home,appdata,headroom,compress,phase_hook):
                 phase('staging-clipboard');copy_archive(bundle['clipboardArchive'],bundle['clipboard']['manifest'],staged_profile/'restored-clipboard',headroom)
                 save(staged_profile/'restored-clipboard-images.json',bundle['clipboard']);save(staged_profile/'.agentopia-clipboard-required.json',{'format':1,'indexSha256':bundle['clipboard']['indexSha256']});state['clipboardIndexSha256']=bundle['clipboard']['indexSha256']
             if bundle['settings']:
-                phase('staging-settings');save(staged_profile/'restored-settings.json',bundle['settings']);save(staged_profile/'.agentopia-settings-required.json',{'format':1,'indexSha256':bundle['settings']['indexSha256']});state['settingsIndexSha256']=bundle['settings']['indexSha256']
+                phase('staging-settings');save_compact_settings(staged_profile/'restored-settings.json',bundle['settings']);save(staged_profile/'.agentopia-settings-required.json',{'format':1,'indexSha256':bundle['settings']['indexSha256']});state['settingsIndexSha256']=bundle['settings']['indexSha256']
+            if windows:
+                phase('staging-windows-credentials')
+                source=resource(bundle['root'],bundle['descriptor']['windowsProfileManifest'])
+                with source.open('rb') as stream:copy_verified(stream,staged_profile/'.agentopia-windows-profile.json',{'bytes':source.stat().st_size,'sha256':bundle['descriptor']['windowsProfileManifest']['sha256']},staged_profile,headroom)
+                if import_windows:
+                    for name,row in windows['files'].items():
+                        with (bundle['root']/'windows-profile'/name).open('rb') as stream:copy_verified(stream,staged_profile/name,row,staged_profile,headroom)
+                save(staged_profile/'.agentopia-windows-credentials.json',{'format':1,'manifest':windows,'imported':import_windows})
             if bundle['external']:
                 save(staged_profile/'restored-external.json',bundle['external']);save(staged_profile/'.agentopia-external-required.json',{'format':1,'indexSha256':bundle['external']['indexSha256']});state['externalIndexSha256']=bundle['external']['indexSha256']
             if bundle['layouts']:
@@ -471,8 +592,9 @@ def prepare_locked(bundle,home,appdata,headroom,compress,phase_hook):
             fail(load(profile/'restored-layouts.json')==bundle['layouts'] and load(profile/'.agentopia-layouts-required.json')=={'format':1,'indexSha256':bundle['layouts']['indexSha256']},'Published layout recovery metadata changed');state['layoutsIndexSha256']=bundle['layouts']['indexSha256']
             if bundle['layouts']['window'] is not None:fail(load(profile/'window.json')==bundle['layouts']['window'],'Published window geometry changed')
         verify_workspace(profile)
+        verify_windows(profile)
         if workspace:state['workspaceIndexSha256']=workspace['indexSha256']
-        reserve(home,headroom);state.update(status='prepared',phase='prepared',native=native,providerCredentialsImported=False,providerReauthorizationRequired=True,databaseImported=False,fullApplicationRestoreProven=False)
+        reserve(home,headroom);state.update(status='prepared',phase='prepared',native=native,providerCredentialsImported=import_windows,providerReauthorizationRequired=not import_windows,databaseImported=False,fullApplicationRestoreProven=False)
         save(journal,state);return state
     except BaseException as error:
         state.update(status='interrupted',error=type(error).__name__+': '+str(error));save(journal,state);raise

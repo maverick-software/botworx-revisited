@@ -1,0 +1,7 @@
+# User-directed child follow-ups reach parent reporting
+
+Outcome: when the user directly follows up with a subagent, the automatic parent report receives that accepted instruction as user context and can integrate the result accurately. Child output remains untrusted reference material. Reporting changes no permissions and repeats no completed work.
+
+The reproduced140 exchange verifies child execution and two receipts, but the parent says the follow-up was outside the original parent task. The existing report builder includes only child output; accepted user text remains in child steering history. Reuse that owned history, associate new steering entries with their native turn, and include only current-turn entries plus retained legacy entries in a separate report input. Wait for child-control preparation to finish before reporting so acknowledgement cannot race with context capture. No new abstraction, dependency, migration or provider adapter is required.
+
+Acceptance: a regression test fails against installed140 for missing user context; report-only output cannot manufacture user instructions; foreign-child and earlier-turn text stay out; old saved steering still works; preparation cannot publish an early report. Qualify the frozen build, exercise the actual packaged/native reporting path, and run one bounded fresh OAuth task to observe the parent's response. Preserve the current installation and all data through normal recoverable maintenance. Do not replay the completed140 task or use OpenRouter for this shared prompt change.

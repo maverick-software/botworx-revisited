@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import vm from 'node:vm';
+import {randomUUID} from 'node:crypto';
+import {createRequire} from 'node:module';
+import {mkdir,writeFile,readFile} from 'node:fs/promises';
+import {desktopOperation} from './operation-lock.mjs';
+import {json,hash} from './phased-backup-control.mjs';
+desktopOperation('demonstrate that deleting a malformed editor location revives its archived bytes');
+const root=path.resolve(import.meta.dirname,'../..'),sourceFile=(await json(path.join(root,'.supabase/desktop-draft-preview76/source-current.json'))).evidence,source=await json(sourceFile),require=createRequire(import.meta.url);assert(source.success);
+const {EditorJournalInventory,preserveEditorJournalStorage}=require(path.join(source.build,'editor-journal-inventory.js')),{recoverEditorDraftJournals}=require(path.join(source.build,'durable-editor-draft.js')),out=path.join(root,'.supabase/desktop-draft-preview76','retirement-bug101-'+Date.now());await mkdir(out,{recursive:true});
+const owner=randomUUID(),key='agentopia.editor-draft.'+owner+':editor:malformed101',raw='Unreadable retained café 東京 😀 '+String.fromCharCode(0xd800),values=new Map([[key,raw]]),storage={get length(){return values.size;},key:n=>[...values.keys()][n]??null,getItem:key=>values.get(key)??null,setItem:(key,raw)=>values.set(key,raw)},page={getURL:()=> 'agentopia://app/draft-recovery-bootstrap',executeJavaScript:async code=>vm.runInNewContext(code,{localStorage:storage})},inventory=new EditorJournalInventory(out,0),bridge={call:()=>assert.fail('No draft dispatch is needed')};
+await inventory.capture([[key,raw]]);await assert.rejects(recoverEditorDraftJournals(owner,bridge,storage),/valid agent draft location/);values.delete(key);const result=await preserveEditorJournalStorage(inventory,page,true);assert.equal(result.restored,1);assert.equal(values.get(key),raw);await assert.rejects(recoverEditorDraftJournals(owner,bridge,storage),/valid agent draft location/);
+for(const[file,digest]of Object.entries(source.sourceHashes))assert.equal(await hash(path.join(root,file)),digest,file);
+const evidence={measurementCompleted:true,capabilityPassed:false,removalRevivesDiscardedLocation:true,originalBytesPreserved:true,sourceQualification:sourceFile,sourceHashes:source.sourceHashes,providerRequests:0,productionAccess:false,controllerSha256:await hash(import.meta.filename),finding:'Removing the malformed local key permits startup to restore the same archived bytes, after which account-wide draft recovery is blocked again.'};await writeFile(path.join(out,'evidence.json'),JSON.stringify(evidence,null,2));await writeFile(path.join(out,'controller.mjs'),await readFile(import.meta.filename));console.log(JSON.stringify({evidence:path.join(out,'evidence.json'),removalRevivesDiscardedLocation:true,capabilityPassed:false}));

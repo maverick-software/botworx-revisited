@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import path from 'node:path';
+import {writeFile} from 'node:fs/promises';
+import {desktopOperation} from './operation-lock.mjs';
+import {hash} from './phased-backup-control.mjs';
+desktopOperation('reproduce completed provider usage lost by a late stream abort without inference');
+const root=path.resolve(import.meta.dirname,'../..'),original=process.argv.includes('--original'),moduleName=original?'endurance-spend144.mjs':'endurance-spend145.mjs',install=(await import('./'+moduleName))[original?'installEnduranceSpend144':'installEnduranceSpend145'];
+const state={out:'/generated-fixture',calls:[]};let controller;
+const source=new ReadableStream({start(value){controller=value;}}),writes=[];
+const context=vm.createContext({Response,ReadableStream,TextDecoder,Date,JSON,Promise,Error,Number,Math,__validation76:state,__durableProbeRequire:name=>name==='node:path'?path:name==='node:fs'?{writeFileSync:(file,value)=>writes.push({file,value})}:assert.fail('Unexpected import'),fetch:async()=>{state.calls.push({requestId:'synthetic',inputSha256:'generated'});return new Response(source,{headers:{'content-type':'text/event-stream','x-test-fixture':'preserved'}});}});
+await install({evaluate:(fn,arg)=>vm.runInContext('('+fn.toString()+')',context)(undefined,arg)});
+const reply=await context.fetch('https://openrouter.ai/api/v1/responses',{method:'POST',body:JSON.stringify({model:'openai/gpt-5-mini',input:'Generated observer fixture'})}),reader=reply.body.getReader();
+const text='data: '+JSON.stringify({type:'response.completed',response:{status:'completed',usage:{input_tokens:100,output_tokens:10,input_tokens_details:{cached_tokens:0}}}})+'\n\n';
+const pending=reader.read();controller.enqueue(new TextEncoder().encode(text));const delivered=await pending;assert.equal(new TextDecoder().decode(delivered.value),text);assert.equal(reply.headers.get('x-test-fixture'),'preserved');
+controller.error(Error('Synthetic abort after complete usage was delivered'));
+await state.billingPending144;
+const result={success:state.billing144.rows[0].usageKnown===true,at:new Date().toISOString(),original,modelRequests:0,completeUsageDeliveredToConsumer:true,returnedBytesUnchanged:true,headerPreserved:true,accounted:state.billing144.rows[0].accounted,usageKnown:state.billing144.rows[0].usageKnown,observerError:state.billing144.rows[0].observationError,trace:state.billingTrace145,sourceSha256:await hash(path.join(root,'scripts/desktop',moduleName))};
+await writeFile(path.join(root,'.supabase/desktop-endurance144',original?'observer-red-'+Date.now()+'.json':'observer-green145-'+Date.now()+'.json'),JSON.stringify(result,null,2),{flag:'wx'});console.log(JSON.stringify(result));
+if(original){assert(!result.success,'The original observer did not reproduce the reported lost usage');console.log(JSON.stringify({reproduced:true,usageLostAfterDelivery:true,modelRequests:0}));}else{assert(result.success,'Completed usage was lost on late abort');assert(Math.abs(result.accounted-.000045)<1e-12);console.log(JSON.stringify({success:true,completedUsageRetained:true,bytesUnchanged:true,modelRequests:0}));}

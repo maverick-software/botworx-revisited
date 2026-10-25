@@ -46,14 +46,15 @@ class RelocationTests(unittest.TestCase):
     def marker(self):
         (self.stage / relocation.MARKER).write_text(json.dumps(self.manifest), encoding='utf-8')
 
-    def home(self, scope='scope', identifier='01999999-0000-7000-8000-000000000001', cwd=None):
-        relative = Path('codex/owner/openrouter') / scope
+    def home(self, scope='scope', identifier='01999999-0000-7000-8000-000000000001', cwd=None, preview=False, provider='openrouter', owner='owner'):
+        namespace = Path('draft-previews') if preview else Path()
+        relative = namespace / 'codex' / owner / provider / scope
         source_home = self.source / relative
         sessions = source_home / 'sessions/2026/10/17'
         sessions.mkdir(parents=True)
         rollout = sessions / ('rollout-2026-10-17T10-18-25-' + identifier + '.jsonl')
         rollout.write_text(json.dumps(dict(type='session_meta', payload=dict(id=identifier))) + '\n' + json.dumps({'literal': str(source_home), 'text': 'café 🟢'}) + '\n', encoding='utf-8')
-        workspace = self.source / 'workspaces/owner' / scope
+        workspace = self.source / namespace / 'workspaces' / owner / scope
         workspace.mkdir(parents=True)
         staged_workspace = self.stage / workspace.relative_to(self.source)
         staged_workspace.mkdir(parents=True)
@@ -69,6 +70,36 @@ class RelocationTests(unittest.TestCase):
         staged_home.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(source_home, staged_home)
         return source_home, staged_home, rollout
+
+    def test_preview_and_normal_indexes_relocate_together_without_changing_rollouts_or_offsets(self):
+        self.home()
+        source, copied, rollout = self.home(preview=True, provider='openai-oauth')
+        original={file:digest(file) for file in self.source.rglob('*') if file.is_file()}
+        history=digest(copied/'thread_history_1.sqlite');saved_rollout=digest(rollout)
+        self.assertEqual(relocation.repair(self.stage)['homes'],2)
+        with database(copied/'state_5.sqlite') as connection:
+            row=connection.execute('SELECT rollout_path,cwd,archived,tokens_used,parent_id FROM threads').fetchone()
+        self.assertEqual(row,(str(self.stage/rollout.relative_to(self.source)),str(self.stage/'draft-previews/workspaces/owner/scope'),1,123,'parent-thread'))
+        self.assertEqual(digest(copied/'thread_history_1.sqlite'),history)
+        self.assertEqual(digest(self.stage/rollout.relative_to(self.source)),saved_rollout)
+        self.assertEqual({file:digest(file) for file in original},original)
+        self.assertEqual(relocation.repair(self.stage)['homes'],2)
+
+    def test_invalid_preview_is_refused_before_any_normal_index_is_changed(self):
+        _,normal,_=self.home();_,preview,rollout=self.home(preview=True)
+        before=digest(normal/'state_5.sqlite');(self.stage/rollout.relative_to(self.source)).unlink()
+        with self.assertRaisesRegex(ValueError,'rollout is missing'):relocation.repair(self.stage)
+        self.assertEqual(digest(normal/'state_5.sqlite'),before)
+        self.assertEqual(json.loads((self.stage/relocation.MARKER).read_text())['state'],'copied')
+
+    def test_compact_preview_binding_is_verified_and_retained(self):
+        binding={'format':1,'owner':'01999999-0000-7000-8000-000000000001','provider':'openrouter','scope':'preview-scope'}
+        scope=hashlib.sha256(json.dumps(binding,separators=(',',':')).encode()).hexdigest()[:32]
+        _,copied,_=self.home(scope,preview=True,owner='_')
+        (copied/'.agentopia-scope.json').write_text(json.dumps(binding,separators=(',',':')))
+        self.assertEqual(relocation.repair(self.stage)['homes'],1)
+        binding['scope']='foreign';(copied/'.agentopia-scope.json').write_text(json.dumps(binding))
+        with self.assertRaisesRegex(ValueError,'different scope binding'):relocation.repair(self.stage)
 
     def test_repair_keeps_rollouts_history_relationships_and_external_paths(self):
         first, copied, rollout = self.home()

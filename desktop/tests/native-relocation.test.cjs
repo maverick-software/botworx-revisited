@@ -4,7 +4,7 @@ test('staged native relocation preserves history and refuses incomplete, foreign
  const root=path.resolve(__dirname,'../..'),python=path.join(root,'desktop/resources/script-runtimes/python-3.14.8/python.exe');
  const result=spawnSync(python,['-B',path.join(root,'scripts/desktop/test-native-relocation.py')],{cwd:root,encoding:'utf8',windowsHide:true,timeout:30000});
  assert.equal(result.status,0,(result.stdout||'')+(result.stderr||''));
- assert.match(result.stderr,/Ran 10 tests/);assert.match(result.stderr,/\bOK\b/);
+ assert.match(result.stderr,/Ran 13 tests/);assert.match(result.stderr,/\bOK\b/);
 });
 test('a copied native profile cannot redirect the repair through a Windows junction',()=>{
  const root=path.resolve(__dirname,'../..'),python=path.join(root,'desktop/resources/script-runtimes/python-3.14.8/python.exe'),temporary=fs.mkdtempSync(path.join(os.tmpdir(),'agentopia-relocation-junction-'));

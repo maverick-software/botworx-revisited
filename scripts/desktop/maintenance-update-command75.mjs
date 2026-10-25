@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 export const installedUpdater='C:\\Users\\charl\\AppData\\Local\\AgentopiaDesktop\\Update.exe';
 export const installedUpdaterSha256='76359cd4b0349a83337b941332ad042c90351c2bb0a4628307740324c97984cc';
-export function maintenanceUpdateCommand({releaseDirectory,temp,environment=process.env}){
- const directory=path.win32.normalize(releaseDirectory),scratch=path.win32.normalize(temp);assert(/^F:\\Agentopia-Tmp\\i75-\d{13}\\o$/.test(directory),'Unexpected verified release directory');assert(/^F:\\Agentopia-Tmp\\update75-\d{13}$/.test(scratch),'Unexpected update scratch location');const env={...environment,TEMP:scratch,TMP:scratch,SQUIRREL_TEMP:scratch};for(const key of ['ELECTRON_RUN_AS_NODE','AGENTOPIA_TEST_PROFILE','NODE_OPTIONS'])delete env[key];return {exe:installedUpdater,args:['--update',directory],cwd:directory,env};
+export function maintenanceUpdateCommand({releaseDirectory,temp,environment=process.env,version='0.44.75'}){
+ assert(['0.44.75','0.44.76'].includes(version),'Unsupported verified update version');
+ const directory=path.win32.normalize(releaseDirectory),scratch=path.win32.normalize(temp),releasePattern=version==='0.44.76'?/^F:\\Agentopia-Tmp\\i76-\d{13}\\o$/:/^F:\\Agentopia-Tmp\\i75-\d{13}\\o$/,scratchPattern=version==='0.44.76'?/^F:\\Agentopia-Tmp\\update76-\d{13}$/:/^F:\\Agentopia-Tmp\\update75-\d{13}$/;assert(releasePattern.test(directory),'Unexpected verified release directory');assert(scratchPattern.test(scratch),'Unexpected update scratch location');const env={...environment,TEMP:scratch,TMP:scratch,SQUIRREL_TEMP:scratch};for(const key of ['ELECTRON_RUN_AS_NODE','AGENTOPIA_TEST_PROFILE','NODE_OPTIONS'])delete env[key];return {exe:installedUpdater,args:['--update',directory],cwd:directory,env};
 }

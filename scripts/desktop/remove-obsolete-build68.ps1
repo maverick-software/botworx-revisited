@@ -1,14 +1,16 @@
-param([Parameter(Mandatory=$true)][string]$Job)
+param([Parameter(Mandatory=$true)][string]$Job,[switch]$Preview76)
 $ErrorActionPreference='Stop'
 $jobPath=[IO.Path]::GetFullPath($Job)
+$version=if($Preview76){'0.44.76'}else{'0.44.68'}
+$oldVersion=if($Preview76){'0.44.75'}else{'0.44.67'}
 if($jobPath -notmatch '^F:\\Agentopia\\\.supabase\\desktop-normal-maintenance\\\d{13}$'){throw 'Unexpected accepted maintenance folder'}
 $accepted=Get-Content -LiteralPath (Join-Path $jobPath 'installed-data-accepted.json') -Raw | ConvertFrom-Json
 $intent=Get-Content -LiteralPath (Join-Path $jobPath 'intent.json') -Raw | ConvertFrom-Json
 $rollback=Get-Content -LiteralPath (Join-Path $jobPath 'physical-rollback.json') -Raw | ConvertFrom-Json
-if(-not $accepted.success -or $accepted.version -ne '0.44.68' -or -not $accepted.ordinaryFProfileSelected -or -not $rollback.success){throw 'Installed account and rollback verification is required'}
+if(-not $accepted.success -or $accepted.version -ne $version -or -not $accepted.ordinaryFProfileSelected -or -not $rollback.success){throw 'Installed account and rollback verification is required'}
 function FileDigest([string]$File){$stream=[IO.File]::OpenRead($File);try{return [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($stream)).ToLowerInvariant()}finally{$stream.Dispose()}}
-$oldRoot='C:\Users\charl\AppData\Local\AgentopiaDesktop\app-0.44.67'
-$currentRoot='C:\Users\charl\AppData\Local\AgentopiaDesktop\app-0.44.68'
+$oldRoot='C:\Users\charl\AppData\Local\AgentopiaDesktop\app-'+$oldVersion
+$currentRoot='C:\Users\charl\AppData\Local\AgentopiaDesktop\app-'+$version
 $currentExe=Join-Path $currentRoot 'Agentopia.exe'
 $mains=@(Get-CimInstance Win32_Process -Filter "Name='Agentopia.exe'" | Where-Object {$_.CommandLine -notmatch '--type='})
 if($mains.Count -ne 1 -or $mains[0].ExecutablePath -ne $currentExe -or -not (Get-Process -Id $mains[0].ProcessId).Responding){throw 'The verified new app must be running normally'}
@@ -29,7 +31,7 @@ if(Test-Path -LiteralPath $oldRoot){
 }
 if(Test-Path -LiteralPath $oldRoot){throw 'Old installed build remains'}
 if((FileDigest (Join-Path $currentRoot 'resources/app.asar')) -ne $accepted.imageSha256){throw 'The new image changed during cleanup'}
-$result=@{success=$true;target=$oldRoot;version='0.44.68';removed=$removed;alreadyAbsent=(-not $removed);files=$files;bytes=$bytes;cFreeBefore=$before;cFreeAfter=(Get-PSDrive -Name C).Free;currentAppPreserved=$true;rollbackOnFVerified=$true}
+$result=@{success=$true;target=$oldRoot;version=$version;removed=$removed;alreadyAbsent=(-not $removed);files=$files;bytes=$bytes;cFreeBefore=$before;cFreeAfter=(Get-PSDrive -Name C).Free;currentAppPreserved=$true;rollbackOnFVerified=$true}
 $json=$result | ConvertTo-Json -Depth 5
-[IO.File]::WriteAllText((Join-Path $jobPath 'obsolete-build67-cleanup.json'),$json,[Text.UTF8Encoding]::new($false))
+[IO.File]::WriteAllText((Join-Path $jobPath ('obsolete-build'+$oldVersion.Split('.')[-1]+'-cleanup.json')),$json,[Text.UTF8Encoding]::new($false))
 $json

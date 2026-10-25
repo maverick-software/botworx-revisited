@@ -1,3 +1,4 @@
+import {pluginResource,pluginResourceBinding,pluginPrincipalIdentity,type PluginResourceBinding,type PluginPrincipal} from './plugin-resource-principal';
 import {createHash} from 'node:crypto';
 import type {ChatOptions} from './contracts';
 import type {ToolDefinition} from './tool-contracts';
@@ -7,17 +8,21 @@ import {imageData} from './attachment-images';
 
 export const pluginFileTools=['list_plugin_files','read_plugin_file'];
 const integer=(value:unknown,fallback:number,max:number)=>{if(value===undefined)return fallback;if(typeof value!=='number'||!Number.isSafeInteger(value)||value<0||value>max)throw new Error('Choose a valid plugin file range.');return value;};
-const identity=(packages:Awaited<ReturnType<Plugins['skillPackages']>>)=>JSON.stringify(packages.map(pkg=>[pkg.name,pkg.digest]).sort());
+const identity=(packages:Array<{name:string;digest:string}>)=>JSON.stringify(packages.map(pkg=>[pkg.name,pkg.digest]).sort());
+export type PluginFileBinding=PluginResourceBinding&{owner:string;key:string;packages:Array<{name:string;digest:string}>};
 export class PluginFiles{
  constructor(private registry:Pick<Plugins,'skillPackages'>){}
- async definitions(owner:string,agent:string|undefined,options:ChatOptions):Promise<ToolDefinition[]>{
+ async capture(owner:string,agentId:PluginPrincipal):Promise<PluginFileBinding>{const packages=(await this.registry.skillPackages(owner,agentId)).map(({name,digest})=>({name,digest})).sort((a,b)=>a.name.localeCompare(b.name));return {owner,...pluginResourceBinding(agentId),packages,key:createHash('sha256').update(JSON.stringify([owner,pluginPrincipalIdentity(agentId),packages])).digest('hex')};}
+ async validate(binding:PluginFileBinding){const current=await this.capture(binding.owner,pluginResource(binding));if(current.key!==binding.key||identity(current.packages)!==identity(binding.packages))throw Error('The agent’s plugin files changed or were revoked. Start a fresh preview response.');}
+ async validateSkills(binding:PluginFileBinding,selected:string[]){await this.validate(binding);const packages=await this.registry.skillPackages(binding.owner,pluginResource(binding));for(const value of selected){const match=/^agentopia-plugin:([^:]+):([a-f0-9]{64}):(skills\/[^:]+\/SKILL\.md)$/.exec(value);if(!match)throw Error('Choose a native skill from this agent’s assigned plugins.');pluginSkillPath(match[3]);const pkg=packages.find(pkg=>pkg.name===match[1]&&pkg.digest===match[2]);if(!pkg||!Object.hasOwn(pkg.package.files??{},match[3]))throw Error('The selected native skill changed or is unavailable. Refresh Skills before sending.');}await this.validate(binding);}
+ async definitions(owner:string,agent:PluginPrincipal|undefined,options:ChatOptions):Promise<ToolDefinition[]>{
   if(options.permission==='chat'||!agent||!(await this.registry.skillPackages(owner,agent)).length)return [];
   return [
    {namespace:'tools',name:'list_plugin_files',description:'List reviewed skill files from enabled plugins assigned to this agent. Returns exact plugin names, digests and package-relative paths. This reads installed package metadata only.',parameters:{type:'object',properties:{plugin:{type:'string'},offset:{type:'integer',minimum:0},limit:{type:'integer',minimum:1,maximum:100}},additionalProperties:false}},
    {namespace:'tools',name:'read_plugin_file',description:'Read a reviewed skill instruction, bundled reference, script source or image from an assigned plugin. Supply the exact plugin, digest and path from list_plugin_files. Reads package bytes only; never executes a script or grants command permission. Text is paginated in characters.',parameters:{type:'object',properties:{plugin:{type:'string'},digest:{type:'string'},path:{type:'string'},offset:{type:'integer',minimum:0},limit:{type:'integer',minimum:1,maximum:16000}},required:['plugin','digest','path'],additionalProperties:false}}
   ];
  }
- async execute(owner:string,agent:string,tool:string,args:Record<string,unknown>,options:ChatOptions,guard:()=>Promise<void>){
+ async execute(owner:string,agent:PluginPrincipal,tool:string,args:Record<string,unknown>,options:ChatOptions,guard:()=>Promise<void>){
   if(options.permission==='chat'||!pluginFileTools.includes(tool))throw new Error('Plugin file access is not enabled.');await guard();const packages=await this.registry.skillPackages(owner,agent),signature=identity(packages);let result:unknown;
   if(tool==='list_plugin_files'){
    if(args.plugin!==undefined&&(typeof args.plugin!=='string'||args.plugin.length>100))throw new Error('Choose an assigned plugin.');const offset=integer(args.offset,0,1000000),limit=integer(args.limit,50,100);if(!limit)throw new Error('Choose a nonzero plugin file limit.');

@@ -1,0 +1,9 @@
+# Complete installer for installed checkpoint138
+
+Outcome: a complete Agentopia0.44.76 recovery/reinstallation installer that contains the exact ordinary archive, UI and supporting files installed at checkpoint138. Private account/profile data and the228 imported skills remain in their existing retained data path.
+
+Reuse the pinned Squirrel builder, F-drive staging, streaming package verifier and isolated startup check used for checkpoint137. There are no product, dependency, schema, helper or provider changes. The ordinary app remains open; no paid request or task is replayed.
+
+Before construction, verify the138→136 archive chain against complete installer137 and all five declared compiled differences. Check all unchanged encryption/recovery/updater modules. The broker is the one changed module shared with recovery: compare its complete frozen source with136 and establish that the only change is the owned preview child/background-control insertion. Bind the actual138 packaged, cold, live, installed-preservation and ordinary-inspection evidence. Reuse whole encrypted recovery with these boundaries; physical reboot and another Windows user remain separate open checks.
+
+Acceptance: every normalized staged program/supporting file equals the installed file; isolated QA ports are replaced only in the separately copied installer configuration with the existing production defaults. Setup, embedded full package, launcher, updater, metadata and RELEASES must pass the existing full-file verification. An actual staged executable starts with its own fresh profile and refuses an unregistered runtime, attempts no external request and exits normally. Final protected-file hashes and read-only saved-state comparison must agree with the installed baseline. The same-version installer is not run over the ordinary profile; a later version-changing update keeps its own upgrade acceptance.

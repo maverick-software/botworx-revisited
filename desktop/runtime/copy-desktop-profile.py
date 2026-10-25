@@ -38,6 +38,8 @@ def checked_root(value, existing=False):
 
 def excluded(relative, directory):
     parts = [part.casefold() for part in relative.parts]
+    if parts and parts[0] == 'draft-previews':
+        parts = parts[1:]
     if len(parts) == 1:
         if directory and (parts[0] in ROOT_CACHES | {'wsl', 'test-profiles'} or parts[0].startswith('upload-probe-')):
             return True

@@ -1,3 +1,3 @@
 // Text snapshots share the existing bounded draft envelope with the typed message.
 const snapshotActions=new Set(['chat.start','chat.queue.add','native.steer','drafts.save','composer.save','composer.new','goals.start','tasks.save']);
-export function desktopRequestLimit(action:string){return snapshotActions.has(action)?2*1024**2:action==='agents.save'?850000:200000;}
+export function desktopRequestLimit(action:string){return action==='editorRecovery.capture'?100*1024**2:['editorDrafts.write','agentDraftPreview.start','editorRecovery.retire'].includes(action)?8*1024**2:['plugins.validate','plugins.install','plugins.reviewUpdate','plugins.update'].includes(action)?4*1024**2+256:['agents.profile.save','agentSettings.task.save'].includes(action)||snapshotActions.has(action)?2*1024**2:action==='agents.save'?850000:200000;}

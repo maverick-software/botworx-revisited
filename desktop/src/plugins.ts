@@ -1,3 +1,6 @@
+import {CreationToolResources} from './creation-tool-resources';
+import {creationPrincipal} from './creation-resource-principal';
+import {pluginPrincipalIdentity,type PluginPrincipal} from './plugin-resource-principal';
 import {chromePluginName,chromeConnectionId} from './chrome-contracts';
 import {imageGenerationPluginName} from './image-generation-contracts';
 import type {SupabaseClient} from '@supabase/supabase-js';
@@ -9,8 +12,10 @@ import {planPluginUpdate} from './plugin-update';
 const data=(r:any):any=>{if(r.error)throw new Error('The plugin operation could not be completed.');return r.data;};
 export class Plugins {
  constructor(private db:SupabaseClient,private imageConfigured:()=>boolean=()=>false){}
+ async reviewed(user:string,name:string){return this.checked(data(await this.db.from('desktop_plugins').select('*').eq('user_id',user).eq('name',name).single()));}
  private async owned(user:string,agent:string){data(await this.db.from('agents').select('id').eq('id',agent).eq('user_id',user).single());}
- async skillPackages(user:string,agent:string):Promise<SkillPackage[]>{
+ async skillPackages(user:string,agent:PluginPrincipal):Promise<SkillPackage[]>{
+  if(typeof agent!=='string'){const principal=pluginPrincipalIdentity(agent),scopes=new CreationToolResources(this.db);await scopes.active(user,agent.creationId);const scope=await scopes.read(user,agent.creationId);if(!scope||JSON.stringify(creationPrincipal(scope))!==JSON.stringify(principal))throw Error('The creation app selection changed or was saved. Refresh it before selecting skills.');await scopes.validate(user,scope.grants);const packages:SkillPackage[]=[];for(const grant of scope.grants){const row=await this.reviewed(user,grant.name);if(!row.enabled||row.digest!==grant.digest||row.source==='legacy')throw Error('A creation skill package changed or was revoked.');if(row.package.files)packages.push({name:row.name,digest:row.digest,package:row.package});}await scopes.active(user,agent.creationId);const current=await scopes.read(user,agent.creationId);if(!current||JSON.stringify(current)!==JSON.stringify(scope))throw Error('The creation app selection changed while reading skills.');return packages;}
   data(await this.db.from('agents').select('id').eq('id',agent).eq('user_id',user).eq('active',true).single());
   const grants=data(await this.db.from('desktop_agent_plugins').select('plugin_name').eq('user_id',user).eq('agent_id',agent).eq('enabled',true));if(!grants.length)return [];
   const rows=data(await this.db.from('desktop_plugins').select('*').eq('user_id',user).eq('enabled',true).in('name',grants.map((grant:any)=>grant.plugin_name)));

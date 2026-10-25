@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import {createRequire} from 'node:module';
+import {mkdir,writeFile} from 'node:fs/promises';
+import {desktopOperation} from './operation-lock.mjs';
+import {json,hash} from './phased-backup-control.mjs';
+desktopOperation('validate every exported Codex skill through Agentopia native package loading');
+const root=path.resolve(import.meta.dirname,'../..'),proofFile=process.env.AGENTOPIA_NAVIGATION_PROOF??(await json(path.join(root,'.supabase/desktop-navigation130/current.json'))).proof,proof=await json(proofFile),exportFile=path.join(root,'.supabase/desktop-navigation130/export.json'),exported=await json(exportFile),out=path.join(proof.out,'native-validation-'+Date.now()),require=createRequire(import.meta.url);await mkdir(out);
+const {NativePluginSkills}=require(path.join(proof.source,'build/native-plugin-skills.js')),skills=new NativePluginSkills({skillPackages:async()=>[]},path.join(out,'p'),proof.assets??'C:/Users/charl/AppData/Local/AgentopiaDesktop/app-0.44.76/resources/resources'),e={success:false,imageSha256:proof.imageSha256,exportSha256:await hash(exportFile),providerRequests:0,skillScriptsExecuted:0,packages:[],skills:0};
+try{for(const row of exported.packages){assert.equal(await hash(row.file),row.sha256);const review=await skills.validatePackage('9bbfa942-1b96-4f2b-b34b-59b19f9c0130',await json(row.file),async()=>{});assert.equal(review.length,row.skills.length);e.packages.push({name:row.name,sha256:row.sha256,skills:review.length});e.skills+=review.length;console.log('Loaded '+row.name+': '+review.length+' skills');}assert.equal(e.skills,228);e.success=true;}catch(error){e.error=error.stack;process.exitCode=1;}await writeFile(path.join(out,'evidence.json'),JSON.stringify(e,null,2));if(e.success)await writeFile(process.env.AGENTOPIA_NAVIGATION_PROOF?path.join(proof.out,'native-validation-current.json'):path.join(root,'.supabase/desktop-navigation130/native-validation-current.json'),JSON.stringify({evidence:path.join(out,'evidence.json')},null,2));console.log(JSON.stringify({success:e.success,skills:e.skills,out,error:e.error?.slice(-1200)}));

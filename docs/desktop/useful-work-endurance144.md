@@ -1,0 +1,13 @@
+# Continuous useful-work acceptance
+
+The user asked for longer autonomous tasks on ChatGPT OAuth and OpenRouter. The earlier test demonstrated 20 and 12 native goal turns, but included deliberate page delays and random context filler. This acceptance tests whether the installed application continues doing useful work for at least 35 minutes on each connection.
+
+Reuse the existing isolated profile, exact installed142 archive, real Codex runtime, local browser and normal goal mechanism. Give each connection a fresh backlog of invoice batches. Every batch contains new line items to reconcile, and produces a separately checked receipt. Serve source pages immediately. Include no idle instructions, artificial response delay, random context padding or lowered summarization threshold. Normal production accounts, model preferences, files and database remain untouched.
+
+Measure each connection from its first real request. At 35 minutes, pause its goal with the unfinished backlog retained. Require at least five verified batches and continued model/tool work through the observation period. Report how much work actually completed and any incorrect result, failure, credential expiry, spending stop or earlier completion. Earlier completion does not prove the target duration. Verify every saved receipt against independently calculated integer-cent totals, original case facts, later revisions, saved role, assigned procedure and current user constraints. Check draft preservation, normal reopening and zero automatic replay. Keep the two connections independent if one fails.
+
+Use ChatGPT OAuth for the primary case. Use a compatible lower-cost OpenRouter text model only in the isolated acceptance account, preserving the user's production model. Before paid dispatch, validate the model's current primary catalog entry and an OpenRouter spending guard. The guard reserves a conservative maximum for each in-flight response, records reported usage and retains the reserve when billing is unknown. Refuse further paid dispatch when the reservation would exceed a $3 test allowance. Do not retry submitted or uncertain inputs. A spending stop is reported as incomplete endurance acceptance.
+
+Do not start the OAuth case unless its access lasts beyond the observation and cleanup period. Renew through the existing qualified original-store path when required. Never put keys or tokens in chat or evidence. Keep image generation disabled.
+
+Official protocol/pricing references: [OpenRouter Responses API](https://openrouter.ai/docs/api/api-reference/responses/create-responses), [OpenRouter GPT-5 mini](https://openrouter.ai/openai/gpt-5-mini/providers), and [OpenAI GPT-5 mini limits](https://developers.openai.com/api/docs/models/gpt-5-mini).

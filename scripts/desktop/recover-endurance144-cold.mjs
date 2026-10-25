@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import {mkdir,readFile,writeFile,readdir} from 'node:fs/promises';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import {desktopOperation} from './operation-lock.mjs';
+import {json,hash,list,linux} from './phased-backup-control.mjs';
+import {launchDurableProfileProbe} from './launch-durable-profile-probe.mjs';
+import {callFor} from './live-validation76-session.mjs';
+desktopOperation('inspect retained endurance state, gracefully stop only its idle runtime, cold read without inference');
+const root=path.resolve(import.meta.dirname,'../..'),records=path.join(root,'.supabase/desktop-endurance144'),pointer=await json(path.join(records,'live-current.json')),prior=await json(pointer.evidence),proof=await json((await json(path.join(root,'.supabase/desktop-computer-repair76/installed-current.json'))).proof),cfg=await json(proof.qaIntent),out=path.join(prior.out,'cold-recovery-'+Date.now()),exec=promisify(execFile);
+assert.equal(cfg.instance,'b521a8fe-d803-4031-af23-4bb51f4e1e56');assert.equal(cfg.distribution,'AgentopiaRuntime-'+cfg.instance);assert(prior.cleanup.leaseRemoved&&prior.cleanup.oauthCredentialRemoved&&prior.cleanup.routerCredentialRemoved&&prior.cases.every(c=>c.currentGoal.status==='paused'));assert.equal(await hash(path.join(cfg.program,'resources/app.asar')),prior.imageSha256);
+const apps=JSON.parse((await exec('powershell.exe',['-NoProfile','-NonInteractive','-Command',"@(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith('"+cfg.program.replaceAll("'","''")+"', [StringComparison]::OrdinalIgnoreCase) } | Select-Object ProcessId,ExecutablePath) | ConvertTo-Json -Compress"],{windowsHide:true,encoding:'utf8'})).stdout||'[]');assert.equal(Array.isArray(apps)?apps.length:1,0,'Inspect retained acceptance processes before recovery');
+await mkdir(out,{recursive:true});const e={success:false,at:new Date().toISOString(),out,originalAttempt:pointer.evidence,originalCloseDeadlineExceeded:true,originalNormalExitProven:false,noAcceptanceProcesses:true,newInferenceRequests:0,forcedWindowsTermination:false},save=()=>writeFile(path.join(out,'evidence.json'),JSON.stringify(e,null,2));await save();await writeFile(path.join(records,'cold-recovery-current.json'),JSON.stringify({out,evidence:path.join(out,'evidence.json')},null,2));
+const intent={instance:cfg.instance,dbPort:cfg.portBase+2,owner:prior.owner,goals:prior.cases.map(c=>c.goal.id)};await writeFile(path.join(out,'intent.json'),JSON.stringify(intent,null,2));
+try{
+ if((await list(true)).includes(cfg.distribution)){
+  const inspected=await exec('wsl.exe',['-d',cfg.distribution,'-u','agentopia','--exec','python3',linux(path.join(root,'scripts/desktop/inspect-endurance-runtime144.py')),linux(out)],{windowsHide:true,encoding:'utf8',timeout:30000});e.runtimeInspection=path.join(out,'runtime-inspection.json');assert((await json(e.runtimeInspection)).identityVerified);await save();
+  const stopped=await exec('wsl.exe',['-d',cfg.distribution,'-u','agentopia','--cd','/home/agentopia/app','--exec','supabase','stop'],{windowsHide:true,encoding:'utf8',timeout:60000});await writeFile(path.join(out,'private-service-stop.txt'),stopped.stdout);e.servicesStoppedNormally=true;await save();
+  await exec('wsl.exe',['--terminate',cfg.distribution],{windowsHide:true,encoding:'utf8',timeout:20000});
+ }
+ assert(!(await list(true)).includes(cfg.distribution));e.idleAcceptanceRuntimeStopped=true;await save();
+ const lifecycle=path.join(out,'lifecycle.jsonl');
+ const result=await launchDurableProfileProbe(cfg,{label:'cold-endurance144-recovery-'+Date.now(),testProfile:false,initialProfile:cfg.profile,expectedProfile:cfg.profile,expectedRuntime:'ready',resumeDebugWorkers:true,isolateOsHome:true,hiddenWindow:true,normalCloseTimeoutMs:120000,
+  prepareReady:async application=>application.evaluate(({app,ipcMain},{lifecycle})=>{const req=globalThis.__durableProbeRequire,fs=req('node:fs'),trace=value=>fs.appendFileSync(lifecycle,JSON.stringify({at:new Date().toISOString(),...value})+'\n');for(const[module,name,method]of [['broker','Broker','shutdown'],['codex-harness','CodexHarness','close'],['runtime','Runtime','stop']]){const Class=req(app.getAppPath()+'/build/'+module+'.js')[name],original=Class.prototype[method];if(typeof original!=='function')throw Error('Shutdown boundary changed');Class.prototype[method]=async function(...args){trace({stage:name+'.'+method,phase:'start'});try{const result=await original.apply(this,args);trace({stage:name+'.'+method,phase:'done'});return result;}catch(error){trace({stage:name+'.'+method,phase:'error',message:String(error.message).slice(0,180)});throw error;}};}ipcMain.on('agentopia:close-ready',(_event,value)=>trace({stage:'renderer-close-ready',hasError:!!value?.error}));app.on('browser-window-created',(_event,window)=>{window.on('close',()=>trace({stage:'window-close'}));window.webContents.on('destroyed',()=>trace({stage:'webcontents-destroyed'}));});},{lifecycle}),
+  runReady:async({application,page})=>{
+   const call=callFor(page);assert.equal((await call('auth.state')).identity.id,prior.owner);
+   for(const c of prior.cases){const goal=(await call('goals.list',{agentId:c.agent})).find(g=>g.id===c.goal.id);assert.equal(goal.status,'paused');assert.equal(goal.max_turns,null);assert.equal(goal.token_budget,null);assert.deepEqual(await call('agents.profile',{agentId:c.agent}),c.profile);assert.equal((await call('drafts.get',{owner:prior.owner,scope:'conversation:'+c.conversation})).text,c.draft);const names=(await readdir(c.workspace)).filter(n=>/^stage-\d{2}\.json$/.test(n)).sort();assert.deepEqual(names,Object.keys(c.fileHashes).sort());for(const name of names)assert.equal(await hash(path.join(c.workspace,name)),c.fileHashes[name]);}
+   assert.equal((await call('native.active')).length,0);e.coldValuesVerified=true;await save();return {pausedGoalsPreserved:true,draftsPreserved:true,profilesPreserved:true,allReceiptBytesPreserved:true,noInferenceDispatched:true};
+  }});
+ assert(result.success&&result.normalExit===0&&result.externalRequestsAttempted===0&&result.controlledNetwork.calls.length===0);e.coldProbe=path.join(result.out,'evidence.json');e.normalColdExit=true;e.coldNoReplay=true;e.qaRuntimeStopped=!(await list(true)).includes(cfg.distribution);assert(e.qaRuntimeStopped);e.success=true;await save();
+}catch(error){e.error=error.cause?.message??error.message;await save();process.exitCode=1;}
+console.log(JSON.stringify({success:e.success,out,coldValuesVerified:e.coldValuesVerified,coldNoReplay:e.coldNoReplay,normalColdExit:e.normalColdExit,qaRuntimeStopped:e.qaRuntimeStopped,error:e.error}));

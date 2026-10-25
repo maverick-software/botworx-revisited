@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import {mkdir,writeFile} from 'node:fs/promises';
+import path from 'node:path';
+import {desktopOperation} from './operation-lock.mjs';
+import {hash} from './phased-backup-control.mjs';
+import {createEnduranceSpend144} from './endurance-spend144.mjs';
+desktopOperation('verify paid endurance reservations and response usage without inference');
+const root=path.resolve(import.meta.dirname,'../..'),out=path.join(root,'.supabase/desktop-endurance144'),checks=[];
+const model='openai/gpt-5-mini',m=createEnduranceSpend144({limit:1});
+assert.equal(m.state.reserve,.356);checks.push('Full context and maximum output are reserved before dispatch.');
+const a=m.begin({model}),b=m.begin({model});assert.throws(()=>m.begin({model}),/allowance/);checks.push('Concurrent and unknown responses cannot exceed the allowance.');
+assert(!m.finish(a,'data: {"type":"response.failed","response":{"status":"failed"}}\n'));assert.equal(a.accounted,.356);checks.push('Missing usage retains the complete reservation.');
+assert(m.finish(b,'data: {"type":"response.completed","response":{"status":"completed","usage":{"input_tokens":10000,"input_tokens_details":{"cached_tokens":8000},"output_tokens":500,"cost":0.002}}}\n\ndata: [DONE]\n'));assert.equal(b.accounted,.002);checks.push('Streaming usage accounts for cached input, output including reasoning and reported cost.');
+assert.throws(()=>m.begin({model}),/stopped/);const other=createEnduranceSpend144({limit:1});const c=other.begin({model});assert(other.finish(c,JSON.stringify({status:'completed',usage:{input_tokens:100,output_tokens:10,input_tokens_details:{cached_tokens:0}}})));assert(Math.abs(c.accounted-.000045)<1e-12);checks.push('Nonstreaming usage uses conservative validated catalog prices; a stopped run stays stopped.');
+assert.throws(()=>other.begin({model:'another-model'}),/Unexpected/);const d=other.begin({model});assert(!other.finish(d,JSON.stringify({usage:{input_tokens:100,output_tokens:10,input_tokens_details:{cached_tokens:101}}})));assert.equal(d.accounted,.356);checks.push('Unexpected models and invalid usage cannot reduce the reservation.');
+const x=createEnduranceSpend144(),z=x.begin({model});assert.throws(()=>x.finish(z,JSON.stringify({usage:{input_tokens:1,output_tokens:1,cost:.5}})),/exceeds/);assert(x.state.stopped);assert.throws(()=>x.begin({model}),/stopped/);checks.push('An unexpected higher charge stops further dispatch even when nominal budget remains.');
+await mkdir(out,{recursive:true});await writeFile(path.join(out,'spend-qualification.json'),JSON.stringify({success:true,at:new Date().toISOString(),checks,providerRequests:0,sourceSha256:await hash(path.join(root,'scripts/desktop/endurance-spend144.mjs'))},null,2));console.log(JSON.stringify({success:true,checks:checks.length,providerRequests:0}));

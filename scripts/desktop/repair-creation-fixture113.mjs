@@ -1,0 +1,3 @@
+import assert from 'node:assert/strict';
+import {readFile,writeFile} from 'node:fs/promises';
+const source='scripts/desktop/creation-definition113-broker.mjs',out='.supabase/desktop-draft-preview76/creation113-broker-1792821898776',text=await readFile(source,'utf8'),from=' });e.atomicCreationNativeVerified=true;',to=' });await broker.native.quiesce();assert.equal(broker.native.workers.size,0);e.atomicCreationWorkersSettled=true;e.atomicCreationNativeVerified=true;';assert.equal(text.split(from).length,2);await writeFile(out+'/creation-definition113-broker-before.mjs',text,{flag:'wx'});await writeFile(source,text.replace(from,to));

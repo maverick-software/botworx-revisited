@@ -11,7 +11,7 @@ type Rect={x:number;y:number;width:number;height:number};
 type Display={id:number;bounds:Rect};
 export type IndicatorWindow={ready:Promise<void>;show:()=>void;bounds:(value:Rect)=>void;pointer:(x:number,y:number,visible:boolean)=>Promise<unknown>;destroy:()=>void;alive:()=>boolean};
 export type IndicatorHost={displays:()=>Display[];dip:(value:ComputerBox)=>Rect;cursor:()=>{x:number;y:number};create:(bounds:Rect)=>IndicatorWindow;watch:(changed:()=>void)=>()=>void};
-type Lease={owner:string;request:string;reference:string;box:ComputerBox};
+type Lease={owner:string;request:string;reference:string;box?:ComputerBox;desktop?:true};
 type Surface={window:IndicatorWindow;bounds:Rect;ready:Promise<void>;moving:boolean};
 const intersects=(a:Rect,b:Rect)=>Math.min(a.x+a.width,b.x+b.width)>Math.max(a.x,b.x)&&Math.min(a.y+a.height,b.y+b.height)>Math.max(a.y,b.y);
 function electronIndicatorHost():IndicatorHost{
@@ -27,12 +27,13 @@ export class ComputerIndicator{
  private leases=new Map<string,Lease>();private surfaces=new Map<number,Surface>();private timer?:ReturnType<typeof setInterval>;private unwatch:()=>void;
  constructor(private host:IndicatorHost=electronIndicatorHost()){this.unwatch=host.watch(()=>{void this.refresh().catch(()=>this.stop());});}
  async show(owner:string,request:string,reference:string,box:ComputerBox){if(![box.left,box.top,box.width,box.height].every(Number.isFinite)||box.width<=0||box.height<=0)throw Error('The computer-use indicator has no valid target display.');this.leases.set(request,{owner,request,reference,box});try{await this.refresh();}catch(error){this.end(owner,request);throw error;}}
+ async showDesktop(owner:string,request:string){this.leases.set(request,{owner,request,reference:'native-command',desktop:true});try{await this.refresh();}catch(error){this.end(owner,request);throw error;}}
  end(owner:string,request:string){if(this.leases.get(request)?.owner===owner)this.leases.delete(request);void this.refresh().catch(()=>this.stop());}
  revoke(owner:string,reference:string){for(const[id,row]of this.leases)if(row.owner===owner&&row.reference===reference)this.leases.delete(id);void this.refresh().catch(()=>this.stop());}
  stop(owner?:string){for(const[id,row]of this.leases)if(!owner||row.owner===owner)this.leases.delete(id);if(!this.leases.size){for(const surface of this.surfaces.values())surface.window.destroy();this.surfaces.clear();if(this.timer)clearInterval(this.timer);this.timer=undefined;}else void this.refresh().catch(()=>this.stop());}
  dispose(){this.stop();this.unwatch();}
  private async refresh(){
-  const desired=new Map<number,Rect>();for(const display of this.host.displays())for(const row of this.leases.values())if(intersects(display.bounds,this.host.dip(row.box)))desired.set(display.id,display.bounds);
+  const desired=new Map<number,Rect>();for(const display of this.host.displays())for(const row of this.leases.values())if(row.desktop||row.box&&intersects(display.bounds,this.host.dip(row.box)))desired.set(display.id,display.bounds);
   if(this.leases.size&&!desired.size)throw Error('The computer-use target display is unavailable.');
   for(const[id,surface]of this.surfaces)if(!desired.has(id)){surface.window.destroy();this.surfaces.delete(id);}
   const waiting:Promise<void>[]=[];

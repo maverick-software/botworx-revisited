@@ -16,10 +16,10 @@ export function intersectAgentPolicies(target:AgentPolicy,caller:AgentPolicy):Ag
  const toolIntersection=target.tools===null||caller.tools===null?intersect(target.tools,caller.tools):[...new Set(target.tools.flatMap(a=>caller.tools!.flatMap(b=>a===b?[a]:!a.includes('.')&&b.endsWith('.'+a)?[b]:!b.includes('.')&&a.endsWith('.'+b)?[a]:[])))];
  return {tools:toolIntersection,delegation:target.delegation&&caller.delegation,delegateAgents:intersect(target.delegateAgents,caller.delegateAgents),memory:target.memory&&caller.memory,memoryWrite:target.memoryWrite&&caller.memoryWrite,maxDepth:Math.min(target.maxDepth,caller.maxDepth),maxTurns:Math.min(target.maxTurns,caller.maxTurns)};
 }
-export function agentInstructions(profile:AgentProfile):string{
+export function agentInstructions(profile:AgentProfile,scope:'saved'|'draft'='saved'):string{
  const definition=profile.definition;
  return [
-  `Your persistent Agentopia identity is ${String(definition.name??profile.handle)} (@${profile.handle}), agent ${profile.agent_id}, definition revision ${profile.revision}. Keep this identity across assignments.`,
+  scope==='draft'?`You are testing the unsaved Agentopia draft ${String(definition.name??profile.handle)} (@${profile.handle}). This preview has its own test history. Its configuration has not been saved; do not claim that preview activity changed the saved agent or its persistent memory.`:`Your persistent Agentopia identity is ${String(definition.name??profile.handle)} (@${profile.handle}), agent ${profile.agent_id}, definition revision ${profile.revision}. Keep this identity across assignments.`,
   profile.role?'Your role: '+profile.role:'',
   profile.sops?'Standard operating procedures:\n'+profile.sops:'',
   profile.guardrails?'Agent guardrails:\n'+profile.guardrails:'',
