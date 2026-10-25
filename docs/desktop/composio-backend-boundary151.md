@@ -1,3 +1,5 @@
+> Historical architecture finding. On October 24, 2026 the user clarified local operation. The [revised local MCP plan](composio-account-integration-plan148.md) supersedes the hosted-service recommendation below. Composio Connect can use the existing local OAuth/MCP client; selecting a hosted Supabase project is no longer a pending requirement. The removed-project observation remains true for that former deployment only.
+
 # Composio trusted-backend finding
 
 The running desktop authenticates against its owned local Supabase runtime. The broker uses that runtime's API_URL and verifies the active user with auth.getUser. The repository also has an old linked cloud Supabase project and cloud environment settings. Its actual management API returns404, “Resource has been removed.” A successful read-only project-list request confirms that the linked project is absent; this is not an inferred login failure. No other project names or credential values were exported.
