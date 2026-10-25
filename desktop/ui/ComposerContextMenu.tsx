@@ -1,7 +1,7 @@
 import {pluginName} from './plugin-presentation';
 import React,{useCallback,useEffect,useLayoutEffect,useRef,useState,type RefObject} from 'react';
 import * as Popover from '@radix-ui/react-popover';
-import {Plus,Paperclip,Folder,Target,Lightbulb,AtSign,Check,ArrowLeft,Plug,Globe,MessageSquare,Bot,Search} from 'lucide-react';
+import {Plus,Paperclip,Folder,Target,Lightbulb,AtSign,Check,ArrowLeft,Plug,Globe,MessageSquare,Bot,Search,Monitor} from 'lucide-react';
 import type {Agent,ChatOptions,Conversation,FileReference,Message} from '../src/contracts';
 import type {ToolSource} from '../src/tool-contracts';
 import type {SavedBrowserTab} from '../src/browser-tabs';
@@ -11,10 +11,10 @@ import {call} from './ui';
 import './composer-add-menu.css';
 
 type ContextTab=Pick<SavedBrowserTab,'id'|'title'|'url'>&{status?:string;conversationTitle?:string;browser?:'chrome'};
-type Props={agent:Agent|null;agents:Agent[];scope?:string;options:ChatOptions;change:(next:Partial<ChatOptions>)=>void;files:FileReference[];pick:(kind:'file'|'folder')=>Promise<void>;disabled:boolean;request:boolean;input:RefObject<HTMLTextAreaElement>;value:string;setValue:(value:string)=>void;selectAgent:(agent:Agent,mention?:AgentMention)=>void;goal:()=>void;onBusy?:(busy:boolean)=>void;mention?:AgentMention|null;dismissMention?:()=>void;menuId?:string;onActiveOption?:(id:string|undefined)=>void};
+type Props={agent:Agent|null;agents:Agent[];scope?:string;options:ChatOptions;change:(next:Partial<ChatOptions>)=>void;files:FileReference[];pick:(kind:'file'|'folder')=>Promise<void>;disabled:boolean;request:boolean;input:RefObject<HTMLTextAreaElement>;value:string;setValue:(value:string)=>void;selectAgent:(agent:Agent,mention?:AgentMention)=>void;goal:()=>void;shareWindows?:()=>void;onBusy?:(busy:boolean)=>void;mention?:AgentMention|null;dismissMention?:()=>void;menuId?:string;onActiveOption?:(id:string|undefined)=>void};
 
 /** Add and typed @ share one catalog, selection path and pending-read boundary. */
-export function ComposerAddMenu({agent,agents,scope,options,change,files,pick,disabled,request,input,value,setValue,selectAgent,goal,onBusy,mention,dismissMention,menuId,onActiveOption}:Props){
+export function ComposerAddMenu({agent,agents,scope,options,change,files,pick,disabled,request,input,value,setValue,selectAgent,goal,shareWindows,onBusy,mention,dismissMention,menuId,onActiveOption}:Props){
  const [buttonOpen,setButtonOpen]=useState(false),[view,setView]=useState<'add'|'context'>('add'),[search,setSearch]=useState(''),[sources,setSources]=useState<ToolSource[]>([]),[tabs,setTabs]=useState<ContextTab[]>([]),[chats,setChats]=useState<Conversation[]>([]),[error,setError]=useState(''),[busy,setBusy]=useState(false),[width,setWidth]=useState(720),[active,setActive]=useState(0);
  const trigger=useRef<HTMLButtonElement>(null),menu=useRef<HTMLDivElement|null>(null),height=useRef<number|null>(null),generation=useRef(0),catalogGeneration=useRef(0);
  const open=buttonOpen||!!mention,typed=!!mention,query=typed?mention.query:search,currentView=typed?'context':view;
@@ -61,7 +61,7 @@ export function ComposerAddMenu({agent,agents,scope,options,change,files,pick,di
  useLayoutEffect(()=>{const rows=[...menu.current?.querySelectorAll<HTMLButtonElement>('[data-context-row]:not(:disabled)')??[]],selected=rows[Math.min(active,Math.max(0,rows.length-1))];for(const row of rows)if(typed)row.setAttribute('aria-selected',String(row===selected));onActiveOption?.(typed?selected?.id:undefined);});
  let rowNumber=0,matchCount=0;
  const row=(icon:React.ReactNode,label:string,description:string,action:()=>void,selected?:boolean,blocked=false)=>{const id=(menuId??'composer-context')+'-option-'+rowNumber++;matchCount++;return <button key={id} id={id} type="button" data-context-row role={typed?'option':'menuitem'} className="composer-add-row" disabled={blocked||busy} onMouseDown={typed?event=>event.preventDefault():undefined} onClick={action}>{icon}<span className="add-row-name">{label}</span>{description&&<span className="add-row-description">{description}</span>}{selected&&<Check size={15} className="add-row-check"/>}</button>;};
- const addActions=()=><><div className="composer-add-label">Add</div>{row(<Paperclip size={16}/>,'Files and folders','',()=>filePicker('file'))}{!typed&&row(<AtSign size={16}/>,'Attach context','Files, chats, tabs and agents',()=>{setView('context');setSearch('');})}{row(<Target size={16}/>,'Goal','Set a goal to keep pursuing',()=>{consume();finish();goal();},undefined,!agent||request)}{row(<Lightbulb size={16}/>,'Plan mode',options.mode==='plan'?'Turn plan mode off':'Turn plan mode on',()=>{change({mode:options.mode==='plan'?'chat':'plan'});consume();finish();},options.mode==='plan')}</>;
+ const addActions=()=><><div className="composer-add-label">Add</div>{row(<Paperclip size={16}/>,'Files and folders','',()=>filePicker('file'))}{!typed&&row(<AtSign size={16}/>,'Attach context','Files, chats, tabs and agents',()=>{setView('context');setSearch('');})}{!typed&&shareWindows&&row(<Monitor size={16}/>,'Application windows','Share a window for Computer Use',()=>{consume();close();shareWindows();},undefined,request||!['ask','full'].includes(options.permission))}{row(<Target size={16}/>,'Goal','Set a goal to keep pursuing',()=>{consume();finish();goal();},undefined,!agent||request)}{row(<Lightbulb size={16}/>,'Plan mode',options.mode==='plan'?'Turn plan mode off':'Turn plan mode on',()=>{change({mode:options.mode==='plan'?'chat':'plan'});consume();finish();},options.mode==='plan')}</>;
  const plugins=()=><><div className="composer-add-label">Plugins & apps</div>{available.filter(source=>matches(pluginName(source.name)+' '+source.name+' '+source.detail)).map(source=>row(source.kind==='web'?<Globe size={16}/>:<Plug size={16}/>,pluginName(source.name),source.detail,()=>plugin(source),chosen.includes(source.id)&&options.tools!==undefined))}</>;
  const context=()=><>
   <div className="composer-add-label">Files and folders</div>{!typed&&<>{row(<Paperclip size={16}/>,'Add files','',()=>filePicker('file'))}{row(<Folder size={16}/>,'Add folder','',()=>filePicker('folder'))}</>}
