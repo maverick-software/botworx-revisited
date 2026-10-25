@@ -10,10 +10,10 @@ import {discoverOAuthServerInfo,extractWWWAuthenticateParams} from '@modelcontex
 import {desktopOperation} from './operation-lock.mjs';
 
 desktopOperation('read-only hosted Composio OAuth discovery');
-const root=path.resolve(import.meta.dirname,'../..'),records=path.join(root,'.supabase/desktop-hosted-composio148'),out=path.join(records,String(Date.now())),require=createRequire(import.meta.url),candidate=process.argv.includes('--candidate'),image=candidate?JSON.parse(await readFile(JSON.parse(await readFile(path.join(records,'current.json'),'utf8')).proof,'utf8')).image:'C:/Users/charl/AppData/Local/AgentopiaDesktop/app-0.44.76/resources/app.asar';
+const root=path.resolve(import.meta.dirname,'../..'),records=path.join(root,process.argv.includes('--network154')?'.supabase/desktop-oauth-network154':'.supabase/desktop-hosted-composio148'),out=path.join(records,String(Date.now())),require=createRequire(import.meta.url),candidate=process.argv.includes('--candidate')||process.argv.includes('--network154'),image=candidate?JSON.parse(await readFile(JSON.parse(await readFile(path.join(records,'current.json'),'utf8')).proof,'utf8')).image:'C:/Users/charl/AppData/Local/AgentopiaDesktop/app-0.44.76/resources/app.asar';
 await mkdir(out,{recursive:true});
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex'),json=async file=>JSON.parse(await readFile(file,'utf8'));
-const installed=await json(path.join(root,candidate?'.supabase/desktop-hosted-composio148/current.json':'.supabase/desktop-computer-repair76/installed-current.json')),proof=await json(installed.proof);
+const installed=await json(candidate?path.join(records,'current.json'):path.join(root,'.supabase/desktop-computer-repair76/installed-current.json')),proof=await json(installed.proof);
 assert.equal(sha(await readFile(image)),proof.imageSha256);
 const moduleHashes={},isolatedBuild=path.join(out,'build');
 await mkdir(isolatedBuild);await writeFile(path.join(isolatedBuild,'package.json'),JSON.stringify({type:'commonjs'}));
