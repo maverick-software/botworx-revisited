@@ -3,6 +3,7 @@ import type {PluginRecord} from '../src/plugin-contracts';
 const names:Record<string,string>={
  'exa-web-search':'Web Search',
  'chrome-devtools':'Chrome DevTools',
+ 'composio-connect':'Composio',
  'image-generation':'Image Generation',
  'microsoft-learn':'Microsoft Learn',
  'microsoft-learn-desktop':'Microsoft Learn Desktop',

@@ -69,6 +69,7 @@ import {newChatProvider} from './new-chat-defaults';
 import {WorkspaceTools,workspaceDefinitions} from './workspace-tools';
 import {ToolService} from './tool-service';
 import {RemoteTools} from './remote-tools';
+import {composioMcpPluginName,composioMcpConnectionId} from './composio-mcp-contracts';
 import {McpOAuthConnections} from './mcp-oauth-connections';
 import {CreationSetupOperations} from './creation-setup-operations';
 import {Plugins} from './plugins';
@@ -591,6 +592,13 @@ export class Broker {
   }
   if(action.startsWith('workspace.')||action.startsWith('projects.')){const reading=['workspace.read','workspace.link','workspace.image','workspace.location','projects.search'].includes(action);if(reading&&(this.closing||this.signedOut||this.currentOwner!==user.id))throw new Error('Your account changed while opening the workspace.');const result=await new WorkspaceNavigation(this.admin,this.secrets,this.files,this.tools.browser?.tabs).call(action,args,user.id);if(reading)await this.attachmentOwner(user.id);return result;}
   if(action.startsWith('native.changes.')){if(args.owner!==user.id)throw new Error('These native file changes belong to another account.');const guard=()=>this.attachmentOwner(user.id);if(action==='native.changes.location'){const row=must(await this.admin.from('desktop_requests').select('conversation_id,assistant_message_id').eq('id',uuid(args.requestId)).eq('user_id',user.id).single());await guard();return row;}if(action==='native.changes.prepare')return this.nativeChanges.prepare(user.id,uuid(args.requestId),guard);if(action==='native.changes.status'){const rows=await this.nativeChanges.statuses(user.id,uuid(args.requestId));await guard();return rows;}if(action==='native.changes.undo')return this.nativeChanges.undo(user.id,uuid(args.id),guard);throw new Error('Unsupported native file review operation.');}
+  if(action.startsWith('composio.mcp.')){
+   const scope={owner:user.id,accountConnector:'composio' as const};await this.attachmentOwner(user.id);
+   if(action==='composio.mcp.cancel'){this.mcpOAuth.cancel(scope);return;}
+   if(action==='composio.mcp.status'){const rows=await new Plugins(this.admin).list(user),plugin=rows.find(row=>row.name===composioMcpPluginName);const connected=!!await this.mcpOAuth.grant(scope);await this.attachmentOwner(user.id);return {connected,enabled:plugin?.enabled===true,assignments:plugin?.assignments.filter(row=>row.enabled).map(row=>row.agent_id)??[]};}
+   if(!['composio.mcp.connect','composio.mcp.disconnect'].includes(action))throw Error('Unsupported Composio browser connection operation.');
+   return this.remoteConnectionChange(user.id,{connectionId:'mcp:'+composioMcpConnectionId,plugin:composioMcpPluginName},async()=>{try{const result=action==='composio.mcp.connect'?await this.mcpOAuth.connect(scope):await this.mcpOAuth.disconnect(scope);await this.attachmentOwner(user.id);return result;}finally{await this.native.pluginsChanged(user.id,composioMcpPluginName);await this.previewRunner.native.pluginsChanged(user.id,composioMcpPluginName);}});
+  }
   if(action.startsWith('composio.')){
    if(action==='composio.status')return this.composio.status(user.id);
    const work=async()=>{this.nativeControls++;let before:string|undefined;try{

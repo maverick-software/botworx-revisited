@@ -4,7 +4,7 @@ const build=process.env.AGENTOPIA_OAUTH_TEST_BUILD||path.resolve(__dirname,'../b
 const {McpOAuth}=require(path.join(build,'mcp-oauth.js')),{oauthNetwork,publicOAuthAddress}=require(path.join(build,'mcp-oauth-network.js')),{withMcp}=require(path.join(build,'mcp-client.js'));
 const scope={owner:'owner-a',agent:'agent-a',connection:'connection-a'};
 async function fixture(t,options={}){
- const records=new Map(),requests=[],browser=[];let owner=scope.owner,stamp='reviewed-plugin-a',base,challenge,registrations=0,exchanges=0,refreshes=0;
+ const records=new Map(),requests=[],browser=[];let owner=(options.scope??scope).owner,stamp='reviewed-plugin-a',base,challenge,registrations=0,exchanges=0,refreshes=0;
  const server=createServer(async(req,res)=>{try{
   const url=new URL(req.url,base);let body='';for await(const value of req)body+=value;
   const form=new URLSearchParams(body);requests.push({path:url.pathname,method:req.method,authorization:req.headers.authorization,body});
@@ -135,4 +135,19 @@ test('OAuth discovery reaches a DNS hostname with address-list lookup enabled',a
  t.after(()=>new Promise(resolve=>server.close(resolve)));
  const address='http://localhost:'+server.address().port+'/mcp',response=await oauthNetwork(address,AbortSignal.timeout(5000))(address);
  assert.equal(response.status,200);assert.deepEqual(await response.json(),{resource:'hostname fixture'});
+});
+
+test('account OAuth connects once, reopens and refreshes under its owner, and disconnects independently of agent grants',async t=>{
+ const account={owner:'11111111-1111-4111-8111-111111111111',accountConnector:'composio'},f=await fixture(t,{scope:account,expired:true});
+ await f.oauth.connect(account);assert.equal(f.records.size,1);assert.match([...f.records.keys()][0],/^mcp-oauth-account:/);
+ const cold=f.make();assert.equal(await cold.token(account,new AbortController().signal),'access-refreshed');assert.equal(f.counts.refreshes,1);
+ const foreign={...account,owner:'22222222-2222-4222-8222-222222222222'};assert.equal(await cold.token(foreign,new AbortController().signal),undefined);
+ f.setOwner(foreign.owner);await assert.rejects(cold.token(account,new AbortController().signal),/account changed/);await assert.rejects(cold.disconnect(account),/account changed/);
+ f.setOwner(account.owner);await cold.disconnect(account);assert.equal(f.records.size,0);
+});
+test('account OAuth keys reject mixed principals and do not collide with saved-agent keys',()=>{
+ const {mcpOAuthScopeKey}=require(path.join(build,'mcp-oauth-scope.js')),owner='11111111-1111-4111-8111-111111111111',account={owner,accountConnector:'composio'};
+ assert.notEqual(mcpOAuthScopeKey(account),mcpOAuthScopeKey({owner,agent:owner,connection:owner}));
+ assert.throws(()=>mcpOAuthScopeKey({...account,agent:owner,connection:owner}),/one owned account/);
+ assert.throws(()=>mcpOAuthScopeKey({...account,accountConnector:'other'}),/one owned account/);
 });

@@ -3,7 +3,7 @@ import {Bell,Check,ChevronDown,Gauge,Keyboard,LogOut,Settings,Users} from 'lucid
 import type {Conversation,Identity,Project} from '../src/contracts';
 import type {SettingsPage} from './SettingsPanel';
 import {ChatActivity} from './ChatActivity';
-import {Menu,MenuItem,MenuSeparator} from './ui';
+import {call,Menu,MenuItem,MenuSeparator} from './ui';
 import './workspace-mode.css';
 
 export type WorkspaceMode='chatgpt'|'codex';
@@ -31,6 +31,8 @@ export function WorkspaceActivity({chats,open,disabled}:{chats:Conversation[];op
 }
 export function AccountMenu({identity,settings,logout,disabled=false}:{identity:Identity;settings:(page:SettingsPage)=>void;logout:()=>void;disabled?:boolean}){
  const name=identity.email.split('@')[0],trigger=useRef<HTMLButtonElement>(null),pending=useRef<(()=>void)|null>(null);
+ const [version,setVersion]=useState<string>();
+ useEffect(()=>{let live=true;void call<string>('app.version').then(value=>{if(live)setVersion(value);}).catch(()=>{});return()=>{live=false;};},[]);
  const navigate=(page:SettingsPage)=>{pending.current=()=>settings(page);};
- return <Menu onCloseAutoFocus={event=>{event.preventDefault();trigger.current?.focus();const action=pending.current;pending.current=null;if(action)requestAnimationFrame(action);}} trigger={<button ref={trigger} className="rail-account-button" aria-label="Account menu" title={identity.email}><span className="avatar small">{name[0]?.toUpperCase()}</span></button>}><div className="menu-account"><strong>{name}</strong><span>{identity.email}</span></div><MenuSeparator/><MenuItem onSelect={()=>navigate('usage')}><Gauge size={17}/>Usage</MenuItem><MenuItem onSelect={()=>navigate('general')}><Settings size={17}/>Settings<kbd>Ctrl ,</kbd></MenuItem>{identity.admin&&<MenuItem onSelect={()=>navigate('users')}><Users size={17}/>Administration</MenuItem>}<MenuItem onSelect={()=>navigate('shortcuts')}><Keyboard size={17}/>Keyboard shortcuts</MenuItem><MenuSeparator/><MenuItem disabled={disabled} onSelect={logout}><LogOut size={17}/>Sign out</MenuItem></Menu>;
+ return <Menu onCloseAutoFocus={event=>{event.preventDefault();trigger.current?.focus();const action=pending.current;pending.current=null;if(action)requestAnimationFrame(action);}} trigger={<button ref={trigger} className="rail-account-button" aria-label="Account menu" title={identity.email}><span className="avatar small">{name[0]?.toUpperCase()}</span></button>}><div className="menu-label" aria-label="Agentopia version">Agentopia{version?' '+version:''}</div><MenuSeparator/><div className="menu-account"><strong>{name}</strong><span>{identity.email}</span></div><MenuSeparator/><MenuItem onSelect={()=>navigate('usage')}><Gauge size={17}/>Usage</MenuItem><MenuItem onSelect={()=>navigate('general')}><Settings size={17}/>Settings<kbd>Ctrl ,</kbd></MenuItem>{identity.admin&&<MenuItem onSelect={()=>navigate('users')}><Users size={17}/>Administration</MenuItem>}<MenuItem onSelect={()=>navigate('shortcuts')}><Keyboard size={17}/>Keyboard shortcuts</MenuItem><MenuSeparator/><MenuItem disabled={disabled} onSelect={logout}><LogOut size={17}/>Sign out</MenuItem></Menu>;
 }

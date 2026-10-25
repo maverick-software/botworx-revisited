@@ -3,6 +3,7 @@ import {AjvJsonSchemaValidator} from '@modelcontextprotocol/client/validators/aj
 import manifestSchema from './plugin-schemas/plugin.schema.json';
 import mcpSchema from './plugin-schemas/mcp.schema.json';
 import {mcpAddress} from './mcp-client';
+import {composioMcpAuth,composioMcpPluginName,composioMcpUrl} from './composio-mcp-contracts';
 import {chromePluginName} from './chrome-contracts';
 import {imageGenerationPluginName} from './image-generation-contracts';
 import {pluginSchemaUrl,mcpSchemaUrl,type PluginPackage} from './plugin-contracts';
@@ -53,7 +54,8 @@ export function validateLegacyPlugin(pkg:PluginPackage){if(!validator.getValidat
 export const searchPlugins=['serper','tavily'].map(adapter=>validatePluginPackage({manifest:{$schema:pluginSchemaUrl,name:adapter+'-search',version:'1.0.0',description:adapter==='serper'?'Search the web using your administrator’s Serper connection.':'Search the web using your administrator’s Tavily connection. A free monthly tier is available.',author:{name:'Agentopia'},extensions:{'com.agentopia':{adapter}}}},true));
 export const chromePlugin=validatePluginPackage({manifest:{$schema:pluginSchemaUrl,name:chromePluginName,version:'1.11.0',description:'Google Chrome DevTools: connect your Chrome session, inspect pages, capture screenshots, and use browser, network and performance tools.',author:{name:'Chrome DevTools'},license:'Apache-2.0',extensions:{'com.agentopia':{managedMcp:chromePluginName}}}},true);
 export const imagePlugin=validatePluginPackage({manifest:{$schema:pluginSchemaUrl,name:imageGenerationPluginName,version:'1.0.0',description:'Create and edit images through an explicitly configured image connection. Ordinary chats keep their selected AI connection. Every image request shows its provider, model and reference sharing for review.',author:{name:'Agentopia'},extensions:{'com.agentopia':{imageGeneration:'v1'}}}},true);
-export const bundledPlugins=[...searchPlugins,chromePlugin,imagePlugin];
+export const composioMcpPlugin=validatePluginPackage({manifest:{$schema:pluginSchemaUrl,name:composioMcpPluginName,version:'1.0.0',description:'Connect your Composio account through browser sign-in and give selected agents access to its connected apps.',author:{name:'Agentopia'}},mcp:{$schema:mcpSchemaUrl,mcpServers:{composio:{type:'streamable-http',url:composioMcpUrl,extensions:{'com.openai':{auth:composioMcpAuth}}}}}},true);
+export const bundledPlugins=[...searchPlugins,chromePlugin,imagePlugin,composioMcpPlugin];
 export const examplePluginPackage:PluginPackage={manifest:{$schema:pluginSchemaUrl,name:'microsoft-learn',version:'1.0.0',description:'Search Microsoft Learn documentation.'},mcp:{$schema:mcpSchemaUrl,mcpServers:{docs:{type:'streamable-http',url:'https://learn.microsoft.com/api/mcp'}}}};
 
 // Compile a bounded, local-only JSON Schema before advertising or invoking a tool.

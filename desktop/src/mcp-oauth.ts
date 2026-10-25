@@ -18,7 +18,7 @@ export function mcpOAuthRecordGrant(scope:McpOAuthScope,record:McpOAuthRecord){
 type Store={get<T>(key:string):T|undefined;set(key:string,value:unknown):Promise<void>};
 const equal=(a:string,b:string)=>{const left=Buffer.from(a),right=Buffer.from(b);return left.length===right.length&&timingSafeEqual(left,right);};
 
-export class McpSignInRequiredError extends Error {constructor(){super('This MCP connection needs browser sign-in. Open the agent’s MCP connections and choose Connect.');}}
+export class McpSignInRequiredError extends Error {constructor(){super('This MCP connection needs browser sign-in. Open its connection in Plugins or the agent’s MCP settings and choose Connect.');}}
 const reconnect=()=>new McpSignInRequiredError();
 export class McpOAuth {
  private pending=new Map<string,AbortController>();private refreshing=new Map<string,Promise<string>>();

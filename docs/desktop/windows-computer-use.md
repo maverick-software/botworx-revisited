@@ -1,5 +1,7 @@
 # Windows computer use
 
+October 24, 2026: installed **0.44.77** includes the repaired Computer Use sharing path. Choose **+ / Add to chat > Application windows**, select the target window and choose **Share selected windows**, then send the task. Agentopia adapts imported Codex Computer Use instructions to its existing host tools; an unshared chat now explains the sharing or permission step. Two completed real ChatGPT OAuth requests demonstrated the exact reported prompt, picker sharing, screenshot inspection and one independently verified Unicode append in Notepad. The current installed harness is identical to that live-tested harness. See the [gap analysis, repair plan and independent installed review](computer-use-investigation-2026-10-24.md).
+
 October19,2026: ordinary0.44.31 and candidate0.44.41 retain the five core computer-use modules and all401 helper files from the later successful installed0.42.0 Windows-input test. Both providers performed eight reviewed inputs in that retained workflow. A read-only audit verifies the current component hashes and saved outcomes; it makes no new provider request or Windows input. Two support dependencies differ, so this is not a fresh current-host end-to-end claim. [Exact provenance and limits](computer-retained-2026-10-19.md).
 
 ## Historical implementation and qualification
@@ -16,7 +18,7 @@ Agentopia's actual Codex app-server exposes the same Windows tools through its t
 
 ## Sharing and permissions
 
-An administrator selects Computer use from the composer's Add menu, explicitly shares up to five windows, and sees compact removable window chips. Selection authorizes reading those windows. Screenshot reads do not ask for the same sharing permission again. Each mouse or keyboard input requires separate review, including Full access. The review identifies the observed control, shows its screenshot and target, and disables approval when the preview cannot be displayed. Preview images come from the temporary local observation cache and are not duplicated inside approval records.
+An administrator selects **Application windows** from the composer's **+ / Add to chat** menu, explicitly shares up to five windows, and sees compact removable window chips. Restore minimized windows before selecting them. Selection authorizes reading those windows. Screenshot reads do not ask for the same sharing permission again. Default permissions review each mouse or keyboard input; Full access runs enabled input automatically within explicitly shared windows, subject to the agent's current policy. A required review identifies the observed control, shows its screenshot and target, and disables approval when the preview cannot be displayed. Preview images come from the temporary local observation cache and are not duplicated inside approval records.
 
 Chat only and Selected files access revoke the current chat's window grants and cancel their pending input approvals. Removing a window revokes its grant and cancels queued or active operations for that grant. Stop computer use revokes all of the account's shared windows. The registered emergency shortcut is Ctrl+Alt+Backspace; the native helper also checks this chord during input. Sign-out, renderer loss and app shutdown stop computer use. Windows are never closed by these controls.
 

@@ -1,6 +1,7 @@
 import {CreationToolResources} from './creation-tool-resources';
 import {creationPrincipal} from './creation-resource-principal';
 import {pluginPrincipalIdentity,type PluginPrincipal} from './plugin-resource-principal';
+import {composioMcpPluginName,composioMcpConnectionId} from './composio-mcp-contracts';
 import {chromePluginName,chromeConnectionId} from './chrome-contracts';
 import {imageGenerationPluginName} from './image-generation-contracts';
 import type {SupabaseClient} from '@supabase/supabase-js';
@@ -40,7 +41,7 @@ export class Plugins {
    this.db.from('desktop_plugin_connections').select('plugin_name,agent_id,connection_id').eq('user_id',user.id).then(data),
    this.db.from('system_api_keys').select('provider_name,vault_secret_id,is_active').in('provider_name',['serper_api','tavily_api']).then(data)
   ]);
-  return rows.map((row:any)=>{const adapter=row.package.manifest.extensions?.['com.agentopia']?.adapter;this.checked(row);return {name:row.name,version:row.package.manifest.version,description:row.package.manifest.description,enabled:row.enabled,bundled:row.source==='bundled',updatable:row.source==='imported',digest:row.digest,validation:'Schema validated',package:row.package,kind:row.package.manifest.extensions?.['com.agentopia']?.imageGeneration==='v1'?'images':adapter?'search':row.package.files&&!row.package.mcp?'skills':'mcp',configured:row.package.manifest.extensions?.['com.agentopia']?.imageGeneration==='v1'?this.imageConfigured():adapter?keys.some((key:any)=>key.provider_name===adapter+'_api'&&key.is_active&&key.vault_secret_id):true,assignments:grants.filter((g:any)=>g.plugin_name===row.name).map((g:any)=>({agent_id:g.agent_id,enabled:g.enabled,connection_ids:row.name===chromePluginName?[chromeConnectionId]:links.filter((l:any)=>l.plugin_name===row.name&&l.agent_id===g.agent_id).map((l:any)=>l.connection_id) }))};});
+  return rows.map((row:any)=>{const adapter=row.package.manifest.extensions?.['com.agentopia']?.adapter;this.checked(row);return {name:row.name,version:row.package.manifest.version,description:row.package.manifest.description,enabled:row.enabled,bundled:row.source==='bundled',updatable:row.source==='imported',digest:row.digest,validation:'Schema validated',package:row.package,kind:row.package.manifest.extensions?.['com.agentopia']?.imageGeneration==='v1'?'images':adapter?'search':row.package.files&&!row.package.mcp?'skills':'mcp',configured:row.package.manifest.extensions?.['com.agentopia']?.imageGeneration==='v1'?this.imageConfigured():adapter?keys.some((key:any)=>key.provider_name===adapter+'_api'&&key.is_active&&key.vault_secret_id):true,assignments:grants.filter((g:any)=>g.plugin_name===row.name).map((g:any)=>({agent_id:g.agent_id,enabled:g.enabled,connection_ids:row.name===composioMcpPluginName?[composioMcpConnectionId]:row.name===chromePluginName?[chromeConnectionId]:links.filter((l:any)=>l.plugin_name===row.name&&l.agent_id===g.agent_id).map((l:any)=>l.connection_id) }))};});
  }
  private checked(row:any){
   if(!row||row.name!==row.package?.manifest?.name||row.digest!==pluginDigest(row.package))throw new Error('Plugin integrity verification failed. Reinstall the reviewed package.');
@@ -61,6 +62,7 @@ export class Plugins {
   const grant=data(await this.db.from('desktop_agent_plugins').select('enabled').eq('user_id',user).eq('agent_id',agent).eq('plugin_name',name).single());
   if(!row.enabled||!grant.enabled)throw new Error('This plugin is disabled or is not assigned to this agent.');return row;
  }
+ async accountComposio(user:string,agent:string){await this.owned(user,agent);const row=await this.allowed(user,agent,composioMcpPluginName);if(row.source!=='bundled')throw Error('The Composio connector differs from its pinned declaration.');data(await this.db.from('agents').select('id').eq('id',agent).eq('user_id',user).eq('active',true).single());return row;}
  async managedChrome(user:string,agent:string){await this.owned(user,agent);const row=await this.allowed(user,agent,chromePluginName);if(row.source!=='bundled'||row.package.manifest.extensions?.['com.agentopia']?.managedMcp!==chromePluginName)throw new Error('The Chrome plugin runtime is not its pinned declaration.');return row;}
  async imageGeneration(user:string,agent:string){await this.owned(user,agent);const row=await this.allowed(user,agent,imageGenerationPluginName);if(row.source!=='bundled'||row.package.manifest.extensions?.['com.agentopia']?.imageGeneration!=='v1')throw new Error('The image plugin differs from its pinned declaration.');return row;}
  async search(user:string,agent:string){

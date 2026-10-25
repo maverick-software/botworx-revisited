@@ -168,6 +168,7 @@ if(ownsInstance)app.whenReady().then(async()=>{
    };
    if(typeof kind!=='string'||!Object.hasOwn(templates,kind))throw new Error('Unknown application menu.');Menu.buildFromTemplate(templates[kind]).popup({window});return;
   }
+  if(action==='app.version')return app.getVersion();
   if(action==='runtime.status')return (runtime!.state.ready||runtime!.state.recoveryOnly)&&!sessionReady?{phase:'session',message:'Restoring your local session…',ready:false}:runtime!.state;
   if(action==='runtime.backup.status'){if(!broker||(await broker.identity()).admin!==true)throw new Error('Administrator access is required.');return backupControl.status();}
   if(backupControl.busy)throw new Error('Wait for the workspace backup to finish before changing application data.');

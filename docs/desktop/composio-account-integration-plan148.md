@@ -35,4 +35,6 @@ These findings come from `desktop/ui/ComposioPage.tsx`, `ComposioConnectionCard.
 
 ## Current status and limits
 
-The audit and corrected local plan are ready. Existing OAuth/MCP infrastructure and the installed DNS repair are established. Actual Composio client registration, user consent, token exchange/refresh, authenticated app operations, the new per-user onboarding and Google transfer migration remain unverified or unimplemented. No cloud deployment, project creation or credential provisioning is needed to begin this work. The user completes browser consent when the concrete connection flow is ready; credentials must never be pasted into chat.
+The first local path is implemented and source-qualified in [implementation161](local-composio-mcp161.md): default OAuth onboarding, a separate owner grant, explicit agent assignments, gateway discovery, owned draft reuse and the narrow PostgreSQL readiness change. Protocol/permission, rendered interface, retained API-key interface and actual rollback-only PostgreSQL checks pass. The ordinary installation remains77; the source is awaiting its recoverable package and installed verification.
+
+Real Composio client registration, user consent, token exchange/refresh and authenticated app operations remain unverified. Google editor transfer migration remains unimplemented. No hosted deployment, project creation or credential provisioning is needed. The user completes browser consent when the concrete installed connection flow is ready; credentials must never be pasted into chat.
