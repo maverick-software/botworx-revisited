@@ -13,7 +13,7 @@ from urllib.parse import unquote, urlparse
 from logical_row_fingerprints71 import Fingerprints, lines, IDENTIFIER
 
 
-def audit(archive, out, instance, expected_port, additional_empty_tables=()):
+def audit(archive, out, instance, expected_port, additional_empty_tables=(), expected_composio_plugin=None):
     archive, out = Path(archive), Path(out)
     assert len(set(additional_empty_tables)) == len(additional_empty_tables)
     assert all(IDENTIFIER.fullmatch(name) for name in additional_empty_tables)
@@ -56,11 +56,24 @@ def audit(archive, out, instance, expected_port, additional_empty_tables=()):
         if additional_empty_tables:
             counts = ','.join("'" + name + "',(SELECT count(*) FROM public.\"" + name + '\")' for name in additional_empty_tables)
             commands[1] = commands[1].replace("'migrations',", "'additionalEmptyTables',jsonb_build_object(" + counts + "),'migrations',")
+        approved_composio = None
+        if expected_composio_plugin is not None:
+            assert set(expected_composio_plugin) == {'package', 'digest'}
+            package, digest = expected_composio_plugin['package'], expected_composio_plugin['digest']
+            assert package['manifest']['name'] == 'composio-connect'
+            assert package['mcp']['mcpServers']['composio']['url'] == 'https://connect.composio.dev/mcp'
+            assert hashlib.sha256(json.dumps(package, sort_keys=True, ensure_ascii=False, separators=(',', ':')).encode()).hexdigest() == digest
+            literal = lambda value: "'" + value.replace("'", "''") + "'"
+            owners = ','.join(literal(str(uuid.UUID(owner))) for owner in manifest['accountIds'])
+            approved_composio = ("name='composio-connect' AND source='bundled' AND enabled=true AND digest=" + literal(digest)
+                + ' AND package=' + literal(json.dumps(package)) + '::jsonb AND user_id IN (' + owners + ')')
+            commands[1] = commands[1].replace("'readableVault',", "'additionalComposioRows',(SELECT count(*) FROM public.desktop_plugins WHERE " + approved_composio + "),'readableVault',")
         for name, record in expected.items():
             schema, table = name.split('.')
             assert all(IDENTIFIER.fullmatch(part) for part in [schema, table, *record['columns']])
             columns = ','.join('"' + part + '"' for part in record['columns'])
-            commands += ['\\echo ' + begin + name, 'COPY (SELECT ' + columns + ' FROM ' + schema + '."' + table + '") TO STDOUT;', '\\echo ' + end]
+            condition = ' WHERE NOT (' + approved_composio + ')' if name == 'public.desktop_plugins' and approved_composio else ''
+            commands += ['\\echo ' + begin + name, 'COPY (SELECT ' + columns + ' FROM ' + schema + '."' + table + '"' + condition + ') TO STDOUT;', '\\echo ' + end]
         commands += ['COMMIT;']
         sql = out / 'read-only-audit.sql'
         sql.write_text('\n'.join(commands) + '\n')
@@ -92,6 +105,7 @@ def audit(archive, out, instance, expected_port, additional_empty_tables=()):
         assert metadata['migrations'] >= 71
         differences = sorted(name for name in expected.keys() | actual.keys() if expected.get(name) != actual.get(name))
         assert not differences, 'Saved rows differ: ' + ', '.join(differences)
+        assert 0 <= metadata.get('additionalComposioRows', 0) <= manifest['accounts']
         assert metadata['readableVault'] == expected['vault.secrets']['rows']
         root_key = (archive / 'pgsodium_root.key').read_text().strip()
         roots = list(Path('/home/agentopia/.supabase/stacks').glob('*/data/*/pgsodium_root.key'))
@@ -108,7 +122,8 @@ def audit(archive, out, instance, expected_port, additional_empty_tables=()):
             'accountPasswordAndRoleRowsPreserved': True, 'mismatches': [], 'databaseReadOnly': True, 'servicesRestarted': 0,
             'providerRequests': 0, 'completeDecodedDumpBuffered': False, 'maximumCopyRowBytes': store.maximum_row_bytes,
             'copyRowLimitBytes': 64 * 1024 * 1024, 'fingerprintAlgorithm': 'sorted row SHA-256 with duplicate multiplicity',
-            'additionalEmptyTablesVerified': len(additional_empty_tables)}
+            'additionalEmptyTablesVerified': len(additional_empty_tables), 'additionalComposioCatalogRowsVerified': metadata.get('additionalComposioRows', 0),
+            'allOriginalRowsComparedWithoutExclusions': True}
         (out / 'archive-table-fingerprints.json').write_text(json.dumps(expected, indent=2))
         return report
     finally:

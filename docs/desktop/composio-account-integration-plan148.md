@@ -35,6 +35,6 @@ These findings come from `desktop/ui/ComposioPage.tsx`, `ComposioConnectionCard.
 
 ## Current status and limits
 
-The first local path is implemented and source-qualified in [implementation161](local-composio-mcp161.md): default OAuth onboarding, a separate owner grant, explicit agent assignments, gateway discovery, owned draft reuse and the narrow PostgreSQL readiness change. Protocol/permission, rendered interface, retained API-key interface and actual rollback-only PostgreSQL checks pass. The ordinary installation remains77; the source is awaiting its recoverable package and installed verification.
+The first local path is implemented and source-qualified in [implementation161](local-composio-mcp161.md): default OAuth onboarding, a separate owner grant, explicit agent assignments, gateway discovery, owned draft reuse and the narrow PostgreSQL readiness change. Protocol/permission, rendered interface, retained API-key interface and actual rollback-only PostgreSQL checks pass. Follow-up [delivery162](continuation-brief162.md) installs the verified0.44.78 package and confirms the ordinary connection interface with all existing data/settings preserved.
 
 Real Composio client registration, user consent, token exchange/refresh and authenticated app operations remain unverified. Google editor transfer migration remains unimplemented. No hosted deployment, project creation or credential provisioning is needed. The user completes browser consent when the concrete installed connection flow is ready; credentials must never be pasted into chat.

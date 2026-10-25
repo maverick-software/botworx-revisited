@@ -1,6 +1,6 @@
 # Local Composio MCP implementation and qualification
 
-October 24, 2026. The previous turn made progress by correcting and pushing the integration plan. This turn implements its first local connection path. The ordinary installation remains 0.44.77 until the next recoverable package is qualified and installed. No real Composio user consent, Google operation or new model inference has occurred in these checks.
+October 24, 2026. The previous turn made progress by correcting and pushing the integration plan. This turn implements its first local connection path. Follow-up [delivery162](continuation-brief162.md) now installs this source in ordinary0.44.78/schema84 after complete installer, recovery and data verification. No real Composio user consent, Google operation or new model inference has occurred in these checks.
 
 ## Implemented behavior
 
@@ -28,4 +28,4 @@ The user requested a version heading in the parallel **Build persistent workspac
 
 ## Delivery and remaining work
 
-Source qualification pointers are `.supabase/desktop-composio161/current.json` and the recorded PostgreSQL receipt under `postgres-1792897029822`. Each failed attempt remains terminal in its own directory. The next step is to freeze the passing source, construct the recoverable versioned candidate, verify the migration and menu in the real packaged app, and install it while preserving accounts, passwords, chats, provider settings and recovery. Only then begin actual Composio browser consent and an authenticated app read. Token refresh, both-provider real app calls and Google editor transfer acceptance remain open. The full desktop parity goal remains active.
+Source qualification pointers are `.supabase/desktop-composio161/current.json` and the recorded PostgreSQL receipt under `postgres-1792897029822`. Each failed attempt remains terminal in its own directory. Follow-up162 freezes and delivers the passing source with verified preservation. The installed account menu and Composio form are observed. Actual Composio browser consent and an authenticated app read are next. Token refresh, both-provider real app calls and Google editor transfer acceptance remain open. The full desktop parity goal remains active.
