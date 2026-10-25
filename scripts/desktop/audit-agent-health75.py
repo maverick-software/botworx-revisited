@@ -5,7 +5,7 @@ from urllib.parse import urlparse,unquote
 
 out=Path(sys.argv[1]);assert out.parent==Path('/mnt/f/Agentopia/.supabase/desktop-agent-health75') and re.fullmatch(r'\d{13}',out.name)
 assert out.is_dir() and out.resolve()==out
-expected=json.loads((out/'intent.json').read_text());version=expected.get('version','0.44.75');assert version in ['0.44.75','0.44.76'];schema=expected.get('schemaMigrationCount',82 if version=='0.44.76' else 73);assert isinstance(schema,int) and schema in [73,82,83]
+expected=json.loads((out/'intent.json').read_text());version=expected.get('version','0.44.75');assert version in ['0.44.75','0.44.76','0.44.77'];schema=expected.get('schemaMigrationCount',82 if version=='0.44.76' else 73);assert isinstance(schema,int) and schema in [73,82,83]
 assert expected['readOnly'] is True and re.fullmatch('[a-f0-9]{64}',expected['expectedImageSha256'])
 assert Path('/opt/agentopia/runtime-instance').read_text().strip()=='a91a4800-e08f-4440-a4ec-588762d01bfd'
 os.umask(0o077);os.chdir('/home/agentopia/app')
