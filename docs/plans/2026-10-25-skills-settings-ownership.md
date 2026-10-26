@@ -22,7 +22,8 @@ The Skills route already exists, but it shares the Plugins “Customize” sideb
 | Persistent skill text owned by an agent | That agent's Behavior editor; library may display it and link to the owner |
 | Windows command authorization for the account | Global Permissions; previews may display status and link to it |
 | Inventory and revocation of account chat-pair grants | Global Permissions |
-| Selected application windows and optional skills for one conversation | Conversation controls; preview controls apply to their preview conversation |
+| Computer use permissions | Global Computer use settings from version 82; individual agents retain their Computer plugin capability. Earlier temporary window chips remain removable for compatibility. |
+| Optional skills for one conversation | Conversation controls; preview controls apply to their preview conversation |
 | Installation users and administrator roles | Global Administration, labeled Installation administration |
 
 The legacy Composio “all my active agents” value is an account-wide default with established stored semantics. Preserve it and existing grants; individual agent assignment edits should use the agent editor. Account service authentication remains in Plugins.
