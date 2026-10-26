@@ -1,0 +1,13 @@
+import React,{useEffect,useRef,useState} from 'react';
+import type {Agent} from '../src/contracts';
+import type {SkillCatalog,SkillCatalogEntry} from '../src/skill-contracts';
+import {call} from './ui';
+
+export function AgentSkillAssignments({agent,disabled=false,changed}:{agent:Agent;disabled?:boolean;changed?:()=>void}){
+ const [skills,setSkills]=useState<SkillCatalogEntry[]>([]),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
+ const generation=useRef(0),operation=useRef<number|null>(null);
+ const load=async(token:number)=>{const catalog=await call<SkillCatalog>('skills.list');if(token===generation.current)setSkills(catalog.skills.filter(skill=>skill.scope==='account'));};
+ useEffect(()=>{const token=++generation.current;operation.current=null;setBusy(false);setSkills([]);setLoading(true);setError('');void load(token).catch(reason=>{if(token===generation.current)setError(reason.message);}).finally(()=>{if(token===generation.current)setLoading(false);});return()=>{generation.current++;};},[agent.id]);
+ const assign=async(skill:SkillCatalogEntry,enabled:boolean)=>{if(operation.current!==null||disabled)return;const token=generation.current;operation.current=token;setBusy(true);setError('');setNotice('');try{await call('skills.assign',{id:skill.id,agentId:agent.id,enabled});await load(token);if(token===generation.current){changed?.();setNotice('Skill access saved for '+agent.name+'.');}}catch(reason){if(token===generation.current)setError((reason as Error).message);}finally{if(token===generation.current){operation.current=null;setBusy(false);}}};
+ return <section data-independent-agent-settings aria-label={'Account skills for '+agent.name}><h3>Account skill access</h3><p>Choose existing account skills for {agent.name}. Changes save immediately. Manage skill packages in the Skills library; edit this agent’s own persistent skills above.</p>{loading&&<p role="status">Loading account skills…</p>}{error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}{skills.map(skill=>{const assigned=skill.assignments.some(grant=>grant.agent_id===agent.id&&grant.enabled);return <label className="checkbox" key={skill.id}><input type="checkbox" aria-label={'Allow '+agent.name+' to use skill '+skill.name} checked={assigned} disabled={disabled||loading||busy||(!skill.enabled||agent.active===false)&&!assigned} onChange={event=>void assign(skill,event.target.checked)}/><span>{skill.name}{!skill.enabled?' · Disabled for this account':''}<small>{skill.description}</small></span></label>;})}{!loading&&!error&&!skills.length&&<p>No account skills are installed. Add a skill in the Skills library to assign it here.</p>}</section>;
+}
