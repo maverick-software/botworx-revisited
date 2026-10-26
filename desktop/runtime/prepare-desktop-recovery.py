@@ -117,7 +117,7 @@ def validate_editor_journal_archive(archive,capability):
             row=json.loads(data.decode('utf-8'))
             fail(isinstance(row,dict) and set(row)=={'version','sequence','key','raw'} and type(row['version']) is int and row['version']==1 and type(row['sequence']) is int and 1<=row['sequence']<=9007199254740991 and row['sequence']==int(match[1]),'Invalid editor journal envelope')
             fail(isinstance(row['key'],str) and utf16_length(row['key'])<=512 and '\0' not in row['key'] and row['key'].startswith(('agentopia.editor-draft.','agentopia.preview.')) and isinstance(row['raw'],str) and utf16_length(row['raw'])<=16000000,'Invalid editor journal text')
-            if re.fullmatch(r'agentopia\.(?:editor-draft\.[a-f0-9-]{36}:preview:new:|preview\.[a-f0-9-]{36}:new:)[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}',row['key']):fail(capability>=17,'Creation-bound preview journals require a newer recovery capability')
+            if re.fullmatch(r'agentopia\.(?:editor-draft\.[a-f0-9-]{36}:(?:preview|builder):new:|preview\.[a-f0-9-]{36}:new:)[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}',row['key']):fail(capability>=17,'Creation-bound preview journals require a newer recovery capability')
             try:marker=json.loads(row['raw'])
             except (ValueError,TypeError):continue
             if isinstance(marker,dict) and marker.get('kind')=='agentopia-editor-draft-retirement':fail(capability>=16,'Editor draft retirements require a newer recovery capability')
@@ -169,7 +169,7 @@ def validate_bundle(root):
         settings=load(resource(root,descriptor['settingsManifest']),64*1024**2);validate_settings(settings,owners,descriptor['databaseManifest']['sha256'])
         fail(capability>=13 or not any('agent-editor-drafts' in account['settings'] for account in settings['accounts']),'Agent editor draft recovery requires a newer recovery capability')
         fail(capability>=15 or not any(len(account['settings'].get('agent-editor-drafts',{}))>100 for account in settings['accounts']),'Saved draft revision history requires a newer recovery capability')
-        fail(capability>=17 or not any(scope.startswith('preview:new:') for account in settings['accounts'] for scope in account['settings'].get('agent-editor-drafts',{})),'Creation-bound preview drafts require a newer recovery capability')
+        fail(capability>=17 or not any(scope.startswith(('preview:new:','builder:new:')) for account in settings['accounts'] for scope in account['settings'].get('agent-editor-drafts',{})),'Creation-bound preview drafts require a newer recovery capability')
         fail(capability>=10 or not any('composio-state' in account['settings'] for account in settings['accounts']),'Composio connections require a newer recovery capability')
         fail(capability>=11 or not any('google-documents' in account['settings'] for account in settings['accounts']),'Google document operations require a newer recovery capability')
         fail(capability>=7 or not any('notification-preferences' in account['settings'] for account in settings['accounts']),'Notification settings require a newer recovery capability')
@@ -344,8 +344,8 @@ def validate_editor_drafts(rows,owner):
     editor_uuid=r'[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}'
     fail(isinstance(owner,str) and re.fullmatch(editor_uuid,owner),'Invalid saved-draft owner')
     for scope,row in rows.items():
-        match=re.fullmatch(r'(preview|editor):(new|'+editor_uuid+r')(?::('+editor_uuid+r'))?',scope)
-        fail(match and (match[3] is None or match[1]=='preview' and match[2]=='new'),'Invalid saved creation preview location')
+        match=re.fullmatch(r'(preview|builder|editor):(new|'+editor_uuid+r')(?::('+editor_uuid+r'))?',scope)
+        fail(match and (match[3] is None or match[1] in ('preview','builder') and match[2]=='new'),'Invalid saved creation preview location')
         fail(match and isinstance(row,dict) and set(row)=={'version','owner','scope','revision','writeId','payload','updatedAt'} and type(row['version']) is int and row['version']==1 and row['owner']==owner and row['scope']==scope and type(row['revision']) is int and 1<=row['revision']<=9007199254740991 and isinstance(row['writeId'],str) and re.fullmatch(editor_uuid,row['writeId'],re.I) and editor_timestamp(row['updatedAt']),'Invalid or foreign saved agent draft')
         payload=row['payload']
         if payload is None:continue
@@ -355,7 +355,12 @@ def validate_editor_drafts(rows,owner):
         fail(isinstance(value,dict) and type(value.get('version')) is int and value.get('version')==(2 if creation else 1) and value.get('creationId')==creation and value.get('owner')==owner and value.get('source')==source,'Saved agent draft changed account or source')
         if match[1]=='editor':fail(set(value)=={'version','owner','source','form'} and isinstance(value['form'],dict),'Invalid saved editor form')
         else:
-            fail(set(value)==({'version','owner','source','sessionId','prompt','thinking','execution','pending'}|({'creationId'} if creation else set())) and isinstance(value['sessionId'],str) and re.fullmatch(editor_uuid,value['sessionId'],re.I) and isinstance(value['prompt'],str) and utf16_length(value['prompt'])<=100000 and value['thinking'] in ('default','none','minimal','low','medium','high','xhigh','max','ultra') and isinstance(value['execution'],dict),'Invalid saved preview composer')
+            fields={'version','owner','source','sessionId','prompt','thinking','execution','pending'}|({'creationId'} if creation else set())
+            fail(set(value) in (fields,fields|{'builderAppliedIds'}) if match[1]=='builder' else set(value)==fields,'Invalid saved preview composer fields')
+            fail(isinstance(value['sessionId'],str) and re.fullmatch(editor_uuid,value['sessionId'],re.I) and isinstance(value['prompt'],str) and utf16_length(value['prompt'])<=100000 and value['thinking'] in ('default','none','minimal','low','medium','high','xhigh','max','ultra') and isinstance(value['execution'],dict),'Invalid saved preview composer')
+            if 'builderAppliedIds' in value:
+                receipts=value['builderAppliedIds']
+                fail(isinstance(receipts,list) and len(receipts)<=1000 and all(isinstance(receipt,str) and re.fullmatch(editor_uuid,receipt) for receipt in receipts) and len(set(receipts))==len(receipts),'Invalid saved builder application receipts')
             if value['execution'].get('sources'):validate_selected_sources(value['execution']['sources'],owner)
             pending=value['pending']
             if pending is not None:fail(isinstance(pending,dict) and pending.get('sessionId')==value['sessionId'] and pending.get('sourceAgentId')==source and ((isinstance(pending.get('creationId'),str) and pending['creationId'].lower()==creation) if creation else 'creationId' not in pending) and isinstance(pending.get('requestId'),str) and UUID.fullmatch(pending['requestId']),'Saved preview request changed scope')
