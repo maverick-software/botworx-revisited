@@ -1,0 +1,93 @@
+// Run only after the standard release80 QA upgrade, against its inherited QA profile.
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import {writeFile,mkdir} from 'node:fs/promises';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import {expect} from '@playwright/test';
+import {desktopOperation} from './operation-lock.mjs';
+import {hash,json,list,registration} from './phased-backup-control.mjs';
+import {launchDurableProfileProbe} from './launch-durable-profile-probe.mjs';
+
+const root=path.resolve(import.meta.dirname,'../..'),exec=promisify(execFile),samePath=(a,b)=>path.win32.normalize(a.replace(/^\\\\\?\\/,'')).toLowerCase()===path.win32.normalize(b.replace(/^\\\\\?\\/,'')).toLowerCase();
+const within=(base,value)=>{const relative=path.relative(base,value);return !!relative&&!relative.startsWith('..')&&!path.isAbsolute(relative);};
+const productionDistribution='AgentopiaRuntime-a91a4800-e08f-4440-a4ec-588762d01bfd';
+export function verifyQaSelection(proof,cfg,prior){
+ assert(proof.success&&proof.version==='0.44.80'&&proof.schema===88);
+ assert(within(path.join(root,'.supabase/desktop-release80'),proof.out));
+ assert(samePath(cfg.out,path.join(proof.out,'qa'))&&samePath(cfg.program,path.join(cfg.out,'program'))&&samePath(cfg.exe,path.join(cfg.program,'Agentopia.exe')));
+ assert(samePath(cfg.assets,path.join(cfg.program,'resources/resources'))&&within(cfg.out,cfg.temp));
+ for(const key of ['home','roaming','legacy','profile','storage']){assert(/^F:[\\/]/i.test(cfg[key]),'QA must remain in F storage');assert(samePath(cfg[key],prior[key]),'QA '+key+' differs from accepted79');}
+ for(const key of ['distribution','instance','portBase'])assert.equal(cfg[key],prior[key],'QA '+key+' differs from accepted79');
+ assert.equal(cfg.distribution,'AgentopiaRuntime-'+cfg.instance);assert(/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(cfg.instance));
+ assert(cfg.distribution!==productionDistribution&&cfg.distribution!=='AgentopiaRuntime');assert(Number.isSafeInteger(cfg.portBase)&&cfg.portBase>1024&&cfg.portBase<65530&&Math.abs(cfg.portBase-57320)>6);
+ assert.equal(cfg.imageSha256,proof.imageSha256);
+}
+
+// This returns counts and fingerprints only. Row contents, connection passwords
+// and encryption roots stay inside the QA runtime. Every SQL transaction is read-only.
+export const snapshotPython=String.raw`
+import sys,json,glob,subprocess,hashlib,importlib.util
+from urllib.parse import urlparse
+spec=importlib.util.spec_from_file_location('database_state','/opt/agentopia/database_state.py');module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+identity=module.verified_existing_runtime(sys.argv[1]);assert identity['port']==int(sys.argv[2])
+state=json.loads(subprocess.check_output(['supabase','stack','status','--output-format','json'],text=True));assert module.existing_services_healthy(state)
+database=urlparse(state['env']['DB_URL']);api=urlparse(state['env']['API_URL']);assert database.hostname in ('localhost','127.0.0.1','::1') and database.port==int(sys.argv[2]);assert api.hostname in ('localhost','127.0.0.1','::1') and api.port==int(sys.argv[2])-1
+binaries=glob.glob('/home/agentopia/.supabase/cache/stack/slim-services/postgres/*/linux-amd64/*/bin/psql');assert len(binaries)==1
+def query(sql):return subprocess.check_output([binaries[0],'-X','-q','-v','ON_ERROR_STOP=1','-At',state['env']['DB_URL'],'-c',"BEGIN READ ONLY; SET LOCAL statement_timeout='30s'; "+sql+'; COMMIT;'],text=True,timeout=60).strip()
+tables=json.loads(query("SELECT json_agg(json_build_array(schemaname,tablename) ORDER BY schemaname,tablename) FROM pg_tables WHERE schemaname='public' OR (schemaname='auth' AND tablename IN ('users','identities'))"))
+def identifier(value):return '"'+value.replace('"','""')+'"'
+queries=[]
+for schema,table in tables:
+ name=schema+'.'+table;literal="'"+name.replace("'","''")+"'";relation=identifier(schema)+'.'+identifier(table)
+ queries.append("SELECT json_build_object('table',"+literal+",'rows',count(*),'sha256',encode(sha256(convert_to(COALESCE(string_agg(payload,E'\\n' ORDER BY payload),''),'UTF8')),'hex'))::text FROM (SELECT to_jsonb(t)::text AS payload FROM "+relation+' AS t) AS rows')
+rows=[json.loads(line) for line in query(' UNION ALL '.join(queries)).splitlines()]
+result={'tables':rows,'rootFingerprint':identity['rootFingerprint'],'maintenanceFingerprint':identity['maintenanceFingerprint'],'dataDirectoryFingerprint':hashlib.sha256(identity['directory'].encode()).hexdigest(),'instance':identity['instance'],'port':identity['port'],'rootBindings':4,'connectionFingerprints':{key:hashlib.sha256(state['env'][key].encode()).hexdigest() for key in ('API_URL','DB_URL','SERVICE_ROLE_KEY','ANON_KEY')}}
+print(json.dumps(result))
+`;
+
+async function ordinaryProcesses(){const command="$OutputEncoding=[Console]::OutputEncoding=[Text.UTF8Encoding]::new();@(Get-CimInstance Win32_Process -Filter \"Name='Agentopia.exe'\"|Where-Object {$_.ExecutablePath -like 'C:\\Users\\charl\\AppData\\Local\\AgentopiaDesktop\\*' -and $_.CommandLine -notmatch '--type='}|ForEach-Object {@{pid=$_.ProcessId;path=$_.ExecutablePath}})|ConvertTo-Json -Compress";return JSON.parse((await exec('powershell.exe',['-NoProfile','-NonInteractive','-Command',command],{windowsHide:true,encoding:'utf8'})).stdout||'[]');}
+async function qaCommand(cfg,args,timeout=90000){const result=await exec('wsl.exe',['--distribution',cfg.distribution,'--user','agentopia','--cd','/home/agentopia/app','--exec',...args],{windowsHide:true,encoding:'utf8',timeout,maxBuffer:1000000});return result.stdout.replaceAll('\0','').replace(/^\uFEFF/,'').trim();}
+
+export async function qualify(proofFile){
+ desktopOperation('qualify packaged release80 existing-service reconnection in QA only');
+ assert(proofFile,'Pass the completed release80 package-proof.json');const proof=await json(path.resolve(proofFile));assert(samePath(path.resolve(proofFile),path.join(proof.out,'package-proof.json')));assert(samePath(proof.baseProof,path.join(root,'.supabase/desktop-release79/1792978772352/package-proof.json')));assert(samePath(proof.qaIntent,path.join(proof.out,'qa-intent.json')));const base=await json(proof.baseProof),prior=await json(base.qaIntent),cfg=await json(proof.qaIntent);verifyQaSelection(proof,cfg,prior);
+ assert.equal(await hash(proof.image),proof.imageSha256);assert.equal(await hash(path.join(cfg.program,'resources/app.asar')),proof.imageSha256);
+ assert.equal(await hash(path.join(cfg.assets,'runtime/database_state.py')),proof.reviewedRuntimePatch.after);assert.equal(proof.reviewedRuntimePatch.path,'runtime/database_state.py');
+ const binding=await json(path.join(cfg.profile,'runtime-binding.json'));assert.equal(binding.distribution,cfg.distribution);assert.equal(binding.instanceId,cfg.instance);
+ const registered=await registration(cfg.distribution);assert.equal(registered.name,cfg.distribution);assert.equal(registered.version,2);assert(samePath(registered.path,cfg.storage));assert(!(await list(true)).includes(cfg.distribution),'Normally close the previous owned QA application before running this probe');
+ const beforeOrdinary=await ordinaryProcesses(),out=path.join(proof.out,'runtime-reconnect-'+Date.now());assert((Array.isArray(beforeOrdinary)?beforeOrdinary:[beforeOrdinary]).length>0,'The ordinary app must remain running');await mkdir(out);
+ const evidence={success:false,at:new Date().toISOString(),out,proof:path.resolve(proofFile),imageSha256:proof.imageSha256,controllerSha256:await hash(import.meta.filename),distribution:cfg.distribution,qaOnly:true,productionAccess:false,productionWrites:0,providerRequests:0,draftEdits:0,agentSaves:0,checks:[]};const save=()=>writeFile(path.join(out,'evidence.json'),JSON.stringify(evidence,null,2));await save();
+ const check=async description=>{evidence.checks.push(description);await save();console.log('PASS: '+description);};
+ try{
+  evidence.probe=await launchDurableProfileProbe({...cfg,out,temp:path.join(out,'temp')},{testProfile:false,initialProfile:cfg.profile,expectedProfile:cfg.profile,expectedRuntime:'ready',resumeDebugWorkers:true,isolateOsHome:true,hiddenWindow:true,evaluationTimeoutMs:180000,normalCloseTimeoutMs:120000,label:'packaged',prepareReady:async application=>{
+   await application.evaluate(({app})=>{
+    const require=globalThis.__durableProbeRequire,{Runtime}=require(app.getAppPath()+'/build/runtime.js'),{Broker}=require(app.getAppPath()+'/build/broker.js'),state=globalThis.__runtimeReconnect80={phase:'startup',starts:0,initializes:0,commands:[],calls:[]};
+    const start=Runtime.prototype.start,initialize=Broker.prototype.initialize,command=Runtime.prototype.command,call=Broker.prototype.call;
+    Runtime.prototype.start=function(...args){state.starts++;state.runtime=this;return start.apply(this,args);};Broker.prototype.initialize=function(...args){state.initializes++;state.broker=this;return initialize.apply(this,args);};
+    Runtime.prototype.command=function(args,...rest){state.commands.push({phase:state.phase,program:args[0],module:args[0]==='python3'&&args[1]!=='-c'?require('node:path').basename(args[1]):null,operation:args[0]==='supabase'?args.slice(1,3).join(' '):args[0]==='python3'&&args[1]!=='-c'?args[2]:null});return command.call(this,args,...rest);};Broker.prototype.call=function(action,...args){state.calls.push({phase:state.phase,action});return call.call(this,action,...args);};
+   });
+  },runReady:async({application,page,out:probeOut})=>{
+   const call=(action,args)=>page.evaluate(({action,args})=>window.agentopia.call(action,args),{action,args});const auth=await call('auth.state');assert(auth.identity,'Complete normal QA sign-in before this probe; it never creates an account or changes credentials');
+   await page.getByRole('button',{name:'Agent library',exact:true}).click();await expect(page.getByRole('region',{name:'Agents directory'})).toBeVisible({timeout:30000});const edit=page.locator('.directory-edit').first();await expect(edit).toBeVisible();await edit.click();await expect(page.locator('.agent-editor-page #agent-basic-form')).toBeVisible({timeout:30000});
+   // No field is edited and no agent/draft Save or chat submission is performed.
+   await page.waitForTimeout(750);await application.evaluate(async()=>{await globalThis.__runtimeReconnect80.broker.editorDrafts.flush();});
+   const protectedSnapshot=()=>application.evaluate(()=>{const state=globalThis.__runtimeReconnect80,crypto=globalThis.__durableProbeRequire('node:crypto'),stable=value=>JSON.stringify(value,(_,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(key=>[key,v[key]])):v),hash=value=>crypto.createHash('sha256').update(stable(value)).digest('hex');return {entries:Object.keys(state.broker.secrets.values).length,sha256:hash(state.broker.secrets.values),starts:state.starts,initializes:state.initializes,providerCalls:globalThis.__coordination.calls.length};});
+   const databaseSnapshot=()=>application.evaluate(async(_,args)=>JSON.parse(await globalThis.__runtimeReconnect80.runtime.command(['python3','-c',args.python,args.instance,String(args.port)])),{python:snapshotPython,instance:cfg.instance,port:cfg.portBase+2});
+   const before=await databaseSnapshot(),protectedBefore=await protectedSnapshot();assert.equal(protectedBefore.starts,1);assert.equal(protectedBefore.initializes,1);assert.equal(protectedBefore.providerCalls,0);assert.equal(before.rootBindings,4);evidence.before={database:before,protected:protectedBefore};await save();
+   await page.evaluate(()=>{const editor=document.querySelector('.agent-editor-page'),form=editor.querySelector('#agent-basic-form');window.__runtimeReconnect80={editor,form,fields:[...form.querySelectorAll('input,textarea,select')].map(node=>({node,value:node.value})),journals:Object.keys(localStorage).filter(key=>key.startsWith('agentopia.editor-draft.')||key.startsWith('agentopia.preview.')).sort().map(key=>[key,localStorage.getItem(key)]),events:[]};window.agentopia.onRuntime(status=>window.__runtimeReconnect80.events.push({ready:status.ready,available:status.available,phase:status.phase}));});
+   await application.evaluate(()=>{const state=globalThis.__runtimeReconnect80;state.initialBroker=state.broker;state.initialRuntime=state.runtime;state.phase='reconnect';});
+   await check('Exact packaged startup opened an existing editor; baseline data and four encryption-root bindings were fingerprinted without editing fields.');
+   const found=await registration(cfg.distribution);assert(samePath(found.path,cfg.storage)&&found.name===cfg.distribution);await qaCommand(cfg,['supabase','stop']);
+   const stopped=JSON.parse(await qaCommand(cfg,['supabase','stack','status','--output-format','json']));assert(!stopped.services?.some(row=>row.service==='database'&&row.state==='running'&&row.health==='healthy'));const stale=await call('runtime.status');assert(stale.ready,'This exercises the already-ready runtime branch');
+   await call('runtime.retry');await expect.poll(async()=>{const state=await call('runtime.status');return state.ready&&state.available===true;},{timeout:180000,intervals:[300,1000]}).toBe(true);
+   const after=await databaseSnapshot(),protectedAfter=await protectedSnapshot();assert.deepEqual(after,before,'Every saved public row, auth account, root binding and connection identity must remain unchanged');assert.deepEqual(protectedAfter,protectedBefore,'Protected settings and initialization/provider counts must remain unchanged');
+   const mounted=await page.evaluate(()=>{const saved=window.__runtimeReconnect80,journals=Object.keys(localStorage).filter(key=>key.startsWith('agentopia.editor-draft.')||key.startsWith('agentopia.preview.')).sort().map(key=>[key,localStorage.getItem(key)]);return {sameEditor:saved.editor===document.querySelector('.agent-editor-page')&&saved.editor.isConnected,sameForm:saved.form===document.querySelector('#agent-basic-form')&&saved.form.isConnected,sameFields:saved.fields.every(({node,value})=>node.isConnected&&node.value===value),sameJournals:JSON.stringify(journals)===JSON.stringify(saved.journals),events:saved.events};});assert(mounted.sameEditor&&mounted.sameForm&&mounted.sameFields&&mounted.sameJournals);assert(mounted.events.some(row=>row.available===false)&&mounted.events.some(row=>row.available===true));assert(mounted.events.every(row=>row.ready));
+   const audit=await application.evaluate(()=>{const s=globalThis.__runtimeReconnect80;return {sameBroker:s.broker===s.initialBroker,sameRuntime:s.runtime===s.initialRuntime,starts:s.starts,initializes:s.initializes,commands:s.commands.filter(row=>row.phase==='reconnect'),calls:s.calls.filter(row=>row.phase==='reconnect'),providerCalls:globalThis.__coordination.calls.length};});assert(audit.sameBroker&&audit.sameRuntime&&audit.starts===1&&audit.initializes===1&&audit.providerCalls===0);assert.equal(audit.commands.filter(row=>row.module==='database_state.py'&&row.operation==='--resume-existing').length,1);assert(!audit.commands.some(row=>row.module==='manage.py'||row.program==='supabase'&&row.operation.startsWith('start')));assert(!audit.calls.some(row=>/^(chat\.(?:start|queue\.steer)|goals\.start|native\.(?:steer|child\.control)|agentDraftPreview\.(?:start|continue)|agents\.save)$/.test(row.action)));
+   evidence.after={database:after,protected:protectedAfter};evidence.mounted=mounted;evidence.audit=audit;await page.screenshot({path:path.join(probeOut,'reconnected-editor.png')});await check('Stopped QA services resumed through the existing-services helper with the same Broker, runtime, mounted form, journals, credentials and saved rows; no startup/provision/action/model replay occurred.');return {success:true,sameMountedEditor:true,sameData:true,sameRootBindings:true,providerRequests:0};
+  }});
+  assert.deepEqual(await ordinaryProcesses(),beforeOrdinary,'The ordinary app must remain running unchanged');assert(!(await list(true)).includes(cfg.distribution),'The owned probe must close QA services normally');evidence.success=true;evidence.qaNormallyClosed=true;await check('QA closed normally and the ordinary installation stayed running.');
+ }catch(error){evidence.error=String(error.stack??error);throw error;}finally{await save();}
+ console.log(JSON.stringify({success:true,out,qaOnly:true,providerRequests:0,productionWrites:0}));return evidence;
+}
+if(process.argv[1]&&path.resolve(process.argv[1])===path.resolve(import.meta.filename))await qualify(process.argv[2]);
