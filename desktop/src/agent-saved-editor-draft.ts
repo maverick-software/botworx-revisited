@@ -1,3 +1,4 @@
+import {agentInstructionsLimit} from './agent-unified-instructions';
 import {agentSections,capabilityOptions,type AgentSection,type Provider} from './contracts';
 import {agentPolicy,type AgentProfile} from './agent-contracts';
 import {agentIcons,agentColors,isLocalAgentAvatar,type AgentAppearance,type AgentPresentation} from './agent-presentation-contracts';
@@ -20,7 +21,7 @@ function profile(value:unknown,owner?:string,source?:string){const v=object(valu
  * still pass the normal agent, policy, appearance and memory API validators. */
 export function agentSavedEditorDraft(value:unknown,owner?:string,source?:string):AgentSavedEditorDraft{
  const v=object(value);keys(v,['format','section','basic','configurationLoaded','identity','settings','channels','selected','contactMode','dirty','profile','definitionDirty','presentation','memory','task','taskId']);if(v.format!=='agent-editor-1'||!agentSections.includes(v.section))throw Error('The saved-agent draft uses an unsupported format.');
- const b=object(v.basic);keys(b,['name','description','instructions','provider','model']);text(b.name,100);text(b.description,4000);text(b.instructions);text(b.model,1000);if(!['openrouter','openai-oauth'].includes(b.provider))throw Error('The saved-agent draft has an invalid provider.');bool(v.configurationLoaded);
+ const b=object(v.basic);keys(b,['name','description','instructions','provider','model']);text(b.name,100);text(b.description,4000);text(b.instructions,agentInstructionsLimit);text(b.model,1000);if(!['openrouter','openai-oauth'].includes(b.provider))throw Error('The saved-agent draft has an invalid provider.');bool(v.configurationLoaded);
  const i=object(v.identity);keys(i,['personality','mbtiType','purpose']);text(i.personality,8000);text(i.mbtiType,10);text(i.purpose,4000);const settings=object(v.settings);keys(settings,[...capabilityOptions.flatMap(row=>[row.key+'_enabled',row.key+'_credential']),'use_account_graph','context_history_size']);for(const[key,value]of Object.entries(settings)){if(key==='context_history_size'){if(value!==null)integer(value,Number.MIN_SAFE_INTEGER);}else if(key.endsWith('_credential')){text(value,64);if(value)draftPreviewId(value);}else bool(value);}const channels=object(v.channels);keys(channels,['email','sms','slack','discord','telegram','whatsapp'].map(key=>key+'_enabled'));for(const value of Object.values(channels))bool(value);const selected=object(v.selected);keys(selected,['memory','documents','sources','team','contacts']);for(const value of Object.values(selected)){strings(value,10000,64);for(const id of value as string[])draftPreviewId(id);}text(v.contactMode,100);strings(v.dirty,agentSections.length,30);if(v.dirty.some((section:any)=>!agentSections.includes(section)))throw Error('The saved-agent draft has invalid sections.');bool(v.definitionDirty);if(v.profile!==null)profile(v.profile,owner,source);if(v.presentation!==null)presentation(v.presentation);if(v.memory!==null)memory(v.memory);
  const task=object(v.task);keys(task,['name','instructions','cron','timezone']);text(task.name,200);text(task.instructions,50000);text(task.cron,200);text(task.timezone,100);if(v.taskId!==null)draftPreviewId(v.taskId);
  return structuredClone(v) as AgentSavedEditorDraft;
@@ -33,6 +34,9 @@ const canonical=(value:unknown):string=>JSON.stringify(value,(_key,item)=>item&&
 export function rebaseAgentProfileDraft(current:AgentProfile,next:AgentProfile):AgentProfile|null{
  if(current.user_id!==next.user_id||current.agent_id!==next.agent_id||next.revision<current.revision)return null;
  const fields=['handle','role','sops','guardrails','skills','policy'];if(fields.some(key=>!Object.hasOwn(current.definition,key))||!Object.hasOwn(current.definition,'active')||current.definition.active!==next.definition.active)return null;
- try{for(const key of fields){const before=current.definition[key],after=next[key as keyof AgentProfile];if(canonical(key==='policy'?agentPolicy(before):before)!==canonical(key==='policy'?agentPolicy(after):after))return null;}}catch{return null;}
+ // An explicit atomic Instructions save acknowledges the exact edited access
+ // settings too. Otherwise require the original saved behavior to be unchanged.
+ const draftMatches=fields.every(key=>canonical(current[key as keyof AgentProfile])===canonical(next[key as keyof AgentProfile]));
+ try{if(!draftMatches)for(const key of fields){const before=current.definition[key],after=next[key as keyof AgentProfile];if(canonical(key==='policy'?agentPolicy(before):before)!==canonical(key==='policy'?agentPolicy(after):after))return null;}}catch{return null;}
  return {...current,revision:next.revision,definition:structuredClone(next.definition),updated_at:next.updated_at,...(next.memory_revision===undefined?{}:{memory_revision:next.memory_revision})};
 }

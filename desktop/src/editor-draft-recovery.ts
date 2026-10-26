@@ -1,3 +1,4 @@
+import {agentInstructionsLimit} from './agent-unified-instructions';
 import {agentCreationDraft,type AgentCreationDraft} from './agent-creation-draft';
 import {agentSavedEditorDraft,type AgentSavedEditorDraft} from './agent-saved-editor-draft';
 import {editorDraftPayload,editorDraftScope} from './agent-editor-draft-contracts';
@@ -8,13 +9,13 @@ import {editorDraftPayload,editorDraftScope} from './agent-editor-draft-contract
 function shadow(value:unknown){const original=structuredClone(value),copy=structuredClone(value) as any;
  const field=(parent:any,key:string,max:number)=>{if(parent&&typeof parent[key]==='string'){if(parent[key].length>8000000)throw Error('This recovery text exceeds the editing limit. Copy it before replacing it.');parent[key]=parent[key].replace(/\0/g,'\ufffd').slice(0,max);}};
  const appearance=(value:any)=>{if(Array.isArray(value?.starters))for(const row of value.starters){field(row,'title',80);field(row,'prompt',2000);}};
- if(copy?.format==='agent-creation-1'){for(const[key,max]of Object.entries({name:100,description:4000,instructions:100000,model:1000}))field(copy,key,max);appearance(copy.appearance);
+ if(copy?.format==='agent-creation-1'){for(const[key,max]of Object.entries({name:100,description:4000,instructions:agentInstructionsLimit,model:1000}))field(copy,key,max);appearance(copy.appearance);
   for(const[key,max]of Object.entries({handle:64,role:1000,sops:50000,guardrails:20000}))field(copy.behavior,key,max);
   if(Array.isArray(copy.behavior?.skills))for(const row of copy.behavior.skills)for(const[key,max]of Object.entries({name:100,description:1000,content:50000}))field(row,key,max);
   if(Array.isArray(copy.behavior?.policy?.tools))copy.behavior.policy.tools=copy.behavior.policy.tools.map((value:unknown)=>typeof value==='string'?value.replace(/\0/g,'\ufffd').slice(0,200):value);
  }
  if(copy?.format==='agent-editor-1'){
-  for(const[key,max]of Object.entries({name:100,description:4000,instructions:100000,model:1000}))field(copy.basic,key,max);
+  for(const[key,max]of Object.entries({name:100,description:4000,instructions:agentInstructionsLimit,model:1000}))field(copy.basic,key,max);
   for(const[key,max]of Object.entries({personality:8000,mbtiType:10,purpose:4000}))field(copy.identity,key,max);
   for(const[key,max]of Object.entries({handle:64,role:1000,sops:50000,guardrails:20000}))field(copy.profile,key,max);
   if(Array.isArray(copy.profile?.skills))for(const row of copy.profile.skills)for(const[key,max]of Object.entries({name:100,description:1000,content:50000}))field(row,key,max);

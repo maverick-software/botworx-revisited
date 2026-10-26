@@ -43,7 +43,7 @@ function fixture(){
 }
 test('draft input keeps exact text and rejects authority/context injection before storage',()=>{
  const value=input(),parsed=agentDraftPreviewInput(value);assert.equal(parsed.text,value.text);assert.deepEqual(parsed.snapshot,value.snapshot);value.snapshot.instructions='Changed after parsing';assert.equal(parsed.snapshot.instructions,'Keep the supplied facts.');
- for(const extra of [{options:{permission:'full'}},{snapshot:{...input().snapshot,tools:['run_command']}},{snapshot:{...input().snapshot,model:''}},{sourceAgentId:other+'x'},{snapshot:{...input().snapshot,instructions:'x'.repeat(100001)}}])assert.throws(()=>agentDraftPreviewInput(input(extra)));
+ for(const extra of [{options:{permission:'full'}},{snapshot:{...input().snapshot,tools:['run_command']}},{snapshot:{...input().snapshot,model:''}},{sourceAgentId:other+'x'},{snapshot:{...input().snapshot,instructions:'x'.repeat(500001)}}])assert.throws(()=>agentDraftPreviewInput(input(extra)));
 });
 test('draft behavior uses saved-agent normalization and copies nested policy and skills',()=>{
  const value=input();value.snapshot.behavior.handle=' DRAFT-MIRA ';value.snapshot.behavior.policy.tools.push('read_file');const parsed=agentDraftPreviewInput(value);

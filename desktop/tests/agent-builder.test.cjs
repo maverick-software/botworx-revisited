@@ -23,8 +23,8 @@ test('proposal validation rejects permission, connection, provider and prototype
 });
 test('proposal applies all supported fields while preserving policy and unrelated manual edits',()=>{
  const basis=config(),current=config();current.description='New manual description';
- const change=proposal({name:'Invoice specialist',instructions:'Keep café — 東京 🟣',handle:'invoice-specialist',role:'Invoice reviewer',sops:'1. Read\n2. Calculate\n3. Report',guardrails:'Ask before external actions.',skills:[{id:write,name:'Invoice review',description:'Check cents',content:'Calculate with integer cents.'}],icon:'briefcase',color:'green',starters:[{id:'review',title:'Review invoices',prompt:'Review my supplied invoice records.'}]});
- const next=applyBuilderProposal(current,basis,change);assert.equal(next.description,current.description);assert.equal(next.name,'Invoice specialist');assert.equal(next.behavior.skills[0].id,write);assert.deepEqual(next.behavior.policy,current.behavior.policy);assert.equal(next.appearance.starters[0].title,'Review invoices');assert.equal(current.name,basis.name);
+ const change=proposal({name:'Invoice specialist',instructions:'Keep café — 東京 🟣',handle:'invoice-specialist',icon:'briefcase',color:'green',starters:[{id:'review',title:'Review invoices',prompt:'Review my supplied invoice records.'}]});
+ const next=applyBuilderProposal(current,basis,change);assert.equal(next.description,current.description);assert.equal(next.name,'Invoice specialist');assert.deepEqual(next.behavior.skills,current.behavior.skills);assert.deepEqual(next.behavior.policy,current.behavior.policy);assert.equal(next.appearance.starters[0].title,'Review invoices');assert.equal(current.name,basis.name);
 });
 test('a changed proposed field refuses the complete application without altering either draft',()=>{
  const basis=config(),current=config();current.instructions='New manual instructions';const original=structuredClone(current);
