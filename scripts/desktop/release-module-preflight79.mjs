@@ -26,3 +26,10 @@ export async function probePackagedYaml79(exe,image,temp){
  const code="const assert=require('node:assert/strict');const yaml=require(process.argv[1]+'/node_modules/yaml');const parsed=yaml.parse('name: Reusable skill\\ndescription: |\\n  First line\\n  Second line\\n');assert.equal(parsed.name,'Reusable skill');assert.equal(parsed.description,'First line\\nSecond line\\n');console.log(JSON.stringify({success:true,electron:process.versions.electron,yamlVersion:require(process.argv[1]+'/node_modules/yaml/package.json').version,multilineYamlVerified:true,backendStarted:false}));";
  const result=await execute(exe,['-e',code,path.resolve(image)],{cwd:temp,windowsHide:true,encoding:'utf8',timeout:30000,maxBuffer:20000,env});const evidence=JSON.parse(result.stdout.trim());assert(evidence.success&&evidence.electron&&evidence.yamlVersion==='2.7.1'&&!evidence.backendStarted);return evidence;
 }
+
+// Release80 inherits the already packaged pinned YAML module byte for byte.
+export async function verifyYamlDependency80(root,stage,accepted){
+ assert(accepted?.yaml?.version==='2.7.1');const declared=JSON.parse(await readFile(path.join(root,'package.json'),'utf8'));assert.equal(declared.dependencies.yaml,'2.7.1');
+ assert.deepEqual(await inventory(path.join(stage,'node_modules/yaml')),accepted.yaml.files,'The accepted YAML dependency changed');
+ assert.deepEqual(await inventory(path.join(root,'node_modules/yaml')),accepted.yaml.files,'The development YAML dependency differs from the accepted package');return accepted;
+}

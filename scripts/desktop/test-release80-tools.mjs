@@ -1,0 +1,19 @@
+// Local command/validation checks only; never starts the updater or application.
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import {mkdir,writeFile} from 'node:fs/promises';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import {maintenanceUpdateCommand,installedUpdater} from './maintenance-update-command75.mjs';
+const root=path.resolve(import.meta.dirname,'../..'),out=process.env.AGENTOPIA_QA_OUT??path.join('F:/Agentopia-QA/release80-tools',String(Date.now())),exec=promisify(execFile);await mkdir(out,{recursive:true});
+const e={success:false,productionAccess:false,providerRequests:0,updaterInvoked:false,checks:[]},check=name=>{e.checks.push(name);console.log('PASS '+name)};
+try{
+ for(const suffix of [75,76,77,78,79,80]){const next={version:'0.44.'+suffix,releaseDirectory:'F:/Agentopia-Tmp/i'+suffix+'-1792927421448/o',temp:'F:/Agentopia-Tmp/update'+suffix+'-1792927421448',environment:{ELECTRON_RUN_AS_NODE:'1',AGENTOPIA_TEST_PROFILE:'wrong',NODE_OPTIONS:'--inspect',KEEP:'yes'}},made=maintenanceUpdateCommand(next);assert.equal(made.exe,installedUpdater);assert.deepEqual(made.args,['--update',path.win32.normalize(next.releaseDirectory)]);assert.equal(made.env.TEMP,path.win32.normalize(next.temp));assert.equal(made.env.KEEP,'yes');for(const key of ['ELECTRON_RUN_AS_NODE','AGENTOPIA_TEST_PROFILE','NODE_OPTIONS'])assert(!Object.hasOwn(made.env,key));}
+ check('Existing75-79 and release80 select the pinned installed updater with exact matching F scratch paths and sanitized environment');
+ const next={version:'0.44.80',releaseDirectory:'F:/Agentopia-Tmp/i80-1792927421448/o',temp:'F:/Agentopia-Tmp/update80-1792927421448'};
+ for(const override of [{version:'0.44.81'},{releaseDirectory:'C:/Agentopia-Tmp/i80-1792927421448/o'},{releaseDirectory:'F:/Agentopia-Tmp/i78-1792927421448/o'},{temp:'F:/Agentopia-Tmp/update78-1792927421448'},{temp:'F:/Agentopia-Tmp/update80-1792927421448/nested'},{releaseDirectory:'F:/other/o'}])assert.throws(()=>maintenanceUpdateCommand({...next,...override}));
+ check('Unknown versions, other disks, mismatched releases and nested scratch destinations remain rejected');
+ const scripts=['prepare-release80.mjs','write-composio-service-policy80.mjs','qualify-release77.mjs','install-release77.mjs','make-recovery-installer75.mjs','make-recovery-installer75-worker.mjs','verify-recovery-installer75.mjs','maintenance-update-command75.mjs','squirrel-stub-integrity75.mjs','audit-agent-health75.mjs','audit-installed-credentials75.mjs','normal-clean-chat75-process.mjs'];for(const script of scripts)await exec(process.execPath,['--check',path.join(root,'scripts/desktop',script)],{windowsHide:true,timeout:30000});check('All changed JavaScript release controllers parse without executing their operations');
+ const python=await exec('python',['-B',path.join(root,'scripts/desktop/test_composio_service_row_checks80.py')],{cwd:root,windowsHide:true,timeout:120000,env:{...process.env,TEMP:out,TMP:out,PYTHONDONTWRITEBYTECODE:'1'}});await writeFile(path.join(out,'comparator-tests.log'),python.stdout+python.stderr);check('Twelve comparator fixtures preserve every accepted79 row and reject altered Vault, agents, grants, skill resources, credentials, forged packages and incomplete migration receipts');const policy=await exec(process.execPath,['--test',path.join(root,'scripts/desktop/test-protected-settings-policy80.cjs')],{cwd:root,windowsHide:true,timeout:30000});await writeFile(path.join(out,'protected-settings-tests.log'),policy.stdout+policy.stderr);check('Protected settings fixtures allow only bound Composio rotation and metadata while rejecting authority, credential and owner changes');e.success=true;
+}catch(error){e.error=error.stack;process.exitCode=1}
+await writeFile(path.join(out,'evidence.json'),JSON.stringify(e,null,2));console.log(JSON.stringify({success:e.success,out,checks:e.checks,error:e.error},null,2));

@@ -13,7 +13,7 @@ from urllib.parse import unquote, urlparse
 from logical_row_fingerprints71 import Fingerprints, lines, IDENTIFIER
 
 
-def audit(archive, out, instance, expected_port, additional_empty_tables=(), expected_composio_plugin=None, consolidation_policy=None):
+def audit(archive, out, instance, expected_port, additional_empty_tables=(), expected_composio_plugin=None, consolidation_policy=None, composio_service_policy=None):
     archive, out = Path(archive), Path(out)
     assert len(set(additional_empty_tables)) == len(additional_empty_tables)
     assert all(IDENTIFIER.fullmatch(name) for name in additional_empty_tables)
@@ -32,7 +32,12 @@ def audit(archive, out, instance, expected_port, additional_empty_tables=(), exp
     db = urlparse(state['env']['DB_URL'])
     assert db.port == expected_port == tomllib.loads(Path('supabase/config.toml').read_text())['db']['port']
     binary = Path(glob.glob('/home/agentopia/.supabase/cache/stack/slim-services/postgres/*/linux-amd64/*/bin/psql')[0]).parent
-    if consolidation_policy is not None:
+    if composio_service_policy is not None:
+        assert consolidation_policy is None and expected_composio_plugin is None
+        from composio_service_row_checks80 import ComposioServiceFingerprints
+        store = ComposioServiceFingerprints(out / 'row-fingerprints.sqlite', composio_service_policy)
+        additional_data_tables = ()
+    elif consolidation_policy is not None:
         from consolidation_row_checks79 import ConsolidationFingerprints
         store = ConsolidationFingerprints(out / 'row-fingerprints.sqlite', consolidation_policy)
         additional_data_tables = store.new_tables
@@ -112,7 +117,7 @@ def audit(archive, out, instance, expected_port, additional_empty_tables=(), exp
                 process.stdout.close()
                 code = process.wait(timeout=120)
             assert code == 0 and active is None and metadata, 'Live audit failed; inspect private diagnostics.'
-        migration = store.verify_migration() if consolidation_policy is not None else None
+        migration = store.verify_migration() if consolidation_policy is not None or composio_service_policy is not None else None
         actual = store.result('live')
         assert sorted('public.' + name for name in metadata['publicTables']) == sorted([name for name in expected if name.startswith('public.')] + ['public.' + name for name in additional_empty_tables] + ['public.' + name for name in additional_data_tables]), 'The archive must cover every original application table; new tables require explicit empty-table or checked migration declarations.'
         assert all(count == 0 for count in metadata.get('additionalEmptyTables', {}).values()), 'A newly added table has unexpected data.'
@@ -139,7 +144,7 @@ def audit(archive, out, instance, expected_port, additional_empty_tables=(), exp
             'additionalEmptyTablesVerified': len(additional_empty_tables), 'additionalComposioCatalogRowsVerified': metadata.get('additionalComposioRows', 0),
             'allOriginalRowsComparedWithoutExclusions': consolidation_policy is None,
             'allOriginalRowsComparedWithVerifiedMigrationProjection': consolidation_policy is not None,
-            **({'consolidationMigration': migration} if migration else {})}
+            **({('composioServiceMigration' if composio_service_policy is not None else 'consolidationMigration'): migration} if migration else {})}
         (out / 'archive-table-fingerprints.json').write_text(json.dumps(expected, indent=2))
         return report
     finally:
