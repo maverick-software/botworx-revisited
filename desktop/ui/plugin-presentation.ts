@@ -23,5 +23,5 @@ export function pluginName(name:string):string{
  return value.split(/[-_.]+/).map(word=>Object.hasOwn(words,word.toLowerCase())?words[word.toLowerCase()]:word[0].toUpperCase()+word.slice(1)).join(' ');
 }
 
-export const pluginTitle=(plugin:Pick<PluginRecord,'name'|'description'|'kind'>)=>
- pluginName(plugin.description.startsWith('Existing protected MCP connection: ')?plugin.description.slice(35):plugin.kind==='images'?'image-generation':plugin.name);
+export const pluginTitle=(plugin:Pick<PluginRecord,'name'|'description'|'kind'>&{displayName?:string})=>
+ plugin.displayName??pluginName(plugin.description.startsWith('Existing protected MCP connection: ')?plugin.description.slice(35):plugin.kind==='images'?'image-generation':plugin.name);

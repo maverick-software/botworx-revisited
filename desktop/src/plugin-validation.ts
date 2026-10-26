@@ -5,6 +5,7 @@ import manifestSchema from './plugin-schemas/plugin.schema.json';
 import mcpSchema from './plugin-schemas/mcp.schema.json';
 import {mcpAddress} from './mcp-client';
 import {composioMcpAuth,composioMcpPluginName,composioMcpUrl} from './composio-mcp-contracts';
+import {composioServicePackageSlug} from './composio-service-plugins';
 import {chromePluginName} from './chrome-contracts';
 import {imageGenerationPluginName} from './image-generation-contracts';
 import {pluginSchemaUrl,mcpSchemaUrl,type PluginPackage} from './plugin-contracts';
@@ -34,7 +35,7 @@ export function validatePluginPackage(value:unknown,bundled=false):PluginPackage
  const extensions=manifest.extensions??{};
  if(Object.keys(extensions).some(key=>!['com.agentopia','com.openai'].includes(key)))throw new Error('This host supports packaged skills, remote MCP packages and descriptive OpenAI presentation metadata. Other extensions are not supported.');
  if(extensions['com.openai']!==undefined)validateOpenAIPresentation(extensions['com.openai']);
- if(extensions['com.agentopia']){const extension=extensions['com.agentopia'];if(!bundled||!(Object.keys(extension).length===1&&(['serper','tavily'].includes(extension.adapter)||extension.managedMcp===chromePluginName||extension.imageGeneration==='v1'&&manifest.name===imageGenerationPluginName||Object.entries(hostPluginFamilies).some(([family,row])=>extension.hostFamily===family&&manifest.name===row.name))))throw new Error('Only pinned bundled plugins may select a managed runtime or search adapter.');}
+ if(extensions['com.agentopia']){const extension=extensions['com.agentopia'];if(!bundled||!(Object.keys(extension).length===1&&(['serper','tavily'].includes(extension.adapter)||extension.managedMcp===chromePluginName||extension.imageGeneration==='v1'&&manifest.name===imageGenerationPluginName||Object.entries(hostPluginFamilies).some(([family,row])=>extension.hostFamily===family&&manifest.name===row.name)||composioServicePackageSlug(normalized))))throw new Error('Only pinned bundled plugins may select a managed runtime or search adapter.');}
  if(value.mcp!==undefined){
   const portable=structuredClone(value.mcp);
   if(record(portable)&&record(portable.mcpServers))for(const server of Object.values(portable.mcpServers))if(record(server)){mcpOAuthDeclaration(server.extensions);delete server.extensions;}

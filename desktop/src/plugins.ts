@@ -5,6 +5,7 @@ import {CreationToolResources} from './creation-tool-resources';
 import {creationPrincipal} from './creation-resource-principal';
 import {pluginPrincipalIdentity,type PluginPrincipal} from './plugin-resource-principal';
 import {composioMcpPluginName,composioMcpConnectionId} from './composio-mcp-contracts';
+import {composioServicePackage,composioServicePackageSlug,composioServiceConnectionId} from './composio-service-plugins';
 import {chromePluginName,chromeConnectionId} from './chrome-contracts';
 import {imageGenerationPluginName} from './image-generation-contracts';
 import type {SupabaseClient} from '@supabase/supabase-js';
@@ -15,7 +16,23 @@ import type {SkillPackage} from './native-plugin-skills';
 import {planPluginUpdate} from './plugin-update';
 const data=(r:any):any=>{if(r.error)throw new Error('The plugin operation could not be completed.');return r.data;};
 export class Plugins {
- constructor(private db:SupabaseClient,private imageConfigured:()=>boolean=()=>false){}
+ constructor(private db:SupabaseClient,private imageConfigured:()=>boolean=()=>false,private serviceConfigured?:(owner:string,slug:string)=>Promise<boolean>){}
+ async syncComposioServices(user:string,services:Array<{slug:string;name:string}>,completeConnectedInventory=false){
+  const items=services.map(service=>{const pkg=composioServicePackage(service.slug,service.name);return {slug:service.slug,title:service.name,package:pkg,digest:pluginDigest(pkg)};});
+  if(items.length>2000||new Set(items.map(item=>item.slug)).size!==items.length)throw Error('Invalid connected Composio service inventory.');
+  data(await this.db.rpc('desktop_sync_composio_service_plugins',{p_user:user,p_items:items,p_complete_connected_inventory:completeConnectedInventory}));
+ }
+ async composioServices(user:string,agent?:string){
+  const rows=data(await this.db.from('desktop_plugins').select('*').eq('user_id',user).like('name','composio-service-%')),parent=data(await this.db.from('desktop_plugins').select('*').eq('user_id',user).eq('name',composioMcpPluginName).maybeSingle());
+  if(parent)this.checked(parent);
+  const grants=agent?data(await this.db.from('desktop_agent_plugins').select('plugin_name,enabled').eq('user_id',user).eq('agent_id',agent)):[];
+  if(agent){await this.owned(user,agent);data(await this.db.from('agents').select('id').eq('id',agent).eq('user_id',user).eq('active',true).single());}
+  return rows.flatMap((row:any)=>{const slug=composioServicePackageSlug(row.package);if(!slug)return [];this.checked(row);return [{...row,slug,title:row.package.manifest.extensions['com.openai'].interface.displayName,connectionId:composioServiceConnectionId(row.name),enabled:!!parent?.enabled&&row.enabled&&(!agent||grants.some((grant:any)=>grant.plugin_name===row.name&&grant.enabled))}];});
+ }
+ async accountComposioService(user:string,agent:string,name:string){
+  const row=(await this.composioServices(user,agent)).find((row:any)=>row.name===name);
+  if(!row?.enabled)throw Error('This Composio service capability is disabled or unassigned for this agent.');return row;
+ }
  async reviewed(user:string,name:string){return this.checked(data(await this.db.from('desktop_plugins').select('*').eq('user_id',user).eq('name',name).single()));}
  private async owned(user:string,agent:string){data(await this.db.from('agents').select('id').eq('id',agent).eq('user_id',user).single());}
  async skillPackages(user:string,agent:PluginPrincipal):Promise<SkillPackage[]>{
@@ -57,14 +74,15 @@ export class Plugins {
    this.db.from('system_api_keys').select('provider_name,vault_secret_id,is_active').in('provider_name',['serper_api','tavily_api']).then(data),
    this.db.from('desktop_plugin_credentials').select('plugin_name,vault_secret_id,enabled').eq('user_id',user.id).then(data)
   ]);
-  return rows.filter((row:any)=>!hidden.has(row.name)).map((row:any)=>{const adapter=row.package.manifest.extensions?.['com.agentopia']?.adapter;this.checked(row);return {name:row.name,version:row.package.manifest.version,description:row.package.manifest.description,enabled:row.enabled,bundled:row.source==='bundled',updatable:row.source==='imported',digest:row.digest,validation:'Schema validated',package:row.package,kind:row.package.manifest.extensions?.['com.agentopia']?.hostFamily?(row.name==='composio'?'composio':'host'):row.package.manifest.extensions?.['com.agentopia']?.imageGeneration==='v1'?'images':adapter?'search':row.package.files&&!row.package.mcp?'skills':'mcp',configured:row.package.manifest.extensions?.['com.agentopia']?.imageGeneration==='v1'?this.imageConfigured():adapter?(ownedKeys.some((key:any)=>key.plugin_name===row.name)?ownedKeys.some((key:any)=>key.plugin_name===row.name&&key.enabled&&key.vault_secret_id):keys.some((key:any)=>key.provider_name===adapter+'_api'&&key.is_active&&key.vault_secret_id)):true,assignments:grants.filter((g:any)=>g.plugin_name===row.name).map((g:any)=>({agent_id:g.agent_id,enabled:g.enabled,connection_ids:row.name===composioMcpPluginName?[composioMcpConnectionId]:row.name===chromePluginName?[chromeConnectionId]:links.filter((l:any)=>l.plugin_name===row.name&&l.agent_id===g.agent_id).map((l:any)=>l.connection_id) }))};});
+  const configuredServices=new Map<string,boolean>();for(const row of rows){const slug=composioServicePackageSlug(row.package);if(slug)configuredServices.set(row.name,this.serviceConfigured?await this.serviceConfigured(user.id,slug):false);}
+  return rows.filter((row:any)=>!hidden.has(row.name)).map((row:any)=>{const adapter=row.package.manifest.extensions?.['com.agentopia']?.adapter,service=composioServicePackageSlug(row.package);this.checked(row);return {name:row.name,...(service?{displayName:row.package.manifest.extensions['com.openai'].interface.displayName}:{}),version:row.package.manifest.version,description:row.package.manifest.description,enabled:row.enabled,bundled:row.source==='bundled',updatable:row.source==='imported',digest:row.digest,validation:'Schema validated',package:row.package,kind:service?'composio-service':row.package.manifest.extensions?.['com.agentopia']?.hostFamily?(row.name==='composio'?'composio':'host'):row.package.manifest.extensions?.['com.agentopia']?.imageGeneration==='v1'?'images':adapter?'search':row.package.files&&!row.package.mcp?'skills':'mcp',configured:service?configuredServices.get(row.name)===true:row.package.manifest.extensions?.['com.agentopia']?.imageGeneration==='v1'?this.imageConfigured():adapter?(ownedKeys.some((key:any)=>key.plugin_name===row.name)?ownedKeys.some((key:any)=>key.plugin_name===row.name&&key.enabled&&key.vault_secret_id):keys.some((key:any)=>key.provider_name===adapter+'_api'&&key.is_active&&key.vault_secret_id)):true,assignments:grants.filter((g:any)=>g.plugin_name===row.name).map((g:any)=>({agent_id:g.agent_id,enabled:g.enabled,connection_ids:service?[composioServiceConnectionId(row.name)]:row.name===composioMcpPluginName?[composioMcpConnectionId]:row.name===chromePluginName?[chromeConnectionId]:links.filter((l:any)=>l.plugin_name===row.name&&l.agent_id===g.agent_id).map((l:any)=>l.connection_id) }))};});
  }
  private checked(row:any){
   if(!row||row.name!==row.package?.manifest?.name||row.digest!==pluginDigest(row.package))throw new Error('Plugin integrity verification failed. Reinstall the reviewed package.');
   if(row.source==='legacy'){
    const expected={manifest:{$schema:pluginSchemaUrl,name:row.name,version:'1.0.0',description:row.package.manifest.description}};
    validateLegacyPlugin(row.package);if(pluginDigest(expected)!==pluginDigest(row.package))throw new Error('Invalid protected connection wrapper.');
-  }else{validatePluginPackage(row.package,row.source==='bundled');if(row.source==='bundled'&&!bundledPlugins.some(pkg=>pkg.manifest.name===row.name&&pluginDigest(pkg)===row.digest))throw new Error('The bundled plugin differs from its packaged declaration.');}
+  }else{validatePluginPackage(row.package,row.source==='bundled');if(row.source==='bundled'&&!composioServicePackageSlug(row.package)&&!bundledPlugins.some(pkg=>pkg.manifest.name===row.name&&pluginDigest(pkg)===row.digest))throw new Error('The bundled plugin differs from its packaged declaration.');}
   return row;
  }
  async connection(user:string,agent:string,id:string,address?:string):Promise<any>{
