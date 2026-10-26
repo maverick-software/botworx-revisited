@@ -4,6 +4,7 @@ export class AgentQueue{
  private pending=new Map<string,AgentJob>();private active=new Map<string,{job:AgentJob;done:Promise<void>}>();private pumping=false;private timer?:NodeJS.Timeout;private closed=false;private failures=new Map<string,{owner:string;message:string}>();
  constructor(private available:()=>boolean,private parallel=6){}
  get size(){return this.pending.size+this.active.size;}
+ get busy(){return this.active.size>0||this.pumping;}
  has(id:string){return this.pending.has(id)||this.active.has(id);}
  failure(owner:string){return [...this.failures.values()].filter(value=>value.owner===owner).at(-1)?.message;}
  enqueue(job:AgentJob){if(this.closed)throw new Error('The named-agent queue is closed.');if(this.has(job.id))return;this.pending.set(job.id,job);this.notify();}

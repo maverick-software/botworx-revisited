@@ -29,6 +29,7 @@ export class McpOAuth {
   const target=await this.target(scope);if(await this.owner()!==scope.owner)throw Error('Your Agentopia account changed.');if(expected&&(target.address!==expected.address||target.stamp!==expected.stamp))throw Error('The MCP connection or plugin assignment changed. Connect it again.');return target;
  }
  connected(scope:McpOAuthScope,target:McpOAuthTarget){const saved=this.store.get<Stored>(key(scope));return !!saved?.tokens&&saved.target.address===target.address&&saved.target.stamp===target.stamp;}
+ cancelPending(scope:McpOAuthScope){const saved=this.pendingScopes.get(key(scope));if(!saved||saved.owner!==scope.owner)throw Error('This sign-in is no longer pending in your account.');this.cancel(scope);}
  cancel(scope?:McpOAuthScope){for(const [id,controller]of this.pending)if(!scope||id===key(scope))controller.abort(Error('MCP sign-in cancelled.'));}
  async status(scope:McpOAuthScope){try{return this.connected(scope,await this.checked(scope));}catch{return false;}}
  cancelCreation(owner:string,creationId:string){for(const[id,scope]of this.pendingScopes)if(creationOAuthScope(scope)&&scope.owner===owner&&scope.creation.creationId===creationId)this.pending.get(id)?.abort(Error('MCP sign-in cancelled.'));}

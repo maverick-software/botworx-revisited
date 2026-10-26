@@ -3,6 +3,7 @@ import {recoverEditorPayload} from './editor-draft-recovery';
 import {encodeEditorJournal,decodeEditorJournal,type EditorJournal} from './editor-journal';
 import {editorDraftRecord,editorDraftWrite,editorDraftPayload,editorDraftScope,type EditorDraftRecord,type EditorDraftWrite} from '../src/agent-editor-draft-contracts';
 import {pendingEditors} from './editor-drafts';
+import {localRuntimeUnavailable,localRuntimeUnavailableMessage,localRuntimeUnavailableTag,runtimeErrorMessage,transportFailure} from '../src/local-runtime-connection';
 
 type Bridge={call:<T>(action:string,args?:Record<string,unknown>)=>Promise<T>};
 type Local=Pick<Storage,'getItem'|'setItem'>;
@@ -13,6 +14,8 @@ type Journal=EditorJournal;
 export class DurableEditorDraft{
  private base:EditorDraftRecord|null=null;private value:string|null=null;private rejected:string|null|undefined;private pending:EditorDraftWrite|null=null;private loaded=false;private blocked=false;private error='';private initial?:Promise<void>;private writing?:Promise<void>;private timer?:ReturnType<typeof setTimeout>;private listeners=new Set<(state:DurableDraftState)=>void>();
  private head:string|null|undefined;private retired=false;
+ private disconnected=false;
+ get connectionUnavailable(){return this.disconnected;}
  get isRetired(){return this.retired;}
  readonly key:string;
  constructor(readonly owner:string,readonly scope:string,private bridge:Bridge,private local:Local,private legacy?:string){this.scope=editorDraftScope(scope);this.key='agentopia.editor-draft.'+owner+':'+this.scope;}
@@ -24,7 +27,7 @@ export class DurableEditorDraft{
  private journal(){this.checkHead();if(this.blocked)throw Error(this.error||'The saved agent draft needs recovery.');const row:Journal={version:1,owner:this.owner,scope:this.scope,base:this.base,value:this.value,pending:this.pending,...(this.rejected===undefined?{}:{rejected:this.rejected})};const raw=encodeEditorJournal(row);this.local.setItem(this.key,raw);this.head=raw;}
  recoveryJournal(includeBlocked=false){if(!this.loaded||this.retired||this.blocked&&!includeBlocked)return null;return encodeEditorJournal({version:1,owner:this.owner,scope:this.scope,base:this.base,value:this.value,pending:this.pending,...(this.rejected===undefined?{}:{rejected:this.rejected})});}
  private conflict(){this.blocked=true;throw Error('Another saved revision conflicts with this local draft. Both copies are retained; resolve the draft before replacing either copy.');}
- initialize(){return this.initial??=this.load();}
+ initialize():Promise<void>{if(this.initial)return this.initial;const pending=this.load();this.initial=pending;void pending.catch(()=>{if(this.disconnected&&this.initial===pending)this.initial=undefined;});return pending;}
  retry(){if(this.loaded&&!this.blocked)return this.flush();if(this.writing)return this.writing;this.initial=undefined;this.loaded=false;this.blocked=false;this.error='';this.publish();return this.initialize();}
  private async load(){try{
   const raw=this.local.getItem(this.key);this.head=raw;const receipt=raw===null?null:await verifyEditorRetirement(raw,this.owner,this.key,id=>this.bridge.call('editorRecovery.read',{owner:this.owner,id}));let journal:Journal|null=null;if(raw!==null&&!receipt){journal=decodeEditorJournal(raw,this.owner,this.scope);this.base=this.record(journal.base);this.value=editorDraftPayload(this.owner,this.scope,journal.value);if(Object.hasOwn(journal,'rejected')){if(journal.rejected!==null&&(typeof journal.rejected!=='string'||journal.rejected.length>8000000))throw Error('Invalid rejected-draft recovery copy.');this.rejected=journal.rejected;this.error='The latest draft was retained for recovery. Correct its invalid fields before saving.';}if(journal.pending){this.pending=editorDraftWrite(journal.pending);editorDraftPayload(this.owner,this.scope,this.pending.payload);if(this.pending.scope!==this.scope||this.pending.expectedRevision!==(this.base?.revision??0))throw Error('The local draft write changed revision or editor.');}}
@@ -32,8 +35,8 @@ export class DurableEditorDraft{
   if(journal){if(this.pending){if(saved?.writeId===this.pending.writeId){if(saved.revision!==this.pending.expectedRevision+1||saved.payload!==this.pending.payload)this.conflict();this.base=saved;this.pending=null;}else if((saved?.revision??0)!==this.pending.expectedRevision||saved?.writeId!==this.base?.writeId)this.conflict();}
    else if((saved?.revision??0)!==(this.base?.revision??0)||saved?.writeId!==this.base?.writeId){if((saved?.revision??0)<=(this.base?.revision??0)||this.value!==(this.base?.payload??null))this.conflict();this.base=saved;this.value=saved?.payload??null;}}
   else{if(receipt)checkEditorRetirementMain(receipt,saved);this.base=saved;this.value=saved?.payload??null;const legacy=this.legacy?this.local.getItem(this.legacy):null;if(legacy!==null){const marker=await verifyEditorRetirement(legacy,this.owner,this.legacy!,id=>this.bridge.call('editorRecovery.read',{owner:this.owner,id}));if(marker)checkEditorRetirementMain(marker,saved);else{editorDraftPayload(this.owner,this.scope,legacy);if(saved&&saved.payload!==legacy)this.conflict();this.value=legacy;}}}
-  this.journal();this.loaded=true;if(this.rejected===undefined)this.error='';this.publish();
- }catch(error){this.blocked=true;this.error='The saved draft could not be reconciled: '+String((error as Error).message??error);this.loaded=true;this.publish();throw Error(this.error);}}
+  this.journal();this.loaded=true;this.disconnected=false;if(this.rejected===undefined)this.error='';this.publish();
+ }catch(error){if(localRuntimeUnavailable(error)||transportFailure(error)){this.disconnected=true;this.blocked=false;this.loaded=false;this.error=localRuntimeUnavailableMessage;this.publish();throw Error(localRuntimeUnavailableTag+' '+this.error);}this.disconnected=false;this.blocked=true;this.error='The saved draft could not be reconciled: '+String((error as Error).message??error);this.loaded=true;this.publish();throw Error(this.error);}}
  set(value:string|null){if(this.retired)throw Error('This draft location was retired. Reopen its editor to start another draft.');if(!this.loaded||this.blocked)throw Error(this.error||'Wait for the saved draft to load.');this.checkHead();try{editorDraftPayload(this.owner,this.scope,value);}catch(reason){clearTimeout(this.timer);this.rejected=value;this.error='The latest draft was not saved: '+String((reason as Error).message??reason);try{this.journal();}catch(storageError){this.error+=' The recovery copy could not be stored: '+String((storageError as Error).message??storageError);}this.publish();throw Error(this.error);}this.rejected=undefined;this.value=value;try{this.journal();}catch(error){this.error='The local draft could not be saved: '+String((error as Error).message??error);this.publish();throw error;}this.error='';this.publish();clearTimeout(this.timer);this.timer=setTimeout(()=>{void this.flush().catch(()=>{});},300);}
  async flush():Promise<void>{clearTimeout(this.timer);if(this.retired)return;await this.initialize();this.checkHead();if(this.blocked||this.rejected!==undefined)throw Error(this.error||'The latest draft was not saved. Revise the field or explicitly discard it.');if(this.writing){await this.writing;if(this.state.dirty)return this.flush();return;}
   const work=this.commit();this.writing=work;try{await work;if(this.rejected!==undefined)throw Error(this.error||'The latest draft was not saved.');}finally{this.writing=undefined;this.publish();}
@@ -53,7 +56,7 @@ export class DurableEditorDraft{
    this.journal();try{row=this.record(await this.bridge.call('editorDrafts.write',{owner:this.owner,input:sent}));}
    catch(error){try{row=this.record(await this.bridge.call('editorDrafts.read',{owner:this.owner,scope:this.scope}));}catch{throw error;}if(row?.writeId!==sent.writeId){if((row?.revision??0)!==sent.expectedRevision)this.conflict();throw error;}}
    if(!row||row.writeId!==sent.writeId||row.revision!==sent.expectedRevision+1||row.payload!==sent.payload)this.conflict();this.base=row;this.pending=null;this.journal();if(this.rejected===undefined)this.error='';this.publish();
-  }}catch(error){this.error='The draft save was not acknowledged: '+String((error as Error).message??error);this.publish();throw Error(this.error);}
+  }}catch(error){this.error='The draft save was not acknowledged: '+runtimeErrorMessage(error);this.publish();throw Error(this.error);}
  }
 }
 

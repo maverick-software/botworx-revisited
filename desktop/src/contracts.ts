@@ -42,7 +42,7 @@ export const capabilityOptions=[
 ] as const;
 export type Profile={username:string|null;first_name:string|null;last_name:string|null;company_name:string|null;title:string|null;mobile_number:string|null};
 export type ChatEvent = {scope?:'agent-draft-preview';preview?:{sessionId:string;status?:string;event?:Omit<ChatEvent,'preview'>};requestId:string;conversationId?:string;delta?:string;status?:string;error?:string;kind?:'agent-draft-preview'|'schedule'|'queue'|'agent'|'native'|'native-background'|'native-changes'|'started'|'goal'|'tool'|'plan'|'terminal'|'terminal-session'|'command-permissions'|'workspace'|'workspace-operation';native?:import('./native-contracts').NativeState;fileOperation?:FileOperationView;workspaceChange?:WorkspaceFileChange;workspace?:{id:string;referenceId:string;path:string;error?:string};commandPermissions?:CommandPermissions;ownerId?:string;terminal?:TerminalRun;terminalSession?:TerminalSession;goal?:Goal;goalId?:string;text?:string;tool?:ToolActivity;plan?:WorkspacePlan};
-export type RuntimeStatus = {phase:string;message:string;ready:boolean;recoveryOnly?:boolean};
+export type RuntimeStatus = {phase:string;message:string;ready:boolean;recoveryOnly?:boolean;available?:boolean};
 export type PortableBackupStatus={phase:'idle'|'choosing'|'running';message:string};
 export type PortableBackupResult={destination:string;accounts:number;privateFiles:number;publicFiles:number;publicReferences:number;clipboardImages:number};
 export interface DesktopBridge {

@@ -14,7 +14,8 @@ import {ChromeRuntime} from './chrome-runtime';
 import {chromePluginName,chromeConnectionId} from './chrome-contracts';
 import {spawn} from 'node:child_process';
 import {AgentBrowser} from './agent-browser';
-import {app,BrowserWindow,Notification,protocol,ipcMain,dialog,shell,screen,Menu,globalShortcut} from 'electron';
+import {app,BrowserWindow,Notification,protocol,ipcMain,dialog,shell,screen,Menu,globalShortcut,powerMonitor} from 'electron';
+import {LocalRuntimeConnection,localRuntimeError} from './local-runtime-connection';
 import {readFile,writeFile,mkdir,realpath} from 'node:fs/promises';
 import path from 'node:path';
 import {randomUUID} from 'node:crypto';
@@ -65,6 +66,10 @@ let shuttingDown=false,starting=false,preparingClose=false;
 let closeReady:((value:boolean)=>void)|undefined,closeToken:string|undefined;
 let startupTask:Promise<void>|undefined;
 let sessionReady=false;
+let localConnection:LocalRuntimeConnection|undefined;
+let activeLocalCalls=0;
+function localCallSettled(){activeLocalCalls--;if(!activeLocalCalls&&localConnection?.available===false&&!preparingClose&&!shuttingDown)void localConnection.activitySettled().catch(()=>{});}
+async function observeLocalFailure(error:unknown){if(localConnection)return localConnection.failed(error);throw error;}
 let journalInventory:EditorJournalInventory|undefined,journalInventoryError:unknown;
 const storageControl=new StorageControl();
 const backupControl=new BackupControl({
@@ -104,7 +109,8 @@ async function start(){
   };
   const notifications=new ScheduledNotifications(secrets,{owner:()=>broker?.notificationOwner??null,runs:owner=>broker!.scheduled.store.runs(owner),enabled:owner=>readNotificationPreferences(secrets,owner).tasks,show:(name,status,conversationId,owner)=>{if(owner)showNotification(owner,conversationId,name,status==='completed'?'Your scheduled task has a new result.':'Your scheduled task needs attention.');}});
   const responses=new ResponseNotifications(secrets,{owner:()=>broker?.notificationOwner??null,foreground:()=>!!window?.isFocused()&&!window.isMinimized(),scheduled:async(owner,id)=>(await broker!.scheduled.store.runs(owner)).some(run=>run.requestId===id),show:alert=>showNotification(alert.owner,alert.conversationId,alert.kind==='permission'?'Permission needed':alert.kind==='question'?'Answer needed':alert.kind==='goal'?'Goal complete':alert.status==='completed'?'Response ready':'Response needs attention',alert.status==='pending'?'Open Agentopia to review the waiting request.':'Open Agentopia to review the saved result.',alert.child)});
-  broker=new Broker(state.env,secrets,providers,event=>{if(!event.kind&&event.ownerId&&['completed','failed','interrupted','cancelled'].includes(event.status??''))computer?.finishRequest(event.ownerId,event.requestId);window?.webContents.send('agentopia:chat',event);if(!event.kind&&['completed','failed','interrupted'].includes(event.status??'')||event.kind==='goal'||event.kind==='native'||event.kind==='native-background'||event.kind==='tool')void responses.changed(event).catch(error=>console.warn('Response notification unavailable:',error.message));if(event.kind==='schedule'&&event.ownerId)void notifications.changed(event.ownerId).catch(error=>console.warn('Scheduled notification unavailable:',error.message));},[app.getPath('userData'),path.join(app.getPath('appData'),'Agentopia'),path.dirname(app.getPath('exe')),resources,...await registeredPrivateRuntimeStorage()],path.join(app.getPath('userData'),'attachments'),path.join(resources,'runtime/terminal.ps1'));broker.tools.browser=new AgentBrowser(workspaceBrowser!);workspaceBrowser!.configureAgents(async(owner,conversation,scope)=>{if((await broker!.identity()).id!==owner)return false;const preview=scope==='agent-draft-preview',result=await broker!.admin.from(preview?'desktop_preview_sessions':'conversation_sessions').select(preview?'id':'conversation_id').eq(preview?'id':'conversation_id',conversation).eq('user_id',owner).maybeSingle();if(result.error)throw new Error('This browser conversation could not be checked.');return (await broker!.identity()).id===owner&&!!result.data;},async(owner,id)=>{const result=await broker!.admin.from('desktop_tool_calls').select('conversation_id').eq('user_id',owner).eq('name','browser_open').eq('status','completed').eq('result->>tab_id',id).limit(1).maybeSingle();if(result.error)throw new Error('Saved browser ownership could not be checked.');return result.data?.conversation_id;},async(owner,ids)=>{const result=await broker!.admin.from('conversation_sessions').select('conversation_id,title').eq('user_id',owner).in('conversation_id',ids);if(result.error)throw new Error('Browser chat titles could not be checked.');return Object.fromEntries((result.data??[]).map(row=>[row.conversation_id,(row.title||'Untitled chat').split('\n')[0].slice(0,100)]));});broker.tools.remote!.chrome=chromeRuntime;broker.tools.computer=computer;broker.native.commandIndicator={show:async(owner,key)=>{if(!computer?.indicator)throw Error('The native command indicator is unavailable.');await computer.indicator.showDesktop(owner,key);},end:(owner,key)=>computer?.indicator?.end(owner,key)};broker.previewRunner.native.commandIndicator=broker.native.commandIndicator;await broker.initialize();
+  broker=new Broker(state.env,secrets,providers,event=>{if(!event.kind&&event.ownerId&&['completed','failed','interrupted','cancelled'].includes(event.status??'')){computer?.finishRequest(event.ownerId,event.requestId);if(localConnection?.available===false&&!preparingClose&&!shuttingDown)void localConnection.activitySettled().catch(()=>{});}window?.webContents.send('agentopia:chat',event);if(!event.kind&&['completed','failed','interrupted'].includes(event.status??'')||event.kind==='goal'||event.kind==='native'||event.kind==='native-background'||event.kind==='tool')void responses.changed(event).catch(error=>console.warn('Response notification unavailable:',error.message));if(event.kind==='schedule'&&event.ownerId)void notifications.changed(event.ownerId).catch(error=>console.warn('Scheduled notification unavailable:',error.message));},[app.getPath('userData'),path.join(app.getPath('appData'),'Agentopia'),path.dirname(app.getPath('exe')),resources,...await registeredPrivateRuntimeStorage()],path.join(app.getPath('userData'),'attachments'),path.join(resources,'runtime/terminal.ps1'));broker.tools.browser=new AgentBrowser(workspaceBrowser!);workspaceBrowser!.configureAgents(async(owner,conversation,scope)=>{if((await broker!.identity()).id!==owner)return false;const preview=scope==='agent-draft-preview',result=await broker!.admin.from(preview?'desktop_preview_sessions':'conversation_sessions').select(preview?'id':'conversation_id').eq(preview?'id':'conversation_id',conversation).eq('user_id',owner).maybeSingle();if(result.error)throw new Error('This browser conversation could not be checked.');return (await broker!.identity()).id===owner&&!!result.data;},async(owner,id)=>{const result=await broker!.admin.from('desktop_tool_calls').select('conversation_id').eq('user_id',owner).eq('name','browser_open').eq('status','completed').eq('result->>tab_id',id).limit(1).maybeSingle();if(result.error)throw new Error('Saved browser ownership could not be checked.');return result.data?.conversation_id;},async(owner,ids)=>{const result=await broker!.admin.from('conversation_sessions').select('conversation_id,title').eq('user_id',owner).in('conversation_id',ids);if(result.error)throw new Error('Browser chat titles could not be checked.');return Object.fromEntries((result.data??[]).map(row=>[row.conversation_id,(row.title||'Untitled chat').split('\n')[0].slice(0,100)]));});broker.tools.remote!.chrome=chromeRuntime;broker.tools.computer=computer;broker.native.commandIndicator={show:async(owner,key)=>{if(!computer?.indicator)throw Error('The native command indicator is unavailable.');await computer.indicator.showDesktop(owner,key);},end:(owner,key)=>computer?.indicator?.end(owner,key)};broker.previewRunner.native.commandIndicator=broker.native.commandIndicator;await broker.initialize();
+  localConnection?.close();localConnection=new LocalRuntimeConnection({health:()=>runtime!.connectionHealthy(),recover:async()=>{if(preparingClose||backupControl.busy||storageControl.busy||activeLocalCalls)throw Error('Finish pending local requests or workspace maintenance before reconnecting.');await broker!.recoverLocalRuntime(()=>runtime!.reconnectExisting());},publish:(available,message)=>runtime!.connectionState(available,message)});
   sessionReady=true;window?.webContents.send('agentopia:runtime',runtime!.state);
  }catch(error){if(upgradeReview&&!sessionReady){await upgradeReview.shutdown();upgradeReview=undefined;}runtime!.state={phase:'error',message:(error as Error).message,ready:false};window?.webContents.send('agentopia:runtime',runtime!.state);}
  finally{starting=false;}
@@ -140,7 +146,9 @@ if(ownsInstance)app.whenReady().then(async()=>{
  window.webContents.on('render-process-gone',()=>{void broker?.tools.stopComputer().catch(()=>{});broker?.workspaceMonitor.close();broker?.editor.clearLeases();});
  window.webContents.on('will-navigate',(event,url)=>{const target=new URL(url);if(target.protocol!=='agentopia:'||target.hostname!=='app')event.preventDefault();});
  window.webContents.on('will-attach-webview',event=>event.preventDefault());
- runtime=new Runtime(resources,app.getPath('userData'),state=>{if(!state.ready&&!state.recoveryOnly)window?.webContents.send('agentopia:runtime',state);},destination=>captureAutomaticUpgradeRecovery({profile:app.getPath('userData'),home:app.getPath('home'),databaseBackup:destination,restoreHelper:path.join(resources,'runtime/Restore-Agentopia.ps1'),privatePaths:[resources,path.dirname(app.getPath('exe'))],progress:message=>{runtime!.state={phase:'backup',message,ready:false};window?.webContents.send('agentopia:runtime',runtime!.state);}}));
+ runtime=new Runtime(resources,app.getPath('userData'),state=>{if(!state.ready&&!state.recoveryOnly||sessionReady&&state.available!==undefined)window?.webContents.send('agentopia:runtime',state);},destination=>captureAutomaticUpgradeRecovery({profile:app.getPath('userData'),home:app.getPath('home'),databaseBackup:destination,restoreHelper:path.join(resources,'runtime/Restore-Agentopia.ps1'),privatePaths:[resources,path.dirname(app.getPath('exe'))],progress:message=>{runtime!.state={phase:'backup',message,ready:false};window?.webContents.send('agentopia:runtime',runtime!.state);}}));
+ const checkConnection=()=>{if(sessionReady&&!preparingClose&&!shuttingDown)void localConnection?.check().catch(()=>{});};
+ powerMonitor.on('resume',checkConnection);window.on('focus',checkConnection);
  voice=new LocalVoice(resources,app.getPath('userData'),runtime);
  window.webContents.session.setPermissionRequestHandler((contents,permission,callback,details)=>{
   const trusted=contents===window?.webContents&&details.requestingUrl.startsWith('agentopia://app/');
@@ -151,9 +159,9 @@ if(ownsInstance)app.whenReady().then(async()=>{
   if(event.senderFrame!==window?.webContents.mainFrame||!event.senderFrame?.url.startsWith('agentopia://app/'))throw new Error('Untrusted desktop caller.');
   if(!broker||!args||typeof args!=='object'||JSON.stringify(args).length>maxAttachmentRequestBytes)throw new Error('Invalid attachment request.');
   if(backupControl.busy||preparingClose)throw new Error('Wait for the backup or close operation before attaching files.');
-  const value=args as {owner:unknown;items:import('./contracts').AttachmentInput[]};return broker.attach(value.owner,value.items);
+  try{await localConnection?.require();activeLocalCalls++;try{const value=args as {owner:unknown;items:import('./contracts').AttachmentInput[]};return await broker.attach(value.owner,value.items);}finally{localCallSettled();}}catch(error){return observeLocalFailure(error);}
  });
- ipcMain.handle('agentopia:call',async(event,action:unknown,args:unknown)=>{
+ const desktopCall=async(event:Electron.IpcMainInvokeEvent,action:unknown,args:unknown)=>{
   if(event.senderFrame!==window?.webContents.mainFrame||!event.senderFrame?.url.startsWith('agentopia://app/'))throw new Error('Untrusted desktop caller.');
   if(typeof action!=='string'||action.length>80||args===null||(args!==undefined&&(typeof args!=='object'||Array.isArray(args)))||JSON.stringify(args??{}).length>(action==='voice.transcribe'?5500000:action==='runtime.backup'?4*1024**2+64:action.startsWith('workspace.editor.')?1000000:desktopRequestLimit(action)))throw new Error('Invalid desktop request.');
   if(action==='window.theme'){const dark=(args as Record<string,unknown>)?.dark;if(typeof dark!=='boolean')throw new Error('Invalid window theme.');window!.setTitleBarOverlay({color:dark?'#1a2226':'#eef1f4',symbolColor:dark?'#ececec':'#202123',height:32});return;}
@@ -172,7 +180,7 @@ if(ownsInstance)app.whenReady().then(async()=>{
   if(action==='runtime.status')return (runtime!.state.ready||runtime!.state.recoveryOnly)&&!sessionReady?{phase:'session',message:'Restoring your local session…',ready:false}:runtime!.state;
   if(action==='runtime.backup.status'){if(!broker||(await broker.identity()).admin!==true)throw new Error('Administrator access is required.');return backupControl.status();}
   if(backupControl.busy)throw new Error('Wait for the workspace backup to finish before changing application data.');
-  if(action==='runtime.retry'){if(upgradeReview)throw Error('Finish workspace recovery before continuing the upgrade.');if(!runtime!.state.ready)startupTask=start();return;}
+  if(action==='runtime.retry'){if(upgradeReview)throw Error('Finish workspace recovery before continuing the upgrade.');if(runtime!.state.ready&&localConnection){if(!await localConnection.check(true,true))throw localRuntimeError();}else if(!runtime!.state.ready&&!starting)startupTask=start();return;}
   if(action==='runtime.prerequisites'){await shell.openExternal('https://learn.microsoft.com/windows/wsl/install');return;}
   if(action==='runtime.diagnostics'){
    const result=await dialog.showSaveDialog(window!,{title:'Export diagnostics',defaultPath:'agentopia-diagnostics.json'});
@@ -186,6 +194,12 @@ if(ownsInstance)app.whenReady().then(async()=>{
    return storageControl.run(()=>selected.call(action,args as Record<string,unknown>|undefined));
   }
   if(!broker)throw new Error('The local database is still starting.');
+  if(localConnection?.available===false){
+   if(action==='computer.stop'||action==='voice.stop'){const owner=broker.notificationOwner;if(!owner)throw Error('Sign in to the account that started this work before stopping it.');if(action==='computer.stop'){await broker.tools.stopComputer(owner);window?.webContents.send('agentopia:command','computer-stopped');return computer!.status(owner);}microphoneUntil=0;await voice!.stop();return;}
+   const stopped=await broker.offlineControl(action,args as Record<string,unknown>|undefined);if(stopped.handled){void localConnection.check(true,true).catch(()=>{});return stopped.value;}
+  }
+  await localConnection?.require();
+  activeLocalCalls++;try{return await(async()=>{
   if(action==='notifications.status'){await broker.identity();return {supported:Notification.isSupported()};}
   if(action==='permissions.commands'||action==='permissions.full'){
    const owner=await broker.identity();if(!owner.admin)throw new Error('Administrator access is required for Windows commands.');const full=action==='permissions.full';
@@ -256,8 +270,10 @@ if(ownsInstance)app.whenReady().then(async()=>{
    });
   }
   if(action==='conversations.manage'&&(args as any)?.action==='delete'){const owner=await broker.identity(),result=await broker.call(action,args as Record<string,unknown>);await workspaceBrowser!.forgetConversation(owner.id,String((args as any).conversationId),async()=>{if((await broker!.identity()).id!==owner.id)throw new Error('Your Agentopia account changed.');});return result;}
-  return broker.call(action,args as Record<string,unknown>|undefined);
- });
+  return await broker.call(action,args as Record<string,unknown>|undefined);
+  })();}finally{localCallSettled();}
+ };
+ ipcMain.handle('agentopia:call',async(event,action:unknown,args:unknown)=>{try{return await desktopCall(event,action,args);}catch(error){return observeLocalFailure(error);}});
  // Inspect the existing private origin before app scripts or a runtime upgrade
  // can change it. A capture failure holds startup and leaves the source intact.
  if(!pendingRecovery){journalInventory=new EditorJournalInventory(app.getPath('userData'));await window.loadURL('agentopia://app/draft-recovery-bootstrap');try{await preserveEditorJournalStorage(journalInventory,window.webContents,true);}catch(error){journalInventoryError=error;}}
@@ -274,7 +290,7 @@ if(ownsInstance)app.whenReady().then(async()=>{
    if(!flushed&&broker){const answer=await dialog.showMessageBox(window!,{type:'warning',title:'Drafts still saving',message:'The latest edits and unsent messages could not be saved to local draft storage.',detail:'Keep Agentopia open to retry, or close with only the last acknowledged draft.',buttons:['Keep open','Close anyway'],defaultId:0,cancelId:0});if(answer.response===0){preparingClose=false;backupControl.keepOpen();storageControl.keepOpen();return;}}
    if(window)await saveWindow(app.getPath('userData'),{bounds:window.getNormalBounds(),maximized:window.isMaximized()}).catch(()=>{});
    shuttingDown=true;window?.webContents.send('agentopia:runtime',{phase:'shutdown',message:'Saving pending responses and stopping your runtime…',ready:false});
-   microphoneUntil=0;workspaceBrowser?.stop();recoveryController?.abort();
+   localConnection?.close();microphoneUntil=0;workspaceBrowser?.stop();recoveryController?.abort();
    try{globalShortcut.unregisterAll();await workspaceBrowser?.flush().catch(()=>{});await startupTask;await upgradeReview?.shutdown();await voice?.stop();await broker?.shutdown();await workspaceBrowser?.flush().catch(()=>{});await chromeRuntime?.close();await runtime?.stop();}catch{}finally{computer?.indicator?.dispose();app.exit(0);}
   })();
  });

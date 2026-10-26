@@ -27,8 +27,9 @@ export class Runtime {
  private maintenance=new Set<Promise<string>>();
  private backupTask?:Promise<string>;
  private binding?:Promise<RuntimeBinding>;private verified=false;
+ private environment?:Record<string,string>;
  private selection(){return this.binding??=loadRuntimeBinding(this.data);}
- private notify(phase:string,message:string,ready=false){this.state={phase,message,ready};this.progress(this.state);}
+ private notify(phase:string,message:string,ready=false){this.state={phase,message,ready,...(ready?{available:true}:{})};this.progress(this.state);}
  async wsl(args:string[],timeout=240000){
   try{const result=await exec('wsl.exe',args,{windowsHide:true,timeout,maxBuffer:16*1024*1024,encoding:'utf8'});
    return result.stdout.replaceAll('\0','').replace(/^\uFEFF/,'');
@@ -41,6 +42,20 @@ export class Runtime {
   if(!coreServicesReady(state))throw new Error('The required local Supabase services did not become healthy. Export diagnostics and retry.');
   const health=await fetch(state.env.API_URL+'/auth/v1/health',{signal:AbortSignal.timeout(15000)});
   if(!health.ok)throw new Error('Local authentication is not ready. Choose Retry.');return state.env as Record<string,string>;
+ }
+ async connectionHealthy(){
+  if(!this.verified||!this.environment?.API_URL)return false;
+  const address=new URL(this.environment.API_URL);if(address.protocol!=='http:'||!['127.0.0.1','localhost','[::1]'].includes(address.hostname))return false;
+  try{const headers={apikey:this.environment.SERVICE_ROLE_KEY,Authorization:'Bearer '+this.environment.SERVICE_ROLE_KEY},rows=await Promise.all([fetch(new URL('/auth/v1/health',address),{signal:AbortSignal.timeout(2500)}),fetch(new URL('/rest/v1/agents?select=id&limit=0',address),{headers,signal:AbortSignal.timeout(2500)})]);return rows.every(row=>row.ok);}catch{return false;}
+ }
+ connectionState(available:boolean,message:string){this.state={...this.state,available,message};this.progress(this.state);}
+ async reconnectExisting(){
+  if(!this.verified||!this.state.ready||!this.environment)throw Error('Finish startup before reconnecting local services.');
+  const {instanceId}=await this.selection();if(!instanceId)throw Error('Reopen Agentopia to verify this older runtime before reconnecting.');
+  const previous=this.environment;
+  const port=Number(new URL(previous.DB_URL).port);if(!Number.isSafeInteger(port)||port<1||port>65535)throw Error('The existing database port could not be verified.');
+  const work=(async()=>{const result=JSON.parse(await this.command(['python3','/opt/agentopia/database_state.py','--resume-existing',instanceId,String(port)],360000));if(!result.success||result.coreServicesHealthy!==6)throw Error('The existing local services did not reconnect.');const current=await this.healthyEnvironment();for(const key of ['API_URL','DB_URL','SERVICE_ROLE_KEY','ANON_KEY'])if(current[key]!==previous[key])throw Error('The local connection identity changed. Reopen Agentopia before continuing.');})();
+  const maintenance=work.then(()=>'');this.maintenance.add(maintenance);try{await maintenance;}finally{this.maintenance.delete(maintenance);}
  }
  async start():Promise<{env:Record<string,string>;accounts:number;recoveryOnly?:boolean}>{
   const recovery=await recoveryStartup(this.data);
@@ -111,6 +126,7 @@ export class Runtime {
   const info=JSON.parse(await this.command(['python3','/opt/agentopia/manage.py','provision']));
   await writeFile(path.join(this.data,'schema-release.json'),version);
   const env=await this.healthyEnvironment();
+  this.environment=env;
   await completeRecoveryStartup(recovery);
   this.notify('ready','Your local database is ready.',true);
   return {env,accounts:info.accounts as number};

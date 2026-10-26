@@ -108,11 +108,11 @@ export class CodexHarness {
   return [...found.values()];
  }
  private working(w:Worker){return this.foregroundWorking(w)||!!w.backgroundCheck||this.pendingBackgrounds(w).length>0;}
- private markBackground(record:Running,entry:NativeItem,status:NonNullable<NativeItem['background']>,note?:string){
+ private markBackground(record:Running,entry:NativeItem,status:NonNullable<NativeItem['background']>,note?:string,localOnly=false){
   const item=entry.item;if(item.type!=='commandExecution')return;
   let changed=false;for(const state of this.backgroundStates(record.state))for(const row of state.items)if(row.threadId===entry.threadId&&row.turnId===entry.turnId&&row.item.id===item.id&&row.item.type==='commandExecution'&&row.item.processId===item.processId){if(row.background!==status||row.backgroundNote!==note){row.background=status;row.backgroundNote=note;changed=true;}}
   if(status!=='running')record.worker.commandIndicators?.get(JSON.stringify([entry.threadId,item.id]))?.();
-  if(changed)this.publish(record);
+  if(changed){if(localOnly)this.publishLocally(record);else this.publish(record);}
  }
  private async terminalList(w:Worker,threadId:string){
   const data:Array<{itemId:string;processId:string}>=[],seen=new Set<string>();let cursor:string|null=null;
@@ -286,9 +286,12 @@ export class CodexHarness {
   }finally{if(worker&&preparing)worker.preparing=false;if(running){await this.pauseNativeGoal(running.worker,running.state,'The current execution stopped.').catch(()=>this.dispose(running!.worker));if(running.turnRunning){running.controller.abort();await running.worker.client.request('turn/interrupt',{threadId:running.state.threadId,turnId:running.state.turnId}).catch(()=>{});}running.rootFinished=true;if(running.worker.current===running)running.worker.current=undefined;if(running.timer){clearTimeout(running.timer);running.timer=undefined;}for(const [id,pending] of running.waiting){const approval=running.state.approvals.find(a=>a.id===id);if(approval?.threadId===running.state.threadId){pending.resolve({decision:'cancel'});running.waiting.delete(id);approval.status='interrupted';}}await running.save.catch(()=>{});await this.persist(running).catch(()=>{});this.running.delete(request.id);}if(worker){if(running)this.settle(worker);else if(preparing)await this.dispose(worker);}}
  }
 
- private publish(r:Running){
+ private publishLocally(r:Running){
   this.wake(r.worker);if(r.ended)return;const root=r.parent??r;
   this.emit(root.owner,{kind:root.rootFinished?'native-background':'native',requestId:root.request.id,conversationId:root.conversation,native:structuredClone(root.state)});
+ }
+ private publish(r:Running){
+  this.publishLocally(r);if(r.ended)return;const root=r.parent??r;
   if(!root.timer)root.timer=setTimeout(()=>{root.timer=undefined;root.save=root.save.then(()=>this.persist(root)).catch(error=>{if(!root.rootFinished)root.reject(error);});},200);
  }
  private async persist(r:Running){const result=checked(await this.table('desktop_codex_turns').update({thread_id:r.state.threadId,turn_id:r.state.turnId||null,state:r.state,agent_references:r.request.agent_references??null,updated_at:new Date().toISOString()}).eq('request_id',r.request.id).eq('user_id',r.owner));const count=r.state.goalTurns??0;if(r.options.goalId&&Number.isInteger(r.request.nativeGoal?.turnsUsed)&&count>(r.goalSavedTurns??0)){const goal=checked(await this.db.from('desktop_goals').update({turns_used:r.request.nativeGoal.turnsUsed+count,updated_at:new Date().toISOString()}).eq('id',r.options.goalId).eq('user_id',r.owner).select('*').single());r.goalSavedTurns=count;this.emit(r.owner,{kind:'goal',requestId:r.request.id,conversationId:r.conversation,goal:structuredClone(goal)});}return result;}
@@ -544,6 +547,29 @@ export class CodexHarness {
   await r.worker.client.request('turn/steer',{threadId:r.state.threadId,expectedTurnId,clientUserMessageId:id,input:[{type:'text',text:chatDeliveryText(text,source),text_elements:[]}]});
   r.state.steering.push({id,text,...(source?{source}: {})});this.publish(r);await this.persist(r);
  }
+ declineLocally(owner:string,requestId:string,id:string,decision:string){
+  if(decision!=='decline'&&decision!=='cancel')throw Error('Only Deny or Cancel is available while local services are disconnected.');
+  const base=this.contexts.get(requestId)??this.running.get(requestId),r=base?.worker?.report?.waiting.has(id)?base.worker.report:base,a=r?.state.approvals.find(a=>a.id===id&&a.status==='pending'),waiter=r?.waiting.get(id);
+  if(!r||r.owner!==owner||r.worker.owner!==owner||r.ended||!a||a.kind==='input'||!waiter)throw Error('This review is no longer waiting in your account.');
+  r.waiting.delete(id);a.status='answered';waiter.resolve({decision});this.publishLocally(r);
+ }
+ async cancelChildLocally(owner:string,requestId:string,threadId:string,turnId:string){
+  const r=this.contexts.get(requestId),c=r?.worker.children.get(threadId);
+  if(!r||r.owner!==owner||r.worker.owner!==owner||r.ended||c?.root!==r||c.view.turnId!==turnId||c.view.status!=='running'||c.stopping)throw Error('This child is no longer running in your account at this turn.');
+  c.stopping=true;c.controller.abort();this.cancelWaiting(r,threadId);c.view.delivery='failed';
+  try{await this.pauseNativeGoal(r.worker,c.view.state,'Stopped by you.');if(c.turnRunning)await r.worker.client.request('turn/interrupt',{threadId,turnId});await r.worker.client.request('thread/backgroundTerminals/clean',{threadId});
+   if((await this.terminalList(r.worker,threadId)).length)throw Error('The child has not confirmed that its commands stopped. Inspect its activity.');
+   for(const entry of c.view.state.items)if(entry.threadId===threadId&&entry.item.type==='commandExecution'&&entry.item.status==='inProgress'&&!entry.completed)this.markBackground(r,entry,'stopped','Stopped by you.',true);
+   c.view.status='cancelled';c.view.error=undefined;
+  }catch(error){c.view.error=(error as Error).message;throw error;}finally{c.stopping=false;this.publishLocally(r);}
+ }
+ async stopBackgroundLocally(owner:string,requestId:string,threadId:string,itemId:string,processId:string){
+  const r=this.contexts.get(requestId),entry=r&&this.pendingBackgrounds(r.worker).find(c=>c.record===r&&c.entry.threadId===threadId&&c.entry.item.id===itemId&&c.entry.item.type==='commandExecution'&&c.entry.item.processId===processId)?.entry;
+  if(!r||r.owner!==owner||r.worker.owner!==owner||r.ended||r.worker.disposing||!entry)throw Error('This command is unavailable in your chat.');
+  if(!(await this.terminalList(r.worker,threadId)).some(t=>t.itemId===itemId&&t.processId===processId))throw Error('This command already exited or its native identity changed.');
+  const result=await r.worker.client.request('thread/backgroundTerminals/terminate',{threadId,processId});this.markBackground(r,entry,result.terminated?'stopped':'exited',result.terminated?'Stopped by you.':undefined,true);return {terminated:!!result.terminated};
+ }
+ async cancelReportLocally(owner:string,requestId:string,id:string){const r=this.contexts.get(requestId),report=r?.worker.report;if(!r||r.owner!==owner||r.worker.owner!==owner||report?.parent!==r||report.report?.id!==id||report.ended)throw Error('This report is no longer running in your account.');report.controller.abort();this.cancelWaiting(report,report.state.threadId);await this.pauseNativeGoal(report.worker,report.state,'Report stopped by you.');await report.worker.client.request('turn/interrupt',{threadId:report.state.threadId,turnId:report.state.turnId});}
  async answer(owner:string,requestId:string,id:string,value:any,administrator=false){const base=this.contexts.get(requestId)??this.running.get(requestId),r=base?.worker?.report?.waiting.has(id)?base.worker.report:base,approval=r?.state.approvals.find(a=>a.id===id&&a.status==='pending'),waiter=r?.waiting.get(id);if(!r||r.owner!==owner||!approval||!waiter)throw new Error('This native request is no longer waiting for an answer.');await this.guard(owner);if(r.validate)await r.validate();if(r.ended||!r.waiting.has(id))throw new Error('This native request is no longer waiting for an answer.');if(approval.kind!=='input'&&value?.decision==='accept'){if(!administrator||this.currentAdmin&&!await this.currentAdmin(owner))throw new Error('Administrator access is required for native commands and file approvals.');if(r.ended||!r.waiting.has(id))throw new Error('This native request is no longer waiting for an answer.');}let result:unknown;
   if(approval.kind==='input'){const answers:Record<string,{answers:string[]}>={};for(const q of approval.questions??[]){const answer=value?.answers?.[q.id];if(typeof answer!=='string'||answer.length>10000)throw new Error('Answer each question before submitting.');answers[q.id]={answers:[answer]};}result={answers};}
   else {if(!['accept','decline','cancel'].includes(value?.decision))throw new Error('Choose an approval decision.');result={decision:value.decision};}

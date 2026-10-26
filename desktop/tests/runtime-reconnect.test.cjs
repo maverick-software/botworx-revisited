@@ -1,0 +1,15 @@
+const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
+const {Runtime}=require(path.join(process.env.AGENTOPIA_PREVIEW_BUILD,'runtime.js'));
+function fixture(){const events=[],runtime=new Runtime('unused-resources','unused-data',status=>events.push(status)),environment={API_URL:'http://127.0.0.1:57321',DB_URL:'postgres://fixture@127.0.0.1:57322/postgres',SERVICE_ROLE_KEY:'fixture-role',ANON_KEY:'fixture-anon'},commands=[];Object.assign(runtime,{state:{phase:'ready',message:'Ready',ready:true},verified:true,environment,binding:Promise.resolve({format:1,distribution:'AgentopiaRuntime-private',instanceId:'11111111-1111-4111-8111-111111111111'}),command:async args=>{commands.push(args);return JSON.stringify({success:true,coreServicesHealthy:6});},healthyEnvironment:async()=>({...environment})});return {runtime,events,environment,commands};}
+test('a stale ready runtime resumes only its already bound existing services and retains readiness',async()=>{
+ const f=fixture();await f.runtime.reconnectExisting();assert.deepEqual(f.commands,[['python3','/opt/agentopia/database_state.py','--resume-existing','11111111-1111-4111-8111-111111111111','57322']]);assert.equal(f.runtime.state.ready,true);assert.equal(f.runtime.environment,f.environment);assert.equal(f.runtime.maintenance.size,0);
+ f.runtime.connectionState(false,'Disconnected');assert.equal(f.runtime.state.ready,true);assert.equal(f.runtime.state.available,false);f.runtime.connectionState(true,'Connected');assert.equal(f.events.length,2);
+});
+test('existing reconnect refuses an unbound runtime or changed service identity without replacing its environment',async()=>{
+ const f=fixture();f.runtime.binding=Promise.resolve({format:1,distribution:'AgentopiaRuntime'});await assert.rejects(f.runtime.reconnectExisting(),/Reopen Agentopia/);assert.deepEqual(f.commands,[]);
+ f.runtime.binding=Promise.resolve({format:1,distribution:'AgentopiaRuntime-private',instanceId:'11111111-1111-4111-8111-111111111111'});f.runtime.healthyEnvironment=async()=>({...f.environment,SERVICE_ROLE_KEY:'changed-fixture'});await assert.rejects(f.runtime.reconnectExisting(),/identity changed/);assert.equal(f.runtime.environment,f.environment);assert.equal(f.runtime.maintenance.size,0);
+});
+test('connection health includes a zero-row database read and treats database unavailability as disconnected',async()=>{
+ const f=fixture(),original=global.fetch,requests=[];let databaseUp=false;global.fetch=async(url,options)=>{requests.push({path:url.pathname+url.search,headers:options.headers});return {ok:url.pathname.includes('/auth/')||databaseUp};};
+ try{assert.equal(await f.runtime.connectionHealthy(),false);databaseUp=true;assert.equal(await f.runtime.connectionHealthy(),true);assert.equal(requests.filter(r=>r.path==='/rest/v1/agents?select=id&limit=0').length,2);assert(requests.filter(r=>r.path.startsWith('/rest/')).every(r=>r.headers.apikey===f.environment.SERVICE_ROLE_KEY));}finally{global.fetch=original;}
+});

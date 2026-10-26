@@ -128,6 +128,7 @@ export class Broker {
  private cancelledQueued=new Set<string>();
  private pausedGoals=new Set<string>();
  private goalScopes=new Map<string,string|null>();
+ private runningGoals=new Map<string,{owner:string;goal:Goal}>();
  private goals=new Map<string,Promise<void>>();private startingGoals=new Set<string>();private closing=false;
  readonly files:WorkspaceFiles;
  private chatWorkspaceSkills:ChatWorkspaceSkills;
@@ -928,7 +929,47 @@ export class Broker {
  private async manageConversation(user:Identity,args:Record<string,unknown>){if(args.action==='delete')await this.native.stopConversation(user.id,uuid(args.conversationId));const plan=args.action==='delete'?await this.tools.planning.get(user.id,uuid(args.conversationId)):null;const result=await this.terminal.changeConversations(user.id,args.action==='delete'?[uuid(args.conversationId)]:[],async()=>must(await this.admin.rpc('desktop_manage_conversation',{
     p_user:user.id,p_conversation:uuid(args.conversationId),p_action:text(args.action,20),p_title:args.title===undefined?null:text(args.title,120),
    })));if(plan)await this.tools.planning.removeDraft(user.id,plan.id);if(args.action==='delete')await this.drafts.remove(user.id,'conversation:'+uuid(args.conversationId));return result;}
- private storageBusy(){return !!(this.active.size||this.startingChats.size||this.goals.size||this.scopeChanging||this.agentMutations.size||this.nativeControls||this.changingPreviewScopes?.size||this.editorDraftControls||this.editorDrafts?.busy||this.previewAdmissions?.busy||this.previews?.busy||this.previewRunner?.native.busy||this.agentReports?.busy||this.native.busy||this.terminal.busy||this.assignments.queue.size||this.scheduledControls||this.scheduled.scheduler.busy||this.scheduledQueue.busy||this.chatQueue.list(this.currentOwner??'').length);}
+ // Offline controls use only the current session and exact live request identities.
+ // They can remove authority or stop work; they never submit or replay an action.
+ async offlineControl(action:string,args:Record<string,unknown>={}){
+  if(!['composio.mcp.cancel','agentSettings.mcp.oauth.cancel','creationTools.connection.cancel','chat.cancel','goals.pause','tools.decide','agentDraftPreview.tools.decide','terminal.cancel','terminal.session.stop','agentDraftPreview.stop','native.answer','native.child.control','native.background.stop','native.report.cancel','agentDraftPreview.native.answer','agentDraftPreview.native.child.control','agentDraftPreview.native.background.stop'].includes(action))return {handled:false};
+  const owner=this.currentOwner;if(!owner||this.signedOut||this.closing)throw Error('Sign in to the account that started this work before stopping it.');
+  if(args.owner!==undefined&&args.owner!==owner)throw Error('This work belongs to another account.');
+  if(action==='composio.mcp.cancel'){this.mcpOAuth.cancelPending({owner,accountConnector:'composio'});return {handled:true};}
+  if(action==='agentSettings.mcp.oauth.cancel'){this.mcpOAuth.cancelPending({owner,agent:uuid(args.agentId),connection:uuid(args.id)});return {handled:true};}
+  if(action==='creationTools.connection.cancel'){if(!this.creationSetupOperations||!Number.isSafeInteger(args.revision)||Number(args.revision)<1)throw Error('This connection setup is no longer pending.');const value=await this.creationSetupOperations.cancel({owner,creationId:uuid(args.creationId).toLowerCase(),revision:Number(args.revision),connectionId:uuid(args.connectionId).toLowerCase(),operationId:uuid(args.operationId).toLowerCase()});return {handled:true,value};}
+  if(action==='chat.cancel'){
+   const id=uuid(args.requestId),active=this.active.get(id),starting=this.startingChats.get(id);
+   if(active?.userId!==owner&&starting?.userId!==owner)throw Error('This response is no longer running in your account.');
+   if(starting?.userId===owner){starting.cancelled=true;starting.controller.abort();}if(active?.userId===owner)active.controller.abort();
+   await Promise.allSettled([...(active?.userId===owner?[active.done]:[]),this.agentReports?.cancelParent(owner,id)]);return {handled:true};
+  }
+  if(action==='goals.pause'){
+   const id=uuid(args.id),running=this.runningGoals.get(id);if(!running||running.owner!==owner)throw Error('This goal is no longer running in your account.');
+   this.pausedGoals.add(id);this.goalQueue.cancel(id);
+   for(const row of this.startingChats.values())if(row.userId===owner&&row.goalId===id){row.cancelled=true;row.controller.abort();}
+   for(const row of this.active.values())if(row.userId===owner&&row.goalId===id)row.controller.abort();
+   const value={...running.goal,status:'paused' as const,note:'Paused on this computer. Reconnect and inspect its saved status before resuming.'};this.emitOwned(owner,{kind:'goal',requestId:'',goal:value});return {handled:true,value};
+  }
+  if(action==='tools.decide'||action==='agentDraftPreview.tools.decide'){
+   if(args.approved!==false)throw Error('Only Deny is available while local services are disconnected.');this.tools.denyLocal(owner,uuid(args.id));return {handled:true};
+  }
+  if(action==='terminal.cancel'){await this.terminal.cancelLocally(owner,uuid(args.id));return {handled:true};}
+  if(action==='terminal.session.stop'){const value=await this.terminal.sessions.stopLocally(owner,uuid(args.id));return {handled:true,value};}
+  if(action==='agentDraftPreview.stop'){const session=uuid(args.sessionId);if(!this.previews.activeRequests.some(r=>r.owner===owner&&r.sessionId===session))throw Error('This preview is no longer running in your account.');this.previewAdmissions.cancel({owner,sessionId:session});await this.previews.stopLocally(owner,session);return {handled:true};}
+  const preview=action.startsWith('agentDraftPreview.native.'),native=preview?this.previewRunner.native:this.native,operation=preview?action.slice('agentDraftPreview.'.length):action;
+  if(['native.answer','native.child.control','native.background.stop','native.report.cancel'].includes(operation)){
+   const request=uuid(args.requestId);
+   if(preview){const session=uuid(args.sessionId);if(!this.previews.activeRequests.some(r=>r.owner===owner&&r.sessionId===session&&r.requestId===request))throw Error('This preview response is no longer running in your account.');}
+   if(operation==='native.answer'){native.declineLocally(owner,request,uuid(args.id),String((args.value as any)?.decision));return {handled:true};}
+   if(operation==='native.child.control'){if(args.action!=='cancel')throw Error('Only Cancel is available while local services are disconnected.');await native.cancelChildLocally(owner,request,uuid(args.threadId),text(args.turnId,500));return {handled:true};}
+   if(operation==='native.background.stop'){const value=await native.stopBackgroundLocally(owner,request,uuid(args.threadId),text(args.itemId,500),text(args.processId,500));return {handled:true,value};}
+   await native.cancelReportLocally(owner,request,uuid(args.id));return {handled:true};
+  }
+  return {handled:false};
+ }
+ async recoverLocalRuntime<T>(task:()=>Promise<T>){if(this.closing||this.backingUp||this.storageBusy(true)||this.assignments.preparing||this.startingGoals?.size||this.restoringNative?.size||this.nativeReservations?.size)throw Error('Finish or pause active work before reconnecting local services.');this.backingUp=true;try{return await task();}finally{this.backingUp=false;}}
+ private storageBusy(activeOnly=false){return !!(this.active.size||this.startingChats.size||this.goals.size||this.scopeChanging||this.agentMutations.size||this.nativeControls||this.changingPreviewScopes?.size||this.editorDraftControls||this.editorDrafts?.busy||this.previewAdmissions?.busy||this.previews?.busy||this.previewRunner?.native.busy||this.agentReports?.busy||this.native.busy||this.terminal.busy||(activeOnly?this.assignments.queue.busy:this.assignments.queue.size)||this.scheduledControls||this.scheduled.scheduler.busy||this.scheduledQueue.busy||(activeOnly?this.chatQueue.busy:this.chatQueue.list(this.currentOwner??'').length));}
  async backup<T>(task:()=>Promise<T>,kind:'backup'|'storage cleanup'='backup'){if(this.active.size||this.startingChats.size||this.goals.size||this.scopeChanging||this.agentMutations.size||this.nativeControls||this.changingPreviewScopes?.size||this.editorDraftControls||this.editorDrafts?.busy||this.previewAdmissions?.busy||this.previews?.busy||this.previewRunner?.native.busy||this.agentReports?.busy||this.native.busy||this.terminal?.busy||this.assignments.queue.size||this.scheduledControls||this.scheduled.scheduler.busy||this.scheduledQueue.busy)throw new Error(kind==='storage cleanup'?'Finish or pause active chats, scheduled work and terminals before storage cleanup.':'Finish or pause active chats, scheduled work and skill discovery before creating a consistent backup.');if(this.backingUp)throw new Error('A backup is already in progress.');this.backingUp=true;this.storageCleanup=kind==='storage cleanup';try{await this.agentReports?.quiesce();await this.native.quiesce();await this.previewRunner?.native.quiesce();return await task();}finally{this.backingUp=false;this.storageCleanup=false;}}
  private async newOptions(user:Identity,options:ChatOptions){
   const status=this.providers.status(user.id),selected=newChatProvider(status,options.provider);if(!selected)return this.effectiveOptions(user,options);
@@ -1305,7 +1346,7 @@ export class Broker {
    if(!goalHasTurns(goal))throw new Error('This goal reached its turn limit. Update Goal settings to authorize additional work.');
    if(options.harness==='legacy'&&(goal.max_turns===null||goal.token_budget!=null))throw new Error('Unlimited turns and token budgets require the Codex harness. Select Codex before starting this goal.');
    this.pausedGoals.delete(id);this.goalQueue.reset(id);goal.status='running';goal.note=null;must(await this.admin.from('desktop_goals').update({status:'running',note:null}).eq('id',id).eq('user_id',user.id));
-   this.goalScopes.set(id,goal.conversation_id);const work=this.runGoal(user,goal,options);this.goals.set(id,work);work.finally(()=>{this.goals.delete(id);this.goalScopes.delete(id);if(goal.conversation_id)this.chatQueue.pump(user.id,goal.conversation_id);}).catch(()=>{});return goal;
+   this.goalScopes.set(id,goal.conversation_id);this.runningGoals.set(id,{owner:user.id,goal});const work=this.runGoal(user,goal,options);this.goals.set(id,work);work.finally(()=>{this.runningGoals.delete(id);this.goals.delete(id);this.goalScopes.delete(id);if(goal.conversation_id)this.chatQueue.pump(user.id,goal.conversation_id);}).catch(()=>{});return goal;
   }finally{this.startingGoals.delete(id);if(!this.goals.has(id))this.goalScopes.delete(id);}
  }
  private async runGoal(user:Identity,goal:Goal,options:ChatOptions){

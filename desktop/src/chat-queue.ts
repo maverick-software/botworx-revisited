@@ -6,6 +6,7 @@ export type QueuedChat={id:string;conversationId:string;agentId:string;text:stri
 export class ChatQueue{
  private writes:Promise<unknown>=Promise.resolve();private pumping=new Set<string>();private faults=new Map<string,string>();private closed=false;
  constructor(private store:Pick<Secrets,'get'|'set'>,private launch:(owner:string,row:QueuedChat)=>Promise<void>,private available:(owner:string,conversation:string)=>boolean,private changed:(owner:string,conversation:string)=>void){}
+ get busy(){return this.pumping.size>0;}
  private key(owner:string){return 'chat-queue:'+owner;}
  list(owner:string,conversation?:string):QueuedChat[]{return structuredClone((this.store.get<QueuedChat[]>(this.key(owner))??[]).filter(row=>!conversation||row.conversationId===conversation).map(row=>this.faults.has(owner+':'+row.conversationId)?{...row,status:'held' as const,error:this.faults.get(owner+':'+row.conversationId)}:row));}
  private write<T>(task:()=>Promise<T>):Promise<T>{const result=this.writes.then(task);this.writes=result.catch(()=>{});return result;}
