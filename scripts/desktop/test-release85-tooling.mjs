@@ -1,0 +1,45 @@
+// Exercise release routing, installed provenance and strict credential selection without starting Agentopia.
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import vm from 'node:vm';
+import {readFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {maintenanceUpdateCommand} from './maintenance-update-command75.mjs';
+import {accepted84Proof,accepted84FullProof,accepted84Completion,accepted84ImageSha256,frozen84PreservationFiles,assertRelease85Base,verifyRelease85Native} from './release85-contract.mjs';
+
+const root=path.resolve(import.meta.dirname,'../..'),json=async file=>JSON.parse(await readFile(file,'utf8')),next={version:'0.44.85',releaseDirectory:'F:/Agentopia-Tmp/i85-1792992263401/o',temp:'F:/Agentopia-Tmp/update85-1792992263401',environment:{KEEP:'yes',NODE_OPTIONS:'--inspect',ELECTRON_RUN_AS_NODE:'1',AGENTOPIA_TEST_PROFILE:'wrong'}};
+const command=maintenanceUpdateCommand(next);assert.deepEqual(command.args,['--update',path.win32.normalize(next.releaseDirectory)]);assert.equal(command.env.KEEP,'yes');assert.equal(command.env.SQUIRREL_TEMP,path.win32.normalize(next.temp));for(const key of ['NODE_OPTIONS','ELECTRON_RUN_AS_NODE','AGENTOPIA_TEST_PROFILE'])assert(!Object.hasOwn(command.env,key));
+assert.throws(()=>maintenanceUpdateCommand({...next,version:'0.44.86'}));
+for(const releaseDirectory of ['C:/Agentopia-Tmp/i85-1792992263401/o','F:/Agentopia-Tmp/i84-1792992263401/o',next.releaseDirectory+'/nested'])assert.throws(()=>maintenanceUpdateCommand({...next,releaseDirectory}));
+for(const temp of ['C:/temp','F:/Agentopia-Tmp/update84-1792992263401',next.temp+'/nested'])assert.throws(()=>maintenanceUpdateCommand({...next,temp}));
+
+const modes={release85:true,release84:false,release83:false,release82:false,release81:false,release80:false,release79:false,release78:false};
+for(const name of ['qualify-release77.mjs','install-release77.mjs','make-recovery-installer75.mjs','verify-recovery-installer75.mjs']){
+ const source=await readFile(new URL(name,import.meta.url),'utf8'),selector=source.match(/const root=[^\n]*?pointer=await json\(path.join\((?:records,'current.json'|root,[^\n]*?'\.supabase\/desktop-recovery75-release\/current.json')\)\)/)?.[0];assert(selector,name);
+ const begin='const '+selector.slice(selector.indexOf('release85='));let requested;
+ await vm.runInNewContext('(async()=>{'+begin+';globalThis.routing={version:'+(/previousVersion=/.test(begin)?'version,previousVersion':'undefined')+'};})()',{root:'F:/Agentopia',process:{argv:['node',name,'--release85']},path,json:async file=>{requested=file;return {};}});
+ assert.equal(path.resolve(requested),path.resolve('F:/Agentopia/.supabase/desktop-release85/current.json'),name);
+ const routeGuard=source.match(/for\(const flag of process.argv.filter[^\n]*Unsupported release route'\);/)?.[0];assert(routeGuard,name);assert.throws(()=>vm.runInNewContext(routeGuard,{assert,process:{argv:['node',name,'--release86']}}));
+ if(/previousVersion=/.test(begin)){const context={root:'F:/Agentopia',process:{argv:['node',name,'--release85']},path,json:async()=>({})};await vm.runInNewContext('(async()=>{'+begin+';globalThis.routing={version,previousVersion};})()',context);assert.equal(context.routing.version,'0.44.85');assert.equal(context.routing.previousVersion,'0.44.84');}
+}
+
+const qualifier=await readFile(new URL('qualify-release77.mjs',import.meta.url),'utf8'),freeze=qualifier.slice(qualifier.indexOf('const sourceHashes={}'),qualifier.indexOf('const qualification=')),frozen=[];
+await vm.runInNewContext('(async()=>{'+freeze+'})()',{root:'F:/Agentopia',path,...modes,hash:async file=>{frozen.push(path.basename(file));return 'a'.repeat(64);}});
+for(const name of ['prepare-release85.mjs','release85-contract.mjs','test-release85-tooling.mjs','test_release85_preservation.py','qualify-release77.mjs','install-release77.mjs','make-recovery-installer75.mjs','make-recovery-installer75-worker.mjs','verify-recovery-installer75.mjs','squirrel-stub-integrity75.mjs','maintenance-update-command75.mjs','normal-clean-chat75-process.mjs','audit-agent-health75.mjs','audit-agent-health75.py','audit-installed-credentials75.mjs','protected_settings_policy81.cjs','audit_logical_snapshot71.py'])assert(frozen.includes(name),'Missing qualification freeze: '+name);
+const maker=await readFile(new URL('make-recovery-installer75.mjs',import.meta.url),'utf8');assert(maker.includes('if(release85||release84)for(const[name,digest]of Object.entries(qualification.sourceHashes))'));
+
+// Real accepted receipts prove that the overlay's completed native inspection and full84 provenance bind together.
+const installed=await json('F:/Agentopia/.supabase/desktop-release84/installed-current.json'),base=await json(accepted84Proof),delivery=await json(installed.evidence),completion=await json(accepted84Completion),full=await json(accepted84FullProof);
+assertRelease85Base(installed,base,delivery,completion,full);assert.equal(createHash('sha256').update(await readFile(accepted84Proof)).digest('hex'),completion.proofSha256);
+assert.equal(base.imageSha256,accepted84ImageSha256);
+const frozen84=await json(path.join(full.out,'qualification.json'));for(const name of frozen84PreservationFiles)assert.equal(createHash('sha256').update(await readFile(path.join(root,'scripts/desktop',name))).digest('hex'),frozen84.sourceHashes[name],'Frozen preservation comparator: '+name);
+assert.deepEqual(await verifyRelease85Native('F:/Agentopia',path.join(root,'desktop')),base.helperManifest);
+for(const change of [value=>value[0].proof=accepted84FullProof,value=>value[0].nativeVisualInspectionPending=true,value=>value[0].completion=accepted84Completion.replace('1793032555913','1793032555914'),value=>value[1].schema=91,value=>value[1].backendByteIdentical=false,value=>value[2].imageSha256='0'.repeat(64),value=>value[3].nativeVisualInspection.success=false,value=>value[4].newMigration.sha256='0'.repeat(64),value=>value[4].compiled['main.js']='0'.repeat(64)]){const args=structuredClone([installed,base,delivery,completion,full]);change(args);assert.throws(()=>assertRelease85Base(...args));}
+
+const worker=await readFile(new URL('make-recovery-installer75-worker.mjs',import.meta.url),'utf8'),guard=worker.slice(worker.indexOf("assert(['0.44.75'"),worker.indexOf('assert.equal(process.env.TEMP')),intent={version:'0.44.85',out:path.join('F:/Agentopia','.supabase/desktop-release85/1792992263401')};vm.runInNewContext(guard,{assert,path,root:'F:/Agentopia',intent});assert.throws(()=>vm.runInNewContext(guard,{assert,path,root:'F:/Agentopia',intent:{...intent,out:intent.out.replace('release85','release84')}}));assert.throws(()=>vm.runInNewContext(guard,{assert,path,root:'F:/Agentopia',intent:{...intent,version:'0.44.86'}}));
+const normal=await readFile(new URL('normal-clean-chat75-process.mjs',import.meta.url),'utf8');for(const expression of normal.match(/\/\^C:.*?\$\/i/g)??[]){const allowed=vm.runInNewContext(expression);assert(allowed.test('C:\\Users\\charl\\AppData\\Local\\AgentopiaDesktop\\app-0.44.85\\Agentopia.exe'));assert(!allowed.test('C:\\Users\\charl\\AppData\\Local\\AgentopiaDesktop\\app-0.44.86\\Agentopia.exe'));assert(!allowed.test('F:\\Other\\app-0.44.85\\Agentopia.exe'));}
+const credentials=await readFile(new URL('audit-installed-credentials75.mjs',import.meta.url),'utf8'),rotation=credentials.match(/rotationOnly81:([^,]+),publicJwks/)?.[1],policy=credentials.match(/policy:path.join\(root,'scripts\/desktop',(.+)\)\}\)\}\);/)?.[1];assert(rotation&&policy);
+assert(vm.runInNewContext(rotation,{patchFlag:'--patch85'}));assert.equal(vm.runInNewContext(policy,{patchFlag:'--patch85'}),'protected_settings_policy81.cjs');assert(!vm.runInNewContext(rotation,{patchFlag:'--patch80'}));
+const prepare=await readFile(new URL('prepare-release85.mjs',import.meta.url),'utf8');assert(prepare.includes('const newMigration={...qaBase.newMigration}'));assert(prepare.includes('for(const name of migrations)assert.equal'));assert(prepare.includes('assert.deepEqual(addedResources,[])'));assert(prepare.includes("assert.equal(compiled['plugin-validation.js'],base.compiled['plugin-validation.js']"));assert(!prepare.includes('0091-'));
+const originalPackage=await json(path.join(base.sourceRoot,'package.json')),currentPackage=await json(path.join(root,'package.json')),originalLock=await json(path.join(base.sourceRoot,'package-lock.json')),currentLock=await json(path.join(root,'package-lock.json'));assert.equal(currentPackage.version,'0.44.85');assert.equal(currentLock.version,'0.44.85');assert.equal(currentLock.packages[''].version,'0.44.85');currentPackage.version=originalPackage.version;currentLock.version=originalLock.version;currentLock.packages[''].version=originalLock.packages[''].version;assert.deepEqual(currentPackage,originalPackage);assert.deepEqual(currentLock,originalLock);
+console.log(JSON.stringify({success:true,release85Routing:true,previousVersion84:true,accepted84CompletedOverlayAndFullProvenanceRequired:true,schema90WithoutNewMigration:true,frozenStrictCredentialPolicy81:true,dependenciesUnchanged:true,productionWrites:0,applicationStarted:false}));

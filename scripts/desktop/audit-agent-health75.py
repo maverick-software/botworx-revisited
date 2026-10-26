@@ -5,10 +5,10 @@ from urllib.parse import urlparse,unquote
 
 out=Path(sys.argv[1]);assert out.parent==Path('/mnt/f/Agentopia/.supabase/desktop-agent-health75') and re.fullmatch(r'\d{13}',out.name)
 assert out.is_dir() and out.resolve()==out
-expected=json.loads((out/'intent.json').read_text());version=expected.get('version','0.44.75');assert version in ['0.44.75','0.44.76','0.44.77','0.44.78','0.44.79','0.44.80','0.44.81','0.44.82','0.44.83','0.44.84'];schema=expected.get('schemaMigrationCount',82 if version=='0.44.76' else 73);assert isinstance(schema,int) and schema in [73,82,83,84,87,88,89,90]
+expected=json.loads((out/'intent.json').read_text());version=expected.get('version','0.44.75');assert version in ['0.44.75','0.44.76','0.44.77','0.44.78','0.44.79','0.44.80','0.44.81','0.44.82','0.44.83','0.44.84','0.44.85'];schema=expected.get('schemaMigrationCount',82 if version=='0.44.76' else 73);assert isinstance(schema,int) and schema in [73,82,83,84,87,88,89,90]
 if version in ['0.44.81','0.44.82']:assert schema==88
 if version=='0.44.83':assert schema==89
-if version=='0.44.84':assert schema==90
+if version in ['0.44.84','0.44.85']:assert schema==90
 assert expected['readOnly'] is True and re.fullmatch('[a-f0-9]{64}',expected['expectedImageSha256'])
 assert Path('/opt/agentopia/runtime-instance').read_text().strip()=='a91a4800-e08f-4440-a4ec-588762d01bfd'
 os.umask(0o077);os.chdir('/home/agentopia/app')
