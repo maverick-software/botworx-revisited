@@ -15,7 +15,7 @@ export function mcpOAuthRecordGrant(scope:McpOAuthScope,record:McpOAuthRecord){
  if(record.grantId!==undefined&&!/^[a-f0-9]{64}$/.test(record.grantId))throw new McpSignInRequiredError();
  return createHash('sha256').update(JSON.stringify([key(scope),record.target.stamp,record.grantId??['legacy',record.redirect,record.client?.client_id??''],record.tokens?.scope===undefined?null:[...new Set(record.tokens.scope.split(/\s+/).filter(Boolean))].sort()])).digest('hex');
 }
-type Store={get<T>(key:string):T|undefined;set(key:string,value:unknown):Promise<void>};
+type Store={get<T>(key:string):T|undefined;set(key:string,value:unknown):Promise<void>;compareAndSetMany?:(entries:readonly (readonly [string,unknown,unknown])[])=>Promise<boolean>};
 const equal=(a:string,b:string)=>{const left=Buffer.from(a),right=Buffer.from(b);return left.length===right.length&&timingSafeEqual(left,right);};
 
 export class McpSignInRequiredError extends Error {constructor(){super('This MCP connection needs browser sign-in. Open its connection in Plugins or the agent’s MCP settings and choose Connect.');}}
@@ -125,9 +125,14 @@ export class McpOAuth {
    if(!record.tokens?.refresh_token)throw reconnect();
    const copy:Stored=structuredClone(record),controller=new AbortController(),id=key(scope);if(this.pending.has(id))throw reconnect();this.pendingScopes.set(id,structuredClone(scope));this.pending.set(id,controller);
    const deadline=AbortSignal.any([signal,controller.signal]);
-   try{const provider=this.provider(copy,'',false,async()=>{throw reconnect();});if(!copy.discovery?.authorizationServerMetadata||!copy.client)throw reconnect();const tokens=await refreshAuthorization(copy.discovery.authorizationServerUrl,{metadata:copy.discovery.authorizationServerMetadata,clientInformation:copy.client,refreshToken:copy.tokens!.refresh_token!,resource:copy.discovery.resourceMetadata?.resource,fetchFn:oauthNetwork(target.address,deadline)});await provider.saveTokens({...tokens,issuer:copy.discovery.authorizationServerMetadata.issuer});await this.checked(scope,target);deadline.throwIfAborted();
-    if(this.store.get(id)!==record)throw reconnect();await this.store.set(id,copy);await this.checked(scope,target);deadline.throwIfAborted();return copy.tokens!.access_token;
-   }catch{if(this.store.get(id)===copy)await this.store.set(id,undefined);throw reconnect();}finally{if(this.pending.get(id)===controller){this.pending.delete(id);this.pendingScopes.delete(id);}}
+   try{const provider=this.provider(copy,'',false,async()=>{throw reconnect();});if(!copy.discovery?.authorizationServerMetadata||!copy.client)throw reconnect();const tokens=await refreshAuthorization(copy.discovery.authorizationServerUrl,{metadata:copy.discovery.authorizationServerMetadata,clientInformation:copy.client,refreshToken:copy.tokens!.refresh_token!,resource:copy.discovery.resourceMetadata?.resource,fetchFn:oauthNetwork(target.address,deadline)});await provider.saveTokens({...tokens,issuer:copy.discovery.authorizationServerMetadata.issuer});
+    // A completed refresh may rotate the remote refresh token. Preserve it for
+    // its original owner even if that caller cancels or switches accounts now.
+    // A newer local grant or explicit disconnect always wins the comparison.
+    if(this.store.compareAndSetMany){if(!await this.store.compareAndSetMany([[id,record,copy]]))throw reconnect();}
+    else{if(this.store.get(id)!==record)throw reconnect();await this.store.set(id,copy);}
+    await this.checked(scope,target);deadline.throwIfAborted();if(this.store.get<Stored>(id)?.tokens?.access_token!==copy.tokens!.access_token)throw reconnect();return copy.tokens!.access_token;
+   }catch(error){if(deadline.aborted)throw deadline.reason;throw reconnect();}finally{if(this.pending.get(id)===controller){this.pending.delete(id);this.pendingScopes.delete(id);}}
   })();this.refreshing.set(key(scope),refresh);try{return await refresh;}finally{if(this.refreshing.get(key(scope))===refresh)this.refreshing.delete(key(scope));}
  }
 }

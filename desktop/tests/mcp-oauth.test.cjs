@@ -56,6 +56,32 @@ test('a reopened engine restores credentials and coalesces simultaneous refreshe
  assert.deepEqual(await Promise.all([cold.token(scope,new AbortController().signal),cold.token(scope,new AbortController().signal)]),['access-refreshed','access-refreshed']);
  assert.equal(f.counts.refreshes,1);assert.equal(f.browser.length,1);assert.equal(f.records.size,1);
 });
+
+test('cancellation after a successful refresh preserves rotated credentials for reopening',async t=>{
+ const f=await fixture(t,{expired:true});await f.oauth.connect(scope);const controller=new AbortController(),set=f.store.set;
+ f.store.set=async(key,value)=>{await set(key,value);if(value?.tokens?.access_token==='access-refreshed')controller.abort(Error('Catalog closed'));};
+ await assert.rejects(f.oauth.token(scope,controller.signal),/Catalog closed/);assert.equal(f.records.size,1);assert.equal([...f.records.values()][0].tokens.access_token,'access-refreshed');
+ assert.equal(await f.make().token(scope,new AbortController().signal),'access-refreshed');assert.equal(f.counts.refreshes,1);
+});
+
+test('an account switch after refresh receives no token and retains the original owner rotation',async t=>{
+ const f=await fixture(t,{expired:true});await f.oauth.connect(scope);const checked=f.oauth.checked.bind(f.oauth);
+ f.oauth.checked=async(...args)=>{if(f.counts.refreshes)f.setOwner('owner-b');return checked(...args);};
+ await assert.rejects(f.oauth.token(scope,new AbortController().signal),/needs browser sign-in/);assert.equal([...f.records.values()][0].tokens.access_token,'access-refreshed');
+ f.setOwner(scope.owner);assert.equal(await f.make().token(scope,new AbortController().signal),'access-refreshed');assert.equal(f.counts.refreshes,1);
+});
+
+test('explicit disconnect after refresh persistence still removes the grant',async t=>{
+ const f=await fixture(t,{expired:true});await f.oauth.connect(scope);const set=f.store.set;let disconnect;
+ f.store.set=async(key,value)=>{await set(key,value);if(value?.tokens?.access_token==='access-refreshed')disconnect=f.oauth.disconnect(scope);};
+ await assert.rejects(f.oauth.token(scope,new AbortController().signal));await disconnect;assert.equal(f.records.size,0);
+});
+
+test('a replacement grant wins an atomic refresh comparison',async t=>{
+ const f=await fixture(t,{expired:true});await f.oauth.connect(scope);let replacement;
+ f.store.compareAndSetMany=async entries=>{const [key]=entries[0];replacement={...f.records.get(key),tokens:{access_token:'access-replacement',refresh_token:'new-grant',token_type:'Bearer'},expiresAt:Date.now()+3600000};f.records.set(key,replacement);return false;};
+ await assert.rejects(f.oauth.token(scope,new AbortController().signal),/needs browser sign-in/);assert.equal([...f.records.values()][0],replacement);assert.equal(await f.make().token(scope,new AbortController().signal),'access-replacement');
+});
 test('a provided public client avoids dynamic registration',async t=>{
  const f=await fixture(t);await f.oauth.connect(scope,{clientId:'provided-public-client'});assert.equal(f.counts.registrations,0);assert.equal(new URL(f.browser[0]).searchParams.get('client_id'),'provided-public-client');
 });
