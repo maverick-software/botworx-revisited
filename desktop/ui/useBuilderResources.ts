@@ -1,5 +1,5 @@
 import {useEffect,useRef,useState} from 'react';
-import type {BuilderResources,BuilderResource} from '../src/agent-builder-resources';
+import {builderResources,type BuilderResources,type BuilderResource} from '../src/agent-builder-resources';
 import {creationToolScope,type CreationToolScope,type CreationPluginGrant} from '../src/creation-tool-scope';
 import {draftPreviewId} from '../src/agent-draft-preview-contracts';
 import type {PluginRecord} from '../src/plugin-contracts';
@@ -14,7 +14,9 @@ export type BuilderResourceApplication={requestId:string;basis:BuilderResources;
 type Snapshot={resources:BuilderResources;scope:CreationToolScope|null};
 type ResourceCall=<T>(action:string,args?:Record<string,unknown>)=>Promise<T>;
 const selected=(rows:BuilderResource[])=>rows.filter(row=>row.assigned).map(row=>row.id).sort();
-const canonical=(resources:BuilderResources,assignments=true)=>JSON.stringify({revision:resources.revision,apps:resources.apps.map(row=>({...row,...(!assignments?{assigned:false}:{})})).sort((a,b)=>a.id.localeCompare(b.id)),skills:resources.skills.map(row=>({...row,...(!assignments?{assigned:false}:{})})).sort((a,b)=>a.id.localeCompare(b.id))});
+// JSONB returns object keys in storage order. Normalize validated public fields
+// before comparison so an unchanged catalog survives its journal round trip.
+const canonical=(resources:BuilderResources)=>{const checked=builderResources(resources);return JSON.stringify({...checked,apps:checked.apps.sort((a,b)=>a.id.localeCompare(b.id)),skills:checked.skills.sort((a,b)=>a.id.localeCompare(b.id))});};
 const sameIds=(a:string[],b:string[])=>JSON.stringify([...a].sort())===JSON.stringify([...b].sort());
 const stale=()=>Error('The app or skill selection changed while this response was being prepared. Review the current selection and ask again.');
 const publicRow=(row:{name:string;displayName?:string;description:string;digest:string;enabled:boolean;configured:boolean},assigned:boolean):BuilderResource=>({id:row.name,name:(row.displayName||row.name).slice(0,100),description:row.description.slice(0,1000),digest:row.digest,enabled:row.enabled,configured:row.configured,assigned});
