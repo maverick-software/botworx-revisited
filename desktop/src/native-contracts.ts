@@ -14,4 +14,4 @@ export type NativePreviewContinuation={id:string;threadId:string;turnId:string;a
 export type NativeState={previewContinuations?:NativePreviewContinuation[];namedAssignments?:NativeNamedAssignment[];composerGoalId?:string;goal?:ThreadGoal|null;goalTurns?:number;goalNote?:string;goalYielded?:boolean;diffs?:NativeTurnDiff[];consumedReports?:string[];tools?:import('./tool-contracts').ToolActivity[];version:string;threadId:string;turnId:string;items:NativeItem[];approvals:NativeApproval[];steering:{id:string;text:string;turnId?:string;source?:import('./chat-delivery').ChatDeliveryProvenance}[];children?:NativeChild[];reports?:NativeReport[];importedHistory?:boolean;branch?:boolean};
 export type NativeChildView={requestId:string;conversationId:string;provider:string;model:string;child:NativeChild};
 export type NativeChildLocation={requestId:string;threadId:string};
-export type NativeSkill={name:string;description:string;path:string;enabled:boolean;scope:string;plugin?:string};
+export type NativeSkill={name:string;description:string;path:string;enabled:boolean;scope:string;plugin?:string;aliases?:string[];skillId?:string};

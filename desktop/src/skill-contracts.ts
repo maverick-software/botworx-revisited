@@ -1,0 +1,2 @@
+export type SkillCatalogEntry={id:string;name:string;description:string;scope:'account'|'plugin'|'agent'|'workspace';source:string;enabled:boolean;revision:number;files:Record<string,string>;assignments:Array<{agent_id:string;enabled:boolean}>;agentId?:string;selection?:string;editable:boolean};
+export type SkillCatalog={skills:SkillCatalogEntry[];agents:Array<{id:string;name:string;active:boolean}>};

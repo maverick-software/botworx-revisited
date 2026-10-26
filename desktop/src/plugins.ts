@@ -1,3 +1,4 @@
+import {Skills} from './skills';
 import {CreationToolResources} from './creation-tool-resources';
 import {creationPrincipal} from './creation-resource-principal';
 import {pluginPrincipalIdentity,type PluginPrincipal} from './plugin-resource-principal';
@@ -16,11 +17,12 @@ export class Plugins {
  async reviewed(user:string,name:string){return this.checked(data(await this.db.from('desktop_plugins').select('*').eq('user_id',user).eq('name',name).single()));}
  private async owned(user:string,agent:string){data(await this.db.from('agents').select('id').eq('id',agent).eq('user_id',user).single());}
  async skillPackages(user:string,agent:PluginPrincipal):Promise<SkillPackage[]>{
-  if(typeof agent!=='string'){const principal=pluginPrincipalIdentity(agent),scopes=new CreationToolResources(this.db);await scopes.active(user,agent.creationId);const scope=await scopes.read(user,agent.creationId);if(!scope||JSON.stringify(creationPrincipal(scope))!==JSON.stringify(principal))throw Error('The creation app selection changed or was saved. Refresh it before selecting skills.');await scopes.validate(user,scope.grants);const packages:SkillPackage[]=[];for(const grant of scope.grants){const row=await this.reviewed(user,grant.name);if(!row.enabled||row.digest!==grant.digest||row.source==='legacy')throw Error('A creation skill package changed or was revoked.');if(row.package.files)packages.push({name:row.name,digest:row.digest,package:row.package});}await scopes.active(user,agent.creationId);const current=await scopes.read(user,agent.creationId);if(!current||JSON.stringify(current)!==JSON.stringify(scope))throw Error('The creation app selection changed while reading skills.');return packages;}
+  const skills=new Skills(this.db);await skills.migrate(user);
+  if(typeof agent!=='string'){const principal=pluginPrincipalIdentity(agent),scopes=new CreationToolResources(this.db);await scopes.active(user,agent.creationId);const scope=await scopes.read(user,agent.creationId);if(!scope||JSON.stringify(creationPrincipal(scope))!==JSON.stringify(principal))throw Error('The creation app selection changed or was saved. Refresh it before selecting skills.');await scopes.validate(user,scope.grants);const packages:SkillPackage[]=[];for(const grant of scope.grants){const row=await this.reviewed(user,grant.name);if(!row.enabled||row.digest!==grant.digest||row.source==='legacy')throw Error('A creation skill package changed or was revoked.');if(row.package.files)packages.push({name:row.name,digest:row.digest,package:row.package});}await scopes.active(user,agent.creationId);const current=await scopes.read(user,agent.creationId);if(!current||JSON.stringify(current)!==JSON.stringify(scope))throw Error('The creation app selection changed while reading skills.');return skills.runtime(user,packages,true);}
   data(await this.db.from('agents').select('id').eq('id',agent).eq('user_id',user).eq('active',true).single());
   const grants=data(await this.db.from('desktop_agent_plugins').select('plugin_name').eq('user_id',user).eq('agent_id',agent).eq('enabled',true));if(!grants.length)return [];
   const rows=data(await this.db.from('desktop_plugins').select('*').eq('user_id',user).eq('enabled',true).in('name',grants.map((grant:any)=>grant.plugin_name)));
-  return rows.filter((row:any)=>row.package?.files).map((row:any)=>{this.checked(row);return {name:row.name,digest:row.digest,package:validatePluginPackage(row.package)};});
+  return skills.runtime(user,rows.filter((row:any)=>row.package?.files).map((row:any)=>{this.checked(row);return {name:row.name,digest:row.digest,package:validatePluginPackage(row.package)};}),false,agent);
  }
  async ensure(user:string){
   for(const pkg of bundledPlugins)data(await this.db.from('desktop_plugins').upsert({user_id:user,name:pkg.manifest.name,package:pkg,digest:pluginDigest(pkg),source:'bundled'},{onConflict:'user_id,name',ignoreDuplicates:true}));
@@ -35,13 +37,14 @@ export class Plugins {
  }
  async list(user:Identity):Promise<PluginRecord[]>{
   await this.ensure(user.id);
+  const skills=new Skills(this.db);await skills.migrate(user.id);const hidden=await skills.hidden(user.id);
   const [rows,grants,links,keys]=await Promise.all([
    this.db.from('desktop_plugins').select('*').eq('user_id',user.id).order('name').then(data),
    this.db.from('desktop_agent_plugins').select('*').eq('user_id',user.id).then(data),
    this.db.from('desktop_plugin_connections').select('plugin_name,agent_id,connection_id').eq('user_id',user.id).then(data),
    this.db.from('system_api_keys').select('provider_name,vault_secret_id,is_active').in('provider_name',['serper_api','tavily_api']).then(data)
   ]);
-  return rows.map((row:any)=>{const adapter=row.package.manifest.extensions?.['com.agentopia']?.adapter;this.checked(row);return {name:row.name,version:row.package.manifest.version,description:row.package.manifest.description,enabled:row.enabled,bundled:row.source==='bundled',updatable:row.source==='imported',digest:row.digest,validation:'Schema validated',package:row.package,kind:row.package.manifest.extensions?.['com.agentopia']?.imageGeneration==='v1'?'images':adapter?'search':row.package.files&&!row.package.mcp?'skills':'mcp',configured:row.package.manifest.extensions?.['com.agentopia']?.imageGeneration==='v1'?this.imageConfigured():adapter?keys.some((key:any)=>key.provider_name===adapter+'_api'&&key.is_active&&key.vault_secret_id):true,assignments:grants.filter((g:any)=>g.plugin_name===row.name).map((g:any)=>({agent_id:g.agent_id,enabled:g.enabled,connection_ids:row.name===composioMcpPluginName?[composioMcpConnectionId]:row.name===chromePluginName?[chromeConnectionId]:links.filter((l:any)=>l.plugin_name===row.name&&l.agent_id===g.agent_id).map((l:any)=>l.connection_id) }))};});
+  return rows.filter((row:any)=>!hidden.has(row.name)).map((row:any)=>{const adapter=row.package.manifest.extensions?.['com.agentopia']?.adapter;this.checked(row);return {name:row.name,version:row.package.manifest.version,description:row.package.manifest.description,enabled:row.enabled,bundled:row.source==='bundled',updatable:row.source==='imported',digest:row.digest,validation:'Schema validated',package:row.package,kind:row.package.manifest.extensions?.['com.agentopia']?.imageGeneration==='v1'?'images':adapter?'search':row.package.files&&!row.package.mcp?'skills':'mcp',configured:row.package.manifest.extensions?.['com.agentopia']?.imageGeneration==='v1'?this.imageConfigured():adapter?keys.some((key:any)=>key.provider_name===adapter+'_api'&&key.is_active&&key.vault_secret_id):true,assignments:grants.filter((g:any)=>g.plugin_name===row.name).map((g:any)=>({agent_id:g.agent_id,enabled:g.enabled,connection_ids:row.name===composioMcpPluginName?[composioMcpConnectionId]:row.name===chromePluginName?[chromeConnectionId]:links.filter((l:any)=>l.plugin_name===row.name&&l.agent_id===g.agent_id).map((l:any)=>l.connection_id) }))};});
  }
  private checked(row:any){
   if(!row||row.name!==row.package?.manifest?.name||row.digest!==pluginDigest(row.package))throw new Error('Plugin integrity verification failed. Reinstall the reviewed package.');
@@ -81,11 +84,12 @@ export class Plugins {
   if(action==='plugins.validate'){const pkg=validatePluginPackage(args.package);return {package:pkg,digest:pluginDigest(pkg),validation:'Schema validated',notice:'Schema validation checks structure and host support. It does not certify the publisher or server.'};}
   await this.ensure(user.id);
   if(action==='plugins.install'){
-   const pkg=validatePluginPackage(args.package),digest=pluginDigest(pkg);if(args.digest!==digest)throw new Error('Validate and review this exact package before installing.');
-   if(bundledPlugins.some(p=>p.manifest.name===pkg.manifest.name)||pkg.manifest.name.startsWith('mcp-'))throw new Error('This plugin name is reserved.');
+   const pkg=validatePluginPackage(args.package),digest=pluginDigest(pkg);if(pkg.files&&!pkg.mcp)throw Error('Import skill-only packages from Skills.');if(args.digest!==digest)throw new Error('Validate and review this exact package before installing.');
+   if(bundledPlugins.some(p=>p.manifest.name===pkg.manifest.name)||pkg.manifest.name.startsWith('mcp-')||pkg.manifest.name.startsWith('skill-'))throw new Error('This plugin name is reserved.');
    const old=data(await this.db.from('desktop_plugins').select('name').eq('user_id',user.id).eq('name',pkg.manifest.name).maybeSingle());if(old)throw new Error('A plugin with this name is already installed. Open Manage plugin to review an update.');
    data(await this.db.from('desktop_plugins').insert({user_id:user.id,name:pkg.manifest.name,package:pkg,digest,source:'imported'}));return;
   }
+  if(typeof args.name==='string'&&(await new Skills(this.db).hidden(user.id)).has(args.name))throw Error('Manage this skill from Skills.');
   if(typeof args.name!=='string')throw new Error('Choose an installed plugin.');
   const row=this.checked(data(await this.db.from('desktop_plugins').select('*').eq('user_id',user.id).eq('name',args.name).single()));
   if(action==='plugins.reviewUpdate'||action==='plugins.update'){

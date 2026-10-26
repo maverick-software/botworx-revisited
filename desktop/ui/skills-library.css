@@ -1,0 +1,14 @@
+.skills-library-heading,.skills-library-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.skills-library-heading>div:first-child{flex:1;min-width:260px}
+.skills-library-toolbar{margin:20px 0}
+.skills-library-toolbar input{flex:1;min-width:180px}
+.skills-library .installed-skills-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr));gap:10px;margin:20px 0}
+.skills-library .installed-skill{display:flex;flex-direction:column;gap:6px;text-align:left;align-items:flex-start;min-width:0;overflow-wrap:anywhere;padding:14px}
+.skills-library .installed-skill[aria-pressed=true]{outline:2px solid currentColor;outline-offset:1px}
+.skills-library .installed-skill small{white-space:normal;font-weight:400}
+.skills-library textarea{display:block;width:100%;box-sizing:border-box;resize:vertical;min-height:240px;max-height:65vh;font:14px/1.5 Consolas,monospace;margin:12px 0}
+.skills-library section[aria-label^="Edit "]{border-top:1px solid var(--border,#7775);padding-top:18px;margin-top:22px}
+.skill-resource-import{display:flex;align-items:end;flex-wrap:wrap;gap:12px;margin:14px 0}
+.skill-resource-import label{display:flex;flex-direction:column;gap:6px;max-width:100%}
+.skills-chat-selection{margin:24px 0;padding-top:16px;border-top:1px solid var(--border,#7775)}
+.skills-chat-selection summary{cursor:pointer}

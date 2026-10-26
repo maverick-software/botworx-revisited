@@ -32,7 +32,7 @@ function documents(files:Map<string,Buffer>):PluginPackage{
 }
 
 /** Read declarations and bounded skill snapshots. Archive contents are never extracted or executed. */
-export function parsePluginArchive(input:Uint8Array,signal=new AbortController().signal):PluginPackage{
+export function parsePluginArchive(input:Uint8Array,signal=new AbortController().signal,readDocuments:(files:Map<string,Buffer>)=>PluginPackage=documents):PluginPackage{
  signal.throwIfAborted();if(input.length<22||input.length>pluginImportLimits.archive)throw new Error('Choose a plugin ZIP smaller than 4 MB.');const bytes=Buffer.from(input.buffer,input.byteOffset,input.byteLength);
  if(bytes.readUInt32LE(0)!==0x04034b50)throw invalid();
  let end=-1;for(let i=bytes.length-22;i>=Math.max(0,bytes.length-65557);i--)if(bytes.readUInt32LE(i)===0x06054b50&&i+22+bytes.readUInt16LE(i+20)===bytes.length){end=i;break;}
@@ -62,10 +62,10 @@ export function parsePluginArchive(input:Uint8Array,signal=new AbortController()
  try{for(let offset=0;offset<bytes.length;offset+=512){signal.throwIfAborted();unzip.push(bytes.subarray(offset,Math.min(bytes.length,offset+512)),offset+512>=bytes.length);}}
  catch(error){if(error instanceof Error&&/Plugin|plugin|declarations/.test(error.message))throw error;signal.throwIfAborted();throw invalid();}
  if(visited!==count||[...entries.keys()].some(name=>!name.endsWith('/')&&!completed.has(name)))throw invalid();
- return documents(files);
+ return readDocuments(files);
 }
 
-async function readBounded(file:string,limit:number,guard:()=>Promise<void>,checkPath:(file:string)=>void){
+export async function readBounded(file:string,limit:number,guard:()=>Promise<void>,checkPath:(file:string)=>void){
  await guard();checkPath(file);const before=await lstat(file);if(!before.isFile()||before.isSymbolicLink()||before.nlink>1||before.size>limit||!same(await realpath(file),file))throw new Error('Choose a regular plugin declaration or ZIP within the size limit, without links.');
  const handle=await open(file,'r');try{
   const opened=await handle.stat();if(opened.ino!==before.ino||opened.dev!==before.dev||opened.size!==before.size)throw new Error('The selected plugin file changed. Choose it again.');
