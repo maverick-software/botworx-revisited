@@ -1,3 +1,5 @@
+import {Plugins} from './plugins';
+import type {ToolDefinition} from './tool-contracts';
 import type {PluginPrincipal} from './plugin-resource-principal';
 import {CreationToolResources} from './creation-tool-resources';
 import {toolActivityTable,toolRequestTable,resolvePreviewToolScope,type ToolExecutionKind,type PreviewToolScope} from './tool-execution-scope';
@@ -35,6 +37,8 @@ import {allowsAgentTool} from './agent-policy';
 import {scheduledToolNames,scheduledMutationNames,type ScheduledTaskTools} from './scheduled-task-tools';
 function data(result:any):any{if(result.error)throw new Error(result.error.message);return result.data;}
 export class ToolService{
+ availableDefinitions(owner:string,agent:PluginPrincipal|undefined,definitions:ToolDefinition[]){return new Plugins(this.db).availableDefinitions(owner,agent,definitions);}
+ hostEnabled(owner:string,agent:PluginPrincipal|undefined,family:import('./host-plugin-contracts').HostPluginFamily){return new Plugins(this.db).hostEnabled(owner,agent,family);}
  async assertCreationActive(owner:string,creationId:string){await new CreationToolResources(this.db).active(owner,creationId);}
  validateExecution?:(user:Identity,request:any)=>Promise<void>;
  images?:ImageGenerationService;
@@ -97,14 +101,14 @@ export class ToolService{
  async execute(user:Identity,request:any,call:ProviderCall,options:ChatOptions,signal:AbortSignal,plan?:RemotePlan,agentId?:string,nativeThreadId?:string,previewScope?:PreviewToolScope,chatSkillScope?:ChatWorkspaceSkillScope){
   if(previewScope&&chatSkillScope)throw Error('Choose one tool execution scope.');const execution=previewScope?resolvePreviewToolScope(previewScope,user,request,options):undefined,chatSkills=chatSkillScope?resolveChatWorkspaceSkillScope(chatSkillScope,user,request,options):undefined,activityTable=toolActivityTable(execution?.kind);
   const remotePrincipal=execution?execution.remotePrincipal:agentId;if(execution){plan=execution.remotePlan;agentId=execution.remoteTools?.agentId;}
-  const validateScope=async()=>{signal.throwIfAborted();if(execution)await execution.validate();else{await this.validateExecution?.(user,request);await chatSkills?.validate();}await this.authorizeExecution(user.id,options);signal.throwIfAborted();};await validateScope();
+  const validateScope=async()=>{signal.throwIfAborted();if(execution)await execution.validate();else{await this.validateExecution?.(user,request);await chatSkills?.validate();}await this.authorizeExecution(user.id,options);await new Plugins(this.db).assertHostTool(user.id,execution?.resourceCreation??execution?.resourceAgentId??agentId??request.agent_id,call.name);signal.throwIfAborted();};await validateScope();
   const review=(id:string,name?:string,reference?:string)=>this.awaitApproval(user.id,id,signal,name,reference,execution?.kind);
   signal.throwIfAborted();if((await this.identity()).id!==user.id)throw new Error('Your Agentopia account changed.');
   const reviewRequired=options.permission!=='full';
   if(!reviewRequired){const current=await this.identity();if(!current.admin)throw Error('Full access is unavailable for this account.');this.terminal?.authorize(current,true);}
   if(!execution&&this.deliverChat)await this.deliveries.validateRequest(user.id,request.id);
   const agentContext=!execution&&request.agent_instance_id?await this.agents.context(user.id,request.id,nativeThreadId):null;
-  const short=call.name.replace(/^(workspace|tools|planning)\./,''),external=!!plan?.definitions.some(tool=>tool.name===short),planning=execution?[]:await this.planning.definitions(user.id,request.conversation_id,options),definition=(execution?.definitions??[...this.computerDefinitions(user,options),...this.browserDefinitions(options),...workspaceDefinitions(options),...previewWorkspaceSkillDefinitions(chatSkills?.workspaceSkills,options),...await this.pluginDefinitions(user.id,agentContext?.profile.agent_id??agentId??request.agent_id,options),...await this.imageDefinitions(user.id,agentContext?.profile.agent_id??agentId??request.agent_id,options),...(this.terminal?.definitions(user,options)??[]),...(plan?.definitions??[]),...planning,...this.memory.definitions(request,options),...this.chats.definitions(options),...(this.agentDocuments?.definitions(options)??[]),...this.deliveryDefinitions(options),...this.scheduleDefinitions(options),...(agentContext?this.agents.definitions(agentContext.profile,options):[])]).find(tool=>tool.name===short);
+  const short=call.name.replace(/^(workspace|tools|planning)\./,''),external=!!plan?.definitions.some(tool=>tool.name===short),planning=execution?[]:await this.planning.definitions(user.id,request.conversation_id,options),definition=(await this.availableDefinitions(user.id,execution?.resourceCreation??execution?.resourceAgentId??agentContext?.profile.agent_id??agentId??request.agent_id,execution?.definitions??[...this.computerDefinitions(user,options),...this.browserDefinitions(options),...workspaceDefinitions(options),...previewWorkspaceSkillDefinitions(chatSkills?.workspaceSkills,options),...await this.pluginDefinitions(user.id,agentContext?.profile.agent_id??agentId??request.agent_id,options),...await this.imageDefinitions(user.id,agentContext?.profile.agent_id??agentId??request.agent_id,options),...(this.terminal?.definitions(user,options)??[]),...(plan?.definitions??[]),...planning,...this.memory.definitions(request,options),...this.chats.definitions(options),...(this.agentDocuments?.definitions(options)??[]),...this.deliveryDefinitions(options),...this.scheduleDefinitions(options),...(agentContext?this.agents.definitions(agentContext.profile,options):[])])).find(tool=>tool.name===short);
   if(definition&&execution&&!allowsAgentTool(execution.policy,definition))return {error:'This tool is disabled by the draft agent policy.'};
   if(definition&&chatSkills&&!allowsAgentTool(chatSkills.policy,definition))return {error:'This tool is disabled by the accepted agent policy.'};
   if(definition&&agentContext&&!allowsAgentTool(agentContext.profile.policy,definition))return {error:'This tool is disabled by the current agent policy.'};
@@ -166,7 +170,7 @@ export class ToolService{
     const prepared=await this.terminal!.prepare(user,options,args);
     if(plan?.denied.has(prepared.key)){const denied={denied:true,message:'This command was already declined or interrupted. Do not retry it.'};await update({status:'denied',result:denied});return denied;}
     if(options.permission!=='full'){const approved=review(id);approved.catch(()=>{});await update({status:'awaiting_approval',approval:prepared.approval});if(!await approved){plan?.denied.add(prepared.key);const denied={denied:true,message:'The user declined this Windows command. Do not retry it.'};await update({status:'denied',result:denied});return denied;}}
-    const execution=await this.terminal!.start(user,options,args,'agent',{conversationId:request.conversation_id,requestId:request.id,toolId:id},signal,async run=>{await update({status:'running',result:{terminal_run_id:run.id}});});const run=await execution.done;
+    await validateScope();const execution=await this.terminal!.start(user,options,args,'agent',{conversationId:request.conversation_id,requestId:request.id,toolId:id},signal,async run=>{await update({status:'running',result:{terminal_run_id:run.id}});});const run=await execution.done;
     result={terminal_run_id:run.id,working_directory:run.cwd,command:run.command,stdout:run.stdout,stderr:run.stderr,exit_code:run.exit_code,status:run.status,truncated:run.truncated,isError:run.status!=='completed',untrusted:true};if(run.status==='cancelled'||run.status==='timed_out')plan?.denied.add(prepared.key);signal.throwIfAborted();
    }
    else if(definition.namespace==='planning'){await validateScope();const saved=await this.planning.execute(user.id,request,short,args);result=saved;if(saved&&short!=='get_plan')this.emit(user.id,{kind:'plan',requestId:request.id,conversationId:request.conversation_id,plan:saved});}

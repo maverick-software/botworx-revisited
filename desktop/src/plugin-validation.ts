@@ -1,3 +1,4 @@
+import {hostPluginFamilies} from './host-plugin-contracts';
 import {createHash} from 'node:crypto';
 import {AjvJsonSchemaValidator} from '@modelcontextprotocol/client/validators/ajv';
 import manifestSchema from './plugin-schemas/plugin.schema.json';
@@ -33,7 +34,7 @@ export function validatePluginPackage(value:unknown,bundled=false):PluginPackage
  const extensions=manifest.extensions??{};
  if(Object.keys(extensions).some(key=>!['com.agentopia','com.openai'].includes(key)))throw new Error('This host supports packaged skills, remote MCP packages and descriptive OpenAI presentation metadata. Other extensions are not supported.');
  if(extensions['com.openai']!==undefined)validateOpenAIPresentation(extensions['com.openai']);
- if(extensions['com.agentopia']){const extension=extensions['com.agentopia'];if(!bundled||!(Object.keys(extension).length===1&&(['serper','tavily'].includes(extension.adapter)||extension.managedMcp===chromePluginName||extension.imageGeneration==='v1'&&manifest.name===imageGenerationPluginName)))throw new Error('Only pinned bundled plugins may select a managed runtime or search adapter.');}
+ if(extensions['com.agentopia']){const extension=extensions['com.agentopia'];if(!bundled||!(Object.keys(extension).length===1&&(['serper','tavily'].includes(extension.adapter)||extension.managedMcp===chromePluginName||extension.imageGeneration==='v1'&&manifest.name===imageGenerationPluginName||Object.entries(hostPluginFamilies).some(([family,row])=>extension.hostFamily===family&&manifest.name===row.name))))throw new Error('Only pinned bundled plugins may select a managed runtime or search adapter.');}
  if(value.mcp!==undefined){
   const portable=structuredClone(value.mcp);
   if(record(portable)&&record(portable.mcpServers))for(const server of Object.values(portable.mcpServers))if(record(server)){mcpOAuthDeclaration(server.extensions);delete server.extensions;}
@@ -55,7 +56,8 @@ export const searchPlugins=['serper','tavily'].map(adapter=>validatePluginPackag
 export const chromePlugin=validatePluginPackage({manifest:{$schema:pluginSchemaUrl,name:chromePluginName,version:'1.11.0',description:'Google Chrome DevTools: connect your Chrome session, inspect pages, capture screenshots, and use browser, network and performance tools.',author:{name:'Chrome DevTools'},license:'Apache-2.0',extensions:{'com.agentopia':{managedMcp:chromePluginName}}}},true);
 export const imagePlugin=validatePluginPackage({manifest:{$schema:pluginSchemaUrl,name:imageGenerationPluginName,version:'1.0.0',description:'Create and edit images through an explicitly configured image connection. Ordinary chats keep their selected AI connection. Every image request shows its provider, model and reference sharing for review.',author:{name:'Agentopia'},extensions:{'com.agentopia':{imageGeneration:'v1'}}}},true);
 export const composioMcpPlugin=validatePluginPackage({manifest:{$schema:pluginSchemaUrl,name:composioMcpPluginName,version:'1.0.0',description:'Connect your Composio account through browser sign-in and give selected agents access to its connected apps.',author:{name:'Agentopia'}},mcp:{$schema:mcpSchemaUrl,mcpServers:{composio:{type:'streamable-http',url:composioMcpUrl,extensions:{'com.openai':{auth:composioMcpAuth}}}}}},true);
-export const bundledPlugins=[...searchPlugins,chromePlugin,imagePlugin,composioMcpPlugin];
+export const hostPlugins=Object.entries(hostPluginFamilies).map(([hostFamily,row])=>validatePluginPackage({manifest:{$schema:pluginSchemaUrl,name:row.name,version:'1.0.0',description:row.description,author:{name:'Agentopia'},extensions:{'com.agentopia':{hostFamily}}}},true));
+export const bundledPlugins=[...searchPlugins,chromePlugin,imagePlugin,composioMcpPlugin,...hostPlugins];
 export const examplePluginPackage:PluginPackage={manifest:{$schema:pluginSchemaUrl,name:'microsoft-learn',version:'1.0.0',description:'Search Microsoft Learn documentation.'},mcp:{$schema:mcpSchemaUrl,mcpServers:{docs:{type:'streamable-http',url:'https://learn.microsoft.com/api/mcp'}}}};
 
 // Compile a bounded, local-only JSON Schema before advertising or invoking a tool.

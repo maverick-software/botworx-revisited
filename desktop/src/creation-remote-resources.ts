@@ -42,7 +42,7 @@ export class CreationRemoteResources{
   const packages=await this.packages(owner,principal),sources:ToolSource[]=[];
   for(const pkg of packages){
    const adapter=pkg.package.manifest.extensions?.['com.agentopia']?.adapter;
-   if(adapter){const key=data(await this.db.from('system_api_keys').select('vault_secret_id,is_active').eq('provider_name',adapter==='serper'?serperProvider:'tavily_api').maybeSingle());sources.push({id:'web_search',name:'Web search',kind:'web',plugin:pkg.name,enabled:true,ready:!!key?.is_active&&!!key.vault_secret_id,validation:'Schema validated',detail:'Use the explicitly selected '+adapter+' search app. External queries follow preview permissions.'});}
+   if(adapter){const key=await this.plugins.searchCredential(owner,String(adapter),adapter==='serper'?serperProvider:'tavily_api');sources.push({id:'web_search',name:'Web search',kind:'web',plugin:pkg.name,enabled:true,ready:!!key?.is_active&&!!key.vault_secret_id,validation:'Schema validated',detail:'Use the explicitly selected '+adapter+' search app. External queries follow preview permissions.'});}
    for(const [server,declaration]of Object.entries(pkg.package.mcp?.mcpServers??{})){
     const auth=mcpOAuthDeclaration(declaration.extensions),id=creationConnectionId(principal,pkg.name,server);let ready=auth?.type!=='oauth'&&auth?.type!=='mixed';if(pkg.name===composioMcpPluginName)ready=!!await this.oauth?.grant({owner,accountConnector:'composio'});else if(!ready&&this.oauth){const grant=await this.oauth.grant({owner,creation:principal,connection:id}),receipt=await this.authorization(owner,principal.creationId,id);ready=!!grant&&!!receipt&&receipt.enabled&&receipt.scopeId===principal.id&&receipt.plugin===pkg.name&&receipt.digest===pkg.digest&&receipt.server===server&&receipt.grant===grant.grant&&receipt.stamp===grant.stamp;}
     sources.push({id:'mcp:'+creationConnectionId(principal,pkg.name,server),name:pkg.name+' · '+server,kind:'mcp',plugin:pkg.name,enabled:true,ready,validation:'Schema validated',detail:ready?'Use this reviewed MCP declaration. External calls follow preview permissions.':'Connect this creation’s reviewed server before testing it.'});
@@ -82,7 +82,7 @@ export class CreationRemoteResources{
   const packages=await this.packages(owner,principal),selected=packages.filter(pkg=>!!pkg.package.manifest.extensions?.['com.agentopia']?.adapter);
   if(selected.length!==1)throw Error('Explicitly select one search app for this creation.');const pkg=selected[0],adapter=pkg.package.manifest.extensions!['com.agentopia'].adapter as string;
   if(!['serper','tavily'].includes(adapter))throw Error('The selected search adapter is unsupported.');
-  const row=data(await this.db.from('system_api_keys').select('vault_secret_id,is_active').eq('provider_name',adapter==='serper'?serperProvider:'tavily_api').maybeSingle());
+  const row=await this.plugins.searchCredential(owner,String(adapter),adapter==='serper'?serperProvider:'tavily_api');
   if(!row?.is_active)throw Error('An administrator must configure the selected search app credential in Plugins.');const key=await this.secret(row.vault_secret_id);if(!key)throw Error('The selected search app credential is unavailable.');
   await this.checked(owner,principal);return {name:pkg.name,adapter,enabled:true,digest:pkg.digest,key,signature:digest([principal,pkg.name,pkg.digest,key])};
  }
