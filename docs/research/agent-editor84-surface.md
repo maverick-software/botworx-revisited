@@ -10,10 +10,12 @@ Legacy guidance folds into Instructions once per exact legacy source. The editin
 
 ## Verification
 
-`npm run desktop:typecheck` passed with the backend and resource source overlays. `node scripts/desktop/test-agent-editor84-ui.mjs` passed 12 actual Electron checks with a controlled bridge and isolated profile. No production store writes or paid inference requests occurred. The bridge simulated actual builder preview start/read/stop contracts; these UI checks establish interaction and payload behavior, while the backend slice separately verifies the SQL transaction.
+`npm run desktop:typecheck` passed with the backend and resource source overlays. `node scripts/desktop/test-agent-editor84-ui.mjs` passed 13 actual Electron checks with a controlled bridge and isolated profile. No production store writes or paid inference requests occurred. The bridge simulated actual builder preview start/read/stop contracts; these UI checks establish interaction and payload behavior, while the backend slice separately verifies the SQL transaction.
 
-Evidence: `F:/Agentopia-Consolidation/skills/.supabase/agent-editor84-ui/1793024237522/evidence.json`.
+Evidence: `F:/Agentopia-Consolidation/skills/.supabase/agent-editor84-ui/1793024376754/evidence.json`.
 
-The same directory contains new/saved page screenshots at 960 and 1470 pixels in light and dark themes, plus profile-modal.png and starters-modal.png. Checks include no inline legacy form, unsaved modal edits, protected image preparation route, reordering/removal, real generation contract, selection-preserving bold/link/undo, exact Markdown restore, atomic revision payload, reload/reopen idempotence, cleared unsaved status after acknowledged Save, presentation revision guard, keyboard modal access/focus restoration, cancellation on close and rejection of late output after a draft change.
+The same directory contains new/saved page screenshots at 960 and 1470 pixels in light and dark themes, plus profile-modal.png and starters-modal.png. Checks include disabled Create controls with a visible explanation when no model is selected, no inline legacy form, unsaved modal edits, protected image preparation route, reordering/removal, real generation contract, selection-preserving bold/link/undo, exact Markdown restore, atomic revision payload, reload/reopen idempotence, cleared unsaved status after acknowledged Save, presentation revision guard, keyboard modal access/focus restoration, cancellation on close and rejection of late output after a draft change.
 
 This commit is source only. Packaging, installation and live-provider acceptance are owned by the parent delivery task.
+
+The page Escape handler ignores keyboard events arriving through portaled modal content, so closing a profile modal returns to the editor and restores focus. The UI typecheck also passed after the no-model guard.
