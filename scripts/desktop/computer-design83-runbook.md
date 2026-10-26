@@ -40,8 +40,7 @@ Qualification starts the actual candidate executable with an empty F: profile
 and deliberately missing runtime. It checks the actual DOM script and stylesheet
 URLs, hashes their candidate files against the frozen UI manifest, verifies that
 the new card and blue switch rules loaded into the browser's stylesheet list,
-checks a hidden sample card's computed corner radius and the rendered application,
-records a screenshot, and
+checks a hidden sample card's computed corner radius and the rendered application, and
 closes its own window normally. This verifies packaged asset loading. The source
 fixture verifies the redesigned page and permission behavior. The ordinary app's
 final inspection confirms the page in its real account and display context.

@@ -31,7 +31,7 @@ const result=await launchDurableProfileProbe(cfg,{label:'actual-renderer',testPr
  });
  for(const asset of observation.assets){const url=new URL(asset.url);assert(url.protocol==='agentopia:'&&url.hostname==='app');const name=url.pathname.replace(/^\//,'');assert(Object.hasOwn(p.uiFiles,name));asset.sha256=await hash(path.join(p.ui,name));}
  verifyComputerDesign83RendererObservation(observation,p.uiFiles);
- await page.screenshot({path:path.join(out,'actual-packaged-renderer.png'),timeout:30000});return {actualPackagedRenderer:true,loadedAssets:observation.assets,loadedComputerRules:observation.rules,computedCardRadius:observation.computedCardRadius,rendererExecuted:observation.rendererExecuted,productionProfileWrites:0,providerRequests:0};
+ return {actualPackagedRenderer:true,loadedAssets:observation.assets,loadedComputerRules:observation.rules,computedCardRadius:observation.computedCardRadius,rendererExecuted:observation.rendererExecuted,productionProfileWrites:0,providerRequests:0};
 }});
 assert(result.success&&result.normalExit===0&&result.absentPrivateRuntimeRefused&&result.workflow.actualPackagedRenderer&&result.externalRequestsAttempted===0);q.actualPackagedRendererPending=false;q.actualPackagedRenderer=true;q.packagedRendererEvidence=path.join(result.out,'evidence.json');q.packagedRendererEvidenceSha256=await hash(q.packagedRendererEvidence);q.packagedRendererUsesEmptyIsolatedProfile=true;q.providerRequests=0;await writeFile(path.join(p.out,'qualification.json'),JSON.stringify(q,null,2));console.log(JSON.stringify({success:true,evidence:q.packagedRendererEvidence,actualPackagedRenderer:true,productionProfileWrites:0,providerRequests:0}));
 
