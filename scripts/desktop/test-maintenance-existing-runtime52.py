@@ -1,6 +1,6 @@
 """Exercise identity and encryption-key gates without touching a real runtime."""
 from pathlib import Path
-import importlib.util, json, tempfile, unittest
+import hashlib, importlib.util, json, tempfile, unittest
 
 spec=importlib.util.spec_from_file_location('existing',Path(__file__).with_name('maintenance-existing-runtime52.py'))
 existing=importlib.util.module_from_spec(spec);spec.loader.exec_module(existing)
@@ -38,9 +38,18 @@ class ExistingRuntimeTests(unittest.TestCase):
         state={'services':[{'service':s,'state':'running','health':'healthy'} for s in existing.REQUIRED]}
         self.assertTrue(existing.healthy(state));state['services'][0]['health']='unhealthy';self.assertFalse(existing.healthy(state))
     def test_current_release_helper(self):
-        release=Path(self.tmp.name)/'desktop-release-04450';helper=release/'123/program/resources/runtime/database_state.py'
+        release=Path(self.tmp.name)/'desktop-composio-candidate52';helper=release/existing.LEGACY_HELPER
         helper.parent.mkdir(parents=True);helper.write_text('owned fixture')
-        self.assertEqual(existing.validated_helper(helper,release),helper)
+        digest=hashlib.sha256(helper.read_bytes()).hexdigest()
+        self.assertEqual(existing.validated_helper(helper,release,digest),helper)
+        with self.assertRaises(AssertionError):existing.validated_helper(helper,release)
+    def test_same_release_other_helper_rejected(self):
+        release=Path(self.tmp.name)/'desktop-composio-candidate52';helper=release/'other/source/desktop/runtime/database_state.py'
+        helper.parent.mkdir(parents=True);helper.write_text('owned fixture')
+        with self.assertRaises(AssertionError):existing.validated_helper(helper,release,hashlib.sha256(helper.read_bytes()).hexdigest())
+    def test_exact_approved_legacy_helper(self):
+        helper=Path('F:/Agentopia/.supabase/desktop-composio-candidate52')/existing.LEGACY_HELPER
+        self.assertEqual(existing.validated_helper(helper,helper.parents[4]),helper)
     def test_previous_release_helper_rejected(self):
         release=Path(self.tmp.name)/'desktop-release-04450';helper=Path(self.tmp.name)/'desktop-release-04449/123/database_state.py'
         helper.parent.mkdir(parents=True);helper.write_text('owned fixture')
