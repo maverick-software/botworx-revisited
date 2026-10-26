@@ -1,9 +1,10 @@
 // Opt-in packaged acceptance. Never rerun an uncertain attempt: inspect its receipt first.
-// node scripts/desktop/test-agent-builder87-live.mjs --proof F:/.../package-proof.json --attempt reviewed-unique-id [--create]
+// First capture: --proof F:/.../package-proof.json --attempt unique-capture --capture-declarations
+// Then live: --proof F:/.../package-proof.json --attempt unique-live --declarations F:/.../declarations.json [--create]
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import {mkdir,writeFile} from 'node:fs/promises';
-import {randomUUID} from 'node:crypto';
+import {randomUUID,createHash} from 'node:crypto';
 import {expect as baseExpect} from '@playwright/test';
 import {desktopOperation} from './operation-lock.mjs';
 import {json,hash,list} from './phased-backup-control.mjs';
@@ -13,11 +14,15 @@ import {installValidationGuard76} from './install-live-validation76-guard.mjs';
 import {callFor,seedValidation76,releaseValidation76} from './live-validation76-session.mjs';
 
 const args=process.argv.slice(2),option=name=>{const index=args.indexOf(name);assert(index>=0&&args[index+1]&&!args[index+1].startsWith('--'),'Required '+name);return args[index+1];};
-assert(args.every((value,index)=>['--proof','--attempt','--create'].includes(value)||index>0&&['--proof','--attempt'].includes(args[index-1])),'Unknown argument');
-const proofFile=path.resolve(option('--proof')),attempt=option('--attempt'),create=args.includes('--create');
-assert(/^[a-zA-Z0-9_-]{8,80}$/.test(attempt),'Use an explicit unique attempt id (8–80 letters, digits, underscores or hyphens).');
+assert(args.every((value,index)=>['--proof','--attempt','--create','--capture-declarations','--declarations'].includes(value)||index>0&&['--proof','--attempt','--declarations'].includes(args[index-1])),'Unknown argument');
+const proofFile=path.resolve(option('--proof')),attempt=option('--attempt'),create=args.includes('--create'),capture=args.includes('--capture-declarations');
+assert(!(capture&&(create||args.includes('--declarations'))),'Capture cannot create an agent or consume a declaration receipt.');
+const declarationsFile=capture?null:path.resolve(option('--declarations'));
+assert(/^[a-zA-Z0-9_-]{8,80}$/.test(attempt),'Use an explicit unique attempt id (8-80 letters, digits, underscores or hyphens).');
 desktopOperation('bounded seamless builder87 OAuth acceptance');
 const proof=await json(proofFile),qualified=await json(path.join(proof.out,'qualification.json')),cfg=await json(proof.qaIntent),expect=baseExpect.configure({timeout:30000});
+const bindingHashes={proofSha256:await hash(proofFile),imageSha256:proof.imageSha256,qaIntentSha256:await hash(proof.qaIntent)},declarations=capture?null:await json(declarationsFile);
+if(!capture){assert(declarations.success&&declarations.mode==='capture-declarations'&&declarations.providerRequests===0&&declarations.externalBodyDispatched===false&&declarations.normalExit&&declarations.qaRuntimeStopped,'A successful offline declaration capture is required.');assert.deepEqual(declarations.binding,bindingHashes);assert(Array.isArray(declarations.declarations));assert.equal(createHash('sha256').update(JSON.stringify(declarations.declarations)).digest('hex'),declarations.digest);}
 assert(proof.success&&proof.version==='0.44.85'&&proof.schema===90);
 assert(qualified.success&&qualified.actualPackagedApp&&qualified.actualPostgres&&qualified.actualColdReopening&&qualified.eligibleForInstallerConstruction);
 assert.equal(qualified.proofSha256,await hash(proofFile));assert.equal(qualified.imageSha256,proof.imageSha256);
@@ -45,7 +50,7 @@ await writeFile(pointer,JSON.stringify({attempt,proof:proofFile,evidence:path.jo
 const phrase='Prepares clear project meeting briefs with verified decisions and next steps. '+randomUUID().slice(0,8);
 const initial='Create an agent that turns the project notes I paste into a useful meeting brief for a project team. It should prepare a concise agenda, summarize progress, identify decisions and risks, and finish with action items showing owners and due dates when the notes provide them. Ask focused questions for important missing facts and keep uncertain facts clear. Choose a suitable name, description, icon, color, conversation starters, and detailed instructions for this purpose.';
 const followup='Change only the description to exactly '+JSON.stringify(phrase)+'. Preserve every other field.';
-const e={success:false,out,attempt,proof:proofFile,imageSha256:proof.imageSha256,provider:'openai-oauth',model:'gpt-6.1-sol',requests:[],checks:[],phase:'preparing',submitted:false,createRequested:create,realOpenRouterRequests:0};
+const e={success:false,out,attempt,proof:proofFile,imageSha256:proof.imageSha256,mode:capture?'capture-declarations':'live',declarationsFile,binding:bindingHashes,provider:'openai-oauth',model:'gpt-6.1-sol',requests:[],checks:[],phase:'preparing',submitted:false,createRequested:create,realOpenRouterRequests:0};
 const core=({resources,...configuration})=>configuration;
 const save=()=>writeFile(path.join(out,'evidence.json'),JSON.stringify(e,null,2));await save();
 try{
@@ -53,21 +58,35 @@ try{
  const result=await launchDurableProfileProbe(cfg,{label:'builder87-'+attempt,testProfile:false,initialProfile:cfg.profile,expectedProfile:cfg.profile,expectedRuntime:'ready',resumeDebugWorkers:true,isolateOsHome:true,hiddenWindow:true,evaluationTimeoutMs:900000,normalCloseTimeoutMs:120000,
   prepareReady:async application=>{
    await installValidationGuard76(application);
-   await application.evaluate(({app},{initial,followup,model,out})=>{
+   await application.evaluate(({app},{initial,followup,model,out,capture,declarations})=>{
     const req=globalThis.__durableProbeRequire,fs=req('node:fs'),path=req('node:path'),s=globalThis.__validation76;
     const helpers=req(app.getAppPath()+'/build/agent-builder.js'),{agentDraftPreviewInput}=req(app.getAppPath()+'/build/agent-draft-preview-contracts.js'),{AgentDraftPreviews}=req(app.getAppPath()+'/build/agent-draft-previews.js');
     if(typeof helpers.builderGenerationProposal!=='function'||typeof helpers.builderGenerationIssues!=='function')throw Error('Candidate lacks the complete generation contract.');
-    s.maxResponses=4;s.maxTools=0;s.builder87={inputs:[],kinds:[],followupReady:false,corrections:0,helpers};
-    const record=()=>fs.writeFileSync(path.join(out,'accepted-inputs.json'),JSON.stringify({inputs:s.builder87.inputs,kinds:s.builder87.kinds},null,2));
+    s.maxResponses=4;s.maxTools=0;s.builder87={inputs:[],kinds:[],followupReady:false,corrections:0,capture:null,interceptions:0,helpers};
+    const record=()=>{if(!capture)fs.writeFileSync(path.join(out,'accepted-inputs.json'),JSON.stringify({inputs:s.builder87.inputs,kinds:s.builder87.kinds},null,2));};
+    const canonical=value=>Array.isArray(value)?value.map(canonical):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonical(value[key])])):value;
+    const digest=value=>req('node:crypto').createHash('sha256').update(JSON.stringify(canonical(value))).digest('hex');
+    const declarationSignatures=tools=>{if(tools!==undefined&&!Array.isArray(tools))throw Error('Malformed tool declarations.');return (tools??[]).map(tool=>({type:tool.type??null,name:tool.name??tool.function?.name??null,schemaSha256:digest(tool.parameters??tool.function?.parameters??tool.input_schema??tool.schema??null),signatureSha256:digest(tool)}));};
     const refuse=message=>{s.blocked.push({at:new Date().toISOString(),message});record();throw Error(message);};
     const fetch=globalThis.fetch;globalThis.fetch=(input,args={})=>{
      const url=new URL(typeof input==='string'?input:input.url??String(input));
      if(!['127.0.0.1','localhost','[::1]'].includes(url.hostname)){
       if(url.origin!=='https://api.openai.com'||!['/v1/models','/v1/responses'].includes(url.pathname))return refuse('Only the declared OAuth connection may access external services.');
       if(url.pathname==='/v1/responses'){
+       if(url.href!=='https://api.openai.com/v1/responses'||args.method!=='POST')return refuse('Only the exact Responses POST is permitted.');
        const body=JSON.parse(args.body),context=JSON.stringify([body.instructions,body.input]);
        if(s.calls.some(row=>row.outcome==='unconfirmed'||row.status!==null&&(row.status<200||row.status>=300)))return refuse('A previous dispatch failed or is uncertain. Inspect it without another model request.');
-       if(body.model!==model||body.tools?.length||/data:image\/|\"(?:input_image|image_url)\"/.test(context))return refuse('This acceptance permits only text, the selected model and no tools or images.');
+       if(body.model!==model||/data:image\/|\"(?:input_image|image_url)\"/.test(context))return refuse('This acceptance permits only text and the selected model without images.');
+       const signatures=declarationSignatures(body.tools),signatureDigest=req('node:crypto').createHash('sha256').update(JSON.stringify(signatures)).digest('hex');
+       if(capture){
+        if(!s.leaseActive||s.expiresAt<Date.now()+90000||s.builder87.inputs.length!==1||s.builder87.kinds[0]!=='initial')return refuse('Capture requires the fresh lease and exact initial UI request.');
+        if(!args.signal?.addEventListener)return refuse('Capture requires the gateway cancellation signal.');
+        if(s.builder87.interceptions++)return refuse('Only the first declaration capture is permitted.');
+        s.builder87.capture={declarations:signatures,digest:signatureDigest,providerRequests:0,externalBodyDispatched:false};
+        // Keep the undispatched request pending until the normal preview stop aborts it.
+        return new Promise((_resolve,reject)=>{const stop=()=>reject(new DOMException('Offline declarations captured; preview cancelled before external dispatch.','AbortError'));if(args.signal?.aborted)stop();else args.signal.addEventListener('abort',stop,{once:true});});
+       }
+       if(signatureDigest!==declarations.digest)return refuse('Tool declarations changed from this candidate offline capture.');
       }
      }
      return fetch(input,args);
@@ -95,11 +114,20 @@ try{
      s.cases[input.requestId]={kind:'preview',agent:input.sessionId,provider:'openai-oauth',model,readPaths:[],maximumResponses:2};
      state.inputs.push(input);state.kinds.push(kind);record();return start.call(this,user,input);
     };
-   },{initial,followup,model:e.model,out});
+   },{initial,followup,model:e.model,out,capture,declarations});
   },
   runReady:async({application,page})=>{
    const call=callFor(page),editor=()=>page.getByRole('region',{name:/^(Create an agent|Edit agent)$/}),builder=()=>editor().getByRole('complementary',{name:'Agent builder'});
    const inputs=()=>application.evaluate(()=>({inputs:globalThis.__validation76.builder87.inputs,kinds:globalThis.__validation76.builder87.kinds}));
+   const checkNative=()=>application.evaluate(async()=>{
+    const b=globalThis.__coordination.broker,s=globalThis.__validation76,summary=[];
+    for(const input of s.builder87.inputs){
+     const result=await b.admin.from('desktop_preview_codex_turns').select('state').eq('request_id',input.requestId).eq('user_id',s.owner).single();if(result.error)throw Error(result.error.message);const state=result.data.state,types=(state.items??[]).map(entry=>entry.item.type);
+     if(state.goal||state.composerGoalId||state.children?.length||state.reports?.length||state.namedAssignments?.length||state.tools?.length||state.approvals?.length||state.diffs?.length||types.some(type=>!['userMessage','agentMessage','reasoning','plan','contextCompaction'].includes(type)))throw Error('Native execution activity occurred in the passive builder acceptance.');
+     summary.push({requestId:input.requestId,itemTypes:types,goal:null,children:0,executionItems:0});
+    }
+    return summary;
+   });
    const parse=async(row,creation)=>application.evaluate(({app},{row,creation})=>{const h=globalThis.__durableProbeRequire(app.getAppPath()+'/build/agent-builder.js'),proposal=h.builderGenerationProposal(row.output_text,row.snapshot.builder,{creation});return {proposal,configuration:h.applyBuilderProposal(row.snapshot.builder,row.snapshot.builder,proposal)};},{row,creation});
    const settle=async kind=>{
     const deadline=Date.now()+300000;let cursor=0;
@@ -135,6 +163,13 @@ try{
     const before=(await call('agents.list')).map(row=>row.id);await page.goto('agentopia://app/agents');await page.getByRole('region',{name:'Agents directory',exact:true}).getByRole('button',{name:'Create',exact:true}).click();await page.getByRole('menuitem',{name:'Create agent',exact:true}).click();
     await expect(builder().getByRole('heading',{name:'What should your agent do?',exact:true})).toBeVisible();await expect(editor().getByRole('textbox',{name:'Name',exact:true})).toBeHidden();
     await builder().getByRole('textbox',{name:'Message agent builder',exact:true}).fill(initial);await expect(builder().getByRole('button',{name:'Send to agent builder',exact:true})).toBeEnabled();e.phase='initial-submission';e.submitted=true;await save();await builder().getByRole('button',{name:'Send to agent builder',exact:true}).click();
+    if(capture){
+     const deadline=Date.now()+120000;let captured;
+     while(Date.now()<deadline){captured=await application.evaluate(()=>globalThis.__validation76.builder87.capture);if(captured)break;await new Promise(resolve=>setTimeout(resolve,100));}
+     assert(captured,'No initial outgoing declaration body was intercepted.');const accepted=await inputs();assert.equal(accepted.inputs.length,1);assert.deepEqual(accepted.kinds,['initial']);
+     await call('agentDraftPreview.stop',{owner:e.owner,sessionId:accepted.inputs[0].sessionId});assert.equal((await call('agentDraftPreview.active',{owner:e.owner})).length,0);
+     e.capture=captured;e.native=await checkNative();assert.deepEqual((await call('agents.list')).map(row=>row.id),before);e.phase='captured-before-dispatch';e.checks.push('The exact initial UI request reached the qualified native runtime; its declarations were intercepted before external dispatch and the preview stopped normally.');await save();return {success:true,offlineCapture:true,providerRequests:0,externalBodyDispatched:false};
+    }
     // The candidate's generation parser already validates nonempty uppercase Markdown sections.
     const first=await settle('initial');e.generated=first.configuration;e.firstProposal=first.proposal;assert(first.configuration.instructions.length>300);assert(/project|meeting/i.test(first.configuration.name+' '+first.configuration.instructions));
     await checkFields(first.configuration);assert.deepEqual((await call('agents.list')).map(row=>row.id),before);await page.screenshot({path:path.join(out,'automatically-generated.png')});e.checks.push('A natural request crossed PostgreSQL and the real OAuth runtime, then automatically filled every visible core field.');await save();
@@ -144,13 +179,16 @@ try{
      e.savedProfile=await call('agents.profile',{agentId:agent.id});e.savedPresentation=await call('agents.presentation.get',{owner:e.owner,agentId:agent.id});for(const key of ['icon','color','starters'])assert.deepEqual(e.savedPresentation[key],second.configuration.appearance[key]);for(const key of ['handle','role','sops','guardrails','skills','policy'])assert.deepEqual(e.savedProfile[key],second.configuration.behavior[key],key);
      e.savedOwner=await application.evaluate(async(_,{owner,id})=>{const result=await globalThis.__coordination.broker.admin.from('agents').select('user_id').eq('id',id).single();if(result.error)throw Error(result.error.message);if(result.data.user_id!==owner)throw Error('The saved agent belongs to another account.');return result.data.user_id;},{owner:e.owner,id:agent.id});e.checks.push('Explicit Create saves all generated fields exactly once under the temporary QA account.');
     }
-    assert.equal((await call('agentDraftPreview.active',{owner:e.owner})).length,0);e.phase='verified';await save();return {success:true,twoUserIntents:true,automaticFullConfiguration:true,created:create};
+    assert.equal((await call('agentDraftPreview.active',{owner:e.owner})).length,0);e.native=await checkNative();e.phase='verified';await save();return {success:true,twoUserIntents:true,automaticFullConfiguration:true,created:create};
    }finally{
     try{e.cleanup=await releaseValidation76(application);}finally{await save();}
    }
   }
  });
- assert(result.success&&result.normalExit===0);e.appEvidence=path.join(result.out,'evidence.json');e.normalExit=true;assert(e.cleanup.leaseRemoved&&e.cleanup.oauthCredentialRemoved&&e.cleanup.routerCredentialRemoved);assert.deepEqual(e.cleanup.blocked,[]);assert.equal(e.cleanup.tools.length,0);assert(e.cleanup.calls.length>=2&&e.cleanup.calls.length<=4);assert(e.cleanup.calls.every(row=>row.provider==='openai-oauth'&&row.model===e.model&&row.images===0&&row.actor==='parent'&&row.status>=200&&row.status<300&&!row.outcome));e.realOAuthResponseCalls=e.cleanup.calls.length;
- assert.equal(e.requests.filter(row=>row.kind==='initial').length,1);assert.equal(e.requests.filter(row=>row.kind==='followup').length,1);assert(e.requests.filter(row=>row.kind==='completion-correction').length<=1);assert.equal(await hash(proof.image),proof.imageSha256);e.qaRuntimeStopped=!(await list(true)).includes(cfg.distribution);assert(e.qaRuntimeStopped);e.success=true;e.phase='accepted';await save();
-}catch(error){e.error=error.cause?.message??error.stack??error.message;e.phase='stopped-inspect-without-replay';process.exitCode=1;await save();}
-console.log(JSON.stringify({success:e.success,out,phase:e.phase,checks:e.checks.length,realOAuthResponseCalls:e.realOAuthResponseCalls,realOpenRouterRequests:0,normalExit:e.normalExit,created:e.agentId??null,error:e.error}));
+ assert(result.success&&result.normalExit===0);e.appEvidence=path.join(result.out,'evidence.json');e.normalExit=true;assert(e.cleanup.leaseRemoved&&e.cleanup.oauthCredentialRemoved&&e.cleanup.routerCredentialRemoved);assert.deepEqual(e.cleanup.blocked,[]);assert.equal(e.cleanup.tools.length,0);e.realOAuthResponseCalls=e.cleanup.calls.length;
+ if(capture){assert.equal(e.cleanup.calls.length,0);assert(e.capture&&e.capture.providerRequests===0&&e.capture.externalBodyDispatched===false);}
+ else{assert(e.cleanup.calls.length>=2&&e.cleanup.calls.length<=4);assert(e.cleanup.calls.every(row=>row.provider==='openai-oauth'&&row.model===e.model&&row.images===0&&row.actor==='parent'&&row.status>=200&&row.status<300&&!row.outcome));assert.equal(e.requests.filter(row=>row.kind==='initial').length,1);assert.equal(e.requests.filter(row=>row.kind==='followup').length,1);assert(e.requests.filter(row=>row.kind==='completion-correction').length<=1);}
+ assert.equal(await hash(proof.image),proof.imageSha256);assert.equal(await hash(path.join(cfg.program,'resources/app.asar')),proof.imageSha256);assert.deepEqual({proofSha256:await hash(proofFile),imageSha256:proof.imageSha256,qaIntentSha256:await hash(proof.qaIntent)},bindingHashes);e.qaRuntimeStopped=!(await list(true)).includes(cfg.distribution);assert(e.qaRuntimeStopped);e.success=true;e.phase=capture?'captured':'accepted';await save();
+ if(capture){e.declarationsFile=path.join(out,'declarations.json');await writeFile(e.declarationsFile,JSON.stringify({success:true,mode:'capture-declarations',attempt,binding:bindingHashes,...e.capture,normalExit:true,qaRuntimeStopped:true},null,2),{flag:'wx'});await save();}
+}catch(error){e.success=false;e.error=error.cause?.message??error.stack??error.message;e.phase='stopped-inspect-without-replay';process.exitCode=1;await save();}
+console.log(JSON.stringify({success:e.success,out,phase:e.phase,checks:e.checks.length,realOAuthResponseCalls:e.realOAuthResponseCalls,realOpenRouterRequests:0,normalExit:e.normalExit,declarationsFile:e.declarationsFile,created:e.agentId??null,error:e.error}));
