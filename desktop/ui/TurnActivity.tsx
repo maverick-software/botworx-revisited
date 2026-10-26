@@ -5,7 +5,8 @@ import React,{useContext,useEffect,useMemo,useState} from 'react';
 import {ChevronRight,FileDiff,FileText,RotateCcw} from 'lucide-react';
 import type {Message} from '../src/contracts';
 import type {ToolActivity} from '../src/tool-contracts';
-import {changedFiles,changedFileCount,elapsedLabel,turnLabel,type ChangedFile} from '../src/turn-presentation';
+import {changedFiles,changedFileCount,elapsedLabel,turnLabel,type ChangedFile,type TurnTiming} from '../src/turn-presentation';
+import {nativeActivityReceipt,nativeActivityStatus} from './native-activity-status';
 import {ToolTimeline} from './ToolActivity';
 import {WorkspaceLinks} from './WorkspaceLinks';
 
@@ -13,15 +14,38 @@ export function LineCounts({file,unavailable='Large diff'}:{file:Pick<ChangedFil
  return file.added===null||file.removed===null?<span className="change-count-unavailable">{unavailable}</span>:<span className="change-line-counts"><span className="lines-added">+{file.added}</span><span className="lines-removed">−{file.removed}</span></span>;
 }
 
-export function TurnActivity({message}:{message:Message}){
- const activities=message.metadata.tools??[],active=message.metadata.status==='running';
+export function TurnSummary({status,timing,children}:{status?:string;timing?:TurnTiming;children?:React.ReactNode}){
+ const active=status==='running';
  const [expanded,setExpanded]=useState(false),[now,setNow]=useState(Date.now);
  useEffect(()=>{if(!active)return;setNow(Date.now());const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer);},[active]);
+ const label=turnLabel(status,elapsedLabel(timing,now),false).replace('Working · ','Working for ');
+ return <div className="turn-work-summary">{children?<><button type="button" className="turn-work-toggle" aria-expanded={expanded} aria-label={label+' — '+(expanded?'hide':'show')+' activity'} onClick={()=>setExpanded(value=>!value)}><span>{label}</span><ChevronRight size={14} className={expanded?'expanded':''}/></button>{expanded&&children}</>:<div className="turn-work-label">{label}</div>}</div>;
+}
+
+export function currentTurnActivity(native?:NativeState,tools:ToolActivity[]=[],requestId?:string){
+ const relevant=tools.filter(tool=>(!requestId||tool.request_id===requestId)&&(!native||!tool.native_thread_id||tool.native_thread_id===native.threadId));
+ const pending=native?.approvals.find(a=>a.status==='pending'&&a.threadId===native.threadId&&a.turnId===native.turnId);
+ if(pending)return pending.kind==='input'?'Waiting for your answer':'Waiting for your approval';
+ if(relevant.some(tool=>tool.status==='awaiting_approval'))return 'Waiting for your approval';
+ const tool=relevant.slice().reverse().find(tool=>tool.status==='running');if(tool)return tool.label||'Using an app';
+ if(native){
+  const entry=native.items.slice().reverse().find(entry=>entry.threadId===native.threadId&&entry.turnId===native.turnId&&!entry.completed&&nativeActivityStatus(entry,false,nativeActivityReceipt(entry,native.items,relevant,requestId??''))==='Working');
+  if(entry){switch(entry.item.type){case 'commandExecution':return 'Running a command';case 'fileChange':return 'Editing files';case 'mcpToolCall':return 'Using '+entry.item.server+' · '+entry.item.tool;case 'dynamicToolCall':return 'Using '+entry.item.tool;case 'collabAgentToolCall':return 'Working with agents';}}
+  if(native.children?.some(child=>child.status==='running'))return 'Waiting for agents';
+ }
+ return 'Thinking';
+}
+
+export function CurrentTurnActivity({active,native,tools,requestId,label}:{active:boolean;native?:NativeState;tools?:ToolActivity[];requestId?:string;label?:string}){
+ return active?<div className="turn-current-activity" role="status" aria-live="polite" aria-atomic="true">{label??currentTurnActivity(native,tools,requestId)}</div>:null;
+}
+
+export function TurnActivity({message}:{message:Message}){
+ const activities=message.metadata.tools??[],active=message.metadata.status==='running';
  const awaiting=activities.filter(tool=>tool.status==='awaiting_approval');
- const elapsed=elapsedLabel(message.metadata.timing,now),label=turnLabel(message.metadata.status,elapsed,!!awaiting.length);
  if(!activities.length&&!message.metadata.timing)return null;
- return <div className="turn-work"><button type="button" className="turn-work-toggle" aria-expanded={expanded} aria-label={label+' — '+(expanded?'hide':'show')+' activity'} onClick={()=>setExpanded(value=>!value)}><span>{label}</span><ChevronRight size={14} className={expanded?'expanded':''}/></button>
-  {expanded&&<div className="turn-work-history"><p className="turn-work-note">Elapsed time includes model requests, tools, and approval waits. Activity shows recorded actions.</p><ToolTimeline activities={activities.filter(tool=>tool.status!=='awaiting_approval')} active={active}/>{!activities.length&&<p className="turn-work-note">No tool activity was recorded for this response.</p>}</div>}
+ return <div className="turn-work"><TurnSummary status={message.metadata.status} timing={message.metadata.timing}>
+  <div className="turn-work-history"><p className="turn-work-note">Elapsed time includes model requests, tools, and approval waits. Activity shows recorded actions.</p><ToolTimeline activities={activities.filter(tool=>tool.status!=='awaiting_approval')} active={active}/>{!activities.length&&<p className="turn-work-note">No tool activity was recorded for this response.</p>}</div></TurnSummary>
   {!!awaiting.length&&<div className="turn-pending-approvals" aria-label="Pending approvals"><ToolTimeline activities={awaiting} active={active}/></div>}
  </div>;
 }
