@@ -13,7 +13,7 @@ from urllib.parse import unquote, urlparse
 from logical_row_fingerprints71 import Fingerprints, lines, IDENTIFIER
 
 
-def audit(archive, out, instance, expected_port, additional_empty_tables=(), expected_composio_plugin=None):
+def audit(archive, out, instance, expected_port, additional_empty_tables=(), expected_composio_plugin=None, consolidation_policy=None):
     archive, out = Path(archive), Path(out)
     assert len(set(additional_empty_tables)) == len(additional_empty_tables)
     assert all(IDENTIFIER.fullmatch(name) for name in additional_empty_tables)
@@ -32,7 +32,13 @@ def audit(archive, out, instance, expected_port, additional_empty_tables=(), exp
     db = urlparse(state['env']['DB_URL'])
     assert db.port == expected_port == tomllib.loads(Path('supabase/config.toml').read_text())['db']['port']
     binary = Path(glob.glob('/home/agentopia/.supabase/cache/stack/slim-services/postgres/*/linux-amd64/*/bin/psql')[0]).parent
-    store = Fingerprints(out / 'row-fingerprints.sqlite')
+    if consolidation_policy is not None:
+        from consolidation_row_checks79 import ConsolidationFingerprints
+        store = ConsolidationFingerprints(out / 'row-fingerprints.sqlite', consolidation_policy)
+        additional_data_tables = store.new_tables
+    else:
+        store = Fingerprints(out / 'row-fingerprints.sqlite')
+        additional_data_tables = ()
     env = dict(os.environ, PGPASSWORD=unquote(db.password or ''), PGOPTIONS='-c default_transaction_read_only=on',
                PGTZ='UTC', PGAPPNAME='agentopia_complete_logical71_readonly')
     try:
@@ -74,6 +80,9 @@ def audit(archive, out, instance, expected_port, additional_empty_tables=(), exp
             columns = ','.join('"' + part + '"' for part in record['columns'])
             condition = ' WHERE NOT (' + approved_composio + ')' if name == 'public.desktop_plugins' and approved_composio else ''
             commands += ['\\echo ' + begin + name, 'COPY (SELECT ' + columns + ' FROM ' + schema + '."' + table + '"' + condition + ') TO STDOUT;', '\\echo ' + end]
+        for table in additional_data_tables:
+            assert 'public.' + table not in expected and IDENTIFIER.fullmatch(table)
+            commands += ['\\echo ' + begin + 'public.' + table, 'COPY (SELECT row_to_json(t)::text FROM public.\"' + table + '\" t) TO STDOUT;', '\\echo ' + end]
         commands += ['COMMIT;']
         sql = out / 'read-only-audit.sql'
         sql.write_text('\n'.join(commands) + '\n')
@@ -87,20 +96,25 @@ def audit(archive, out, instance, expected_port, additional_empty_tables=(), exp
                         if line == (end + '\n').encode():
                             active = None
                         else:
-                            store.row('live', active, line)
+                            if active in expected:
+                                store.row('live', active, line)
+                            else:
+                                store.collect_new(active.split('.')[1], line)
                     elif metadata is None:
                         metadata = json.loads(line)
                     else:
                         assert line.startswith(begin.encode()), 'Unexpected audit framing.'
                         active = line.decode('ascii').strip()[len(begin):]
-                        assert active in expected
-                        store.begin('live', active, expected[active]['columns'])
+                        assert active in expected or active in ['public.' + name for name in additional_data_tables]
+                        if active in expected:
+                            store.begin('live', active, expected[active]['columns'])
             finally:
                 process.stdout.close()
                 code = process.wait(timeout=120)
             assert code == 0 and active is None and metadata, 'Live audit failed; inspect private diagnostics.'
+        migration = store.verify_migration() if consolidation_policy is not None else None
         actual = store.result('live')
-        assert sorted('public.' + name for name in metadata['publicTables']) == sorted([name for name in expected if name.startswith('public.')] + ['public.' + name for name in additional_empty_tables]), 'The archive must cover every original application table; only explicitly named empty new tables are allowed.'
+        assert sorted('public.' + name for name in metadata['publicTables']) == sorted([name for name in expected if name.startswith('public.')] + ['public.' + name for name in additional_empty_tables] + ['public.' + name for name in additional_data_tables]), 'The archive must cover every original application table; new tables require explicit empty-table or checked migration declarations.'
         assert all(count == 0 for count in metadata.get('additionalEmptyTables', {}).values()), 'A newly added table has unexpected data.'
         assert metadata['migrations'] >= 71
         differences = sorted(name for name in expected.keys() | actual.keys() if expected.get(name) != actual.get(name))
@@ -123,7 +137,9 @@ def audit(archive, out, instance, expected_port, additional_empty_tables=(), exp
             'providerRequests': 0, 'completeDecodedDumpBuffered': False, 'maximumCopyRowBytes': store.maximum_row_bytes,
             'copyRowLimitBytes': 64 * 1024 * 1024, 'fingerprintAlgorithm': 'sorted row SHA-256 with duplicate multiplicity',
             'additionalEmptyTablesVerified': len(additional_empty_tables), 'additionalComposioCatalogRowsVerified': metadata.get('additionalComposioRows', 0),
-            'allOriginalRowsComparedWithoutExclusions': True}
+            'allOriginalRowsComparedWithoutExclusions': consolidation_policy is None,
+            'allOriginalRowsComparedWithVerifiedMigrationProjection': consolidation_policy is not None,
+            **({'consolidationMigration': migration} if migration else {})}
         (out / 'archive-table-fingerprints.json').write_text(json.dumps(expected, indent=2))
         return report
     finally:
