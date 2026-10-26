@@ -82,7 +82,10 @@ try{
      else if(state.inputs.length===1&&state.corrections===0){
       const first=state.inputs[0],rows=await this.read(user.id,first.sessionId),row=rows.find(row=>row.id===first.requestId);
       if(!row||row.status!=='completed')return refuse('A correction requires a definitely completed first response.');
-      const issues=helpers.builderGenerationIssues(row.output_text,first.snapshot.builder,{creation:true});
+      // Match the UI's completion protocol; capability assignment has its own validation.
+      let full=null;try{full=helpers.builderProposal(row.output_text);}catch{}
+      const coreOutput=full?JSON.stringify({...full,changes:Object.fromEntries(Object.entries(full.changes).filter(([field])=>field!=='apps'&&field!=='assignedSkills'))}):row.output_text;
+      const issues=helpers.builderGenerationIssues(coreOutput,first.snapshot.builder,{creation:true});
       const correction='[Agent builder completion] Complete the agent configuration for the original request retained in this conversation. Fix these response issues: '+issues.join(' ').slice(0,10000)+' Return the complete purpose-built configuration in the required JSON format. Preserve the original intent and choose existing catalog entries only.\n\nOriginal request excerpt (use the full request in the conversation):\n'+initial.slice(0,30000)+'\n\nPrevious response excerpt:\n'+row.output_text.slice(0,30000);
       if(!issues.length||input.text!==correction)return refuse('Only the predeclared relevant complete-generation correction is allowed.');
       state.corrections++;kind='completion-correction';
