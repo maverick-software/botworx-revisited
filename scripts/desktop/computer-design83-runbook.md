@@ -67,8 +67,11 @@ accepted base program. Only imports, its root, and the fresh job parent path are
 derived. Its existing old-kind proof guard, both protected-settings policy files,
 and token signature/scope/renewal checks retain their exact bytes. The wrapper
 first proves that the candidate program and all non-UI resources equal that base.
-The final result requires 112 settings, identical provider connection values,
-and disabled image generation. A renewal is accepted only by the existing strict
+The final result requires the same number of settings as the fresh pre-swap
+baseline, every baseline provider connection preserved with identical values,
+all other protected settings preserved, and disabled image generation. Legitimate
+settings or connections added before maintenance remain included in that baseline.
+A renewal is accepted only by the existing strict
 policy. The raw encrypted snapshots and private diagnostics remain on F: with
 restricted job permissions; no values are printed.
 

@@ -8,6 +8,13 @@ import {promisify} from 'node:util';
 import {json,hash} from './phased-backup-control.mjs';
 import {computerDesign83Base,computerDesign83Image,verifyComputerDesign83Proof} from './prepare-computer-design83.mjs';
 
+export function verifyComputerDesign83SettingsComparison(comparison){
+ assert(Number.isSafeInteger(comparison.beforeSettings)&&comparison.beforeSettings>0);
+ assert.equal(comparison.beforeSettings,comparison.afterSettings);
+ assert(Number.isSafeInteger(comparison.providerConnectionRecords)&&comparison.providerConnectionRecords>0);
+ assert.equal(comparison.providerConnectionRecords,comparison.preservedProviderConnectionRecords);
+ assert(comparison.allOtherProtectedSettingsIdentical&&comparison.allProviderConnectionValuesIdentical&&comparison.imageGenerationDisabled);
+}
 export function deriveComputerDesign83Comparator(source,{root,out,postInspection=false}){
  assert.equal(path.resolve(root),path.resolve('F:/Agentopia'));
  assert.equal(path.resolve(path.dirname(out)),path.resolve(root,'.supabase/desktop-computer-design83'));assert(/^\d{13}$/.test(path.basename(out)));
@@ -33,7 +40,7 @@ async function audit(){
  try{
   const executed=await promisify(execFile)(process.execPath,[worker,'--patch82',job,'--compat82-proof',computerDesign83Base,'--composio-jwks',jwks],{cwd:root,windowsHide:true,encoding:'utf8',timeout:240000,maxBuffer:1024*1024});await writeFile(path.join(out,'comparator.log'),executed.stdout+executed.stderr);
   const accepted=await json(receipt),compared=await json(accepted.evidence);assert(accepted.success&&compared.success&&compared.productionProfileReadOnly&&compared.providerRequests===0);assert.equal(await hash(originalFile),e.originalComparatorSha256);assert.equal(await hash('F:/Agentopia-Data/profiles/a91a4800-e08f-4440-a4ec-588762d01bfd/profile/credentials.bin'),compared.encryptedAfterSha256);if(postInspection){assert.equal(await hash(originalReceipt),originalReceiptSha256);e.originalReceipt=originalReceipt;e.originalReceiptSha256=originalReceiptSha256;e.originalReceiptUnchanged=true;}
-  assert(compared.comparison.beforeSettings===112&&compared.comparison.afterSettings===112&&compared.comparison.allOtherProtectedSettingsIdentical&&compared.comparison.allProviderConnectionValuesIdentical&&compared.comparison.imageGenerationDisabled);
+  verifyComputerDesign83SettingsComparison(compared.comparison);
   e.comparisonEvidence=accepted.evidence;e.comparison=compared.comparison;e.encryptedAfterSha256=compared.encryptedAfterSha256;e.frozenComparatorUnchanged=true;e.success=true;await save();console.log(JSON.stringify({success:true,evidence:path.join(out,'evidence.json'),comparisonEvidence:e.comparisonEvidence,comparison:e.comparison,providerRequests:0,productionProfileReadOnly:true}));
  }catch(error){e.error=error.message;if(error.stdout||error.stderr)await writeFile(path.join(out,'private-comparator-failure.log'),String(error.stdout??'')+String(error.stderr??''));await save();throw error;}
 }
