@@ -17,6 +17,7 @@ export function assertRelease82Base(installed,base,delivery){
 }
 export async function verifyRelease82Native(root,source){
  const folder=path.join(source,'native/computer'),manifest=await json(path.join(source,'src/computer-runtime-manifest.json'));
+ assert.equal(manifest.version,'1.0.4','Release82 requires native computer helper protocol1.0.4');
  const names=(await readdir(folder)).filter(name=>/[.](cs|csproj)$/.test(name)).sort();
  const bytes=Buffer.concat(await Promise.all(names.map(async name=>Buffer.concat([Buffer.from(name+'\n'),await readFile(path.join(folder,name))]))));
  assert.equal(createHash('sha256').update(bytes).digest('hex'),manifest.sourceHash,'Regenerate and commit the native helper manifest with prepare-computer.mjs');
