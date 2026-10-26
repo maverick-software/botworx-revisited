@@ -22,6 +22,17 @@ At the latest source verification, 42 JavaScript tests, five existing-service te
 
 The pre-existing `runtime-import-shutdown.test.py` fixture rejects the unchanged importer's `ANALYZE` command before reaching its assertions. It was not modified or counted as passing. The directly affected stale process-record tests pass.
 
-The ordinary installation’s authentication and REST HTTP endpoints responded to read-only probes. No production services were stopped, no production data or credentials were changed, and no model request was made by these tests. A real service interruption/resume in an isolated QA installation remains required for release qualification, followed by mounted-editor, data and encryption-root comparisons.
+The ordinary installationâ€™s authentication and REST HTTP endpoints responded to read-only probes. No production services were stopped, no production data or credentials were changed, and no model request was made by these tests. A real service interruption/resume in an isolated QA installation remains required for release qualification, followed by mounted-editor, data and encryption-root comparisons.
 
 Read-only shortcut inspection found both Desktop and Start Menu entries target the root `AgentopiaDesktop/Agentopia.exe` launcher, with the current `app-0.44.79` working directory. The uninstall registration also reports version 0.44.79. This inspection did not establish a stale shortcut as the cause of the navigation shown in the supplied screenshots.
+
+
+## Packaged scheduler deadlock found during qualification
+
+The first actual stopped-service check on candidate `1792983634749` failed before the existing-services helper ran. The diagnostic retry kept the app open after its first unavailable result and recorded every recovery admission failure. Every execution, claim-facing Broker operation, editor write, terminal, preview and Composio counter was idle; only the scheduler's broad `busy` property remained true. This property included the periodic database read that was itself waiting on the stopped services. The QA database had zero scheduled tasks and scheduled runs. The trace is retained under `.supabase/desktop-release80/1792983634749/runtime-reconnect-1792984342502/`.
+
+The correction preserves the original broad busy behavior for backups. Runtime recovery instead checks actual scheduler staging writes, the entire claim/defer/hold reservation, and executions including their final persistence. Once that check passes, the existing maintenance fence prevents new work and invalidates the old polling generation. The detached passive read cannot stage, claim, launch, or publish a stale connection error when it eventually returns. An uncertain persisted claim remains unlaunched and is never replayed.
+
+The packaged helper was separately invoked against the verified stopped QA instance and port after the failure had been recorded. It successfully started all six existing services with the same instance and four matching root bindings. This manual cleanup is recorded in `manual-helper-cleanup.json` and does not qualify the failed mounted-editor recovery. The prior harness did not capture a normal exit code; the QA process later exited without forced termination. The remaining QA services were then stopped and that stopped QA WSL instance was terminated. The ordinary version79 process remained running throughout.
+
+A new candidate must repeat the full mounted-editor outage check. The runtime asset is unchanged by the scheduler correction; no application initialization, migration, credential replacement or request replay was introduced.
