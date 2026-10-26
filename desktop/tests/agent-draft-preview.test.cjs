@@ -124,3 +124,7 @@ test('native preview policy is enabled only by the captured native command capab
 test('native preview delegation enables the native registry without granting commands or persistent memory',()=>{
  const value=input();value.snapshot.behavior.policy.tools=null;const request={snapshot:value.snapshot,conversation_id:session,created_at:new Date().toISOString()},ceiling={...value.snapshot.behavior.policy,tools:[],delegation:true,delegateAgents:[],memory:false,memoryWrite:false,maxDepth:1,maxTurns:1},profile=draftPreviewProfile(owner,request,ceiling,false);assert.equal(profile.policy.tools,null);assert.equal(profile.policy.maxDepth,1);assert.equal(profile.policy.memory,false);assert.equal(profile.policy.memoryWrite,false);assert.deepEqual(draftPreviewProfile(owner,request,{...ceiling,maxDepth:0},false).policy.tools,[]);
 });
+
+test('an image-incapable preview model refuses saved computer tools before accepting or running a draft',async()=>{
+ const f=fixture();f.inputModalities=['text'];f.supportsTools=true;f.prepareContext={definitions:[{name:'computer_windows'}],inputFiles:[]};await assert.rejects(f.service.start(user,input()),/cannot read images/);assert.equal(f.rows.size,0);assert.equal(f.runs.length,0);
+});

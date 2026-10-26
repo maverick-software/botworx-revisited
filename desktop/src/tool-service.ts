@@ -47,9 +47,10 @@ export class ToolService{
  scheduleDefinitions(options:ChatOptions){return this.scheduled?.definitions(options)??[];}
  browser?:AgentBrowser;
  computer?:ComputerService;
- computerDefinitions(user:Identity,options:ChatOptions){return this.computer?computerDefinitions(user,options):[];}
+ computerDefinitions(user:Identity,options:ChatOptions){return this.computer&&!this.computer.isPaused?.(user.id)?computerDefinitions(user,options,this.computer.hasAccess?.(user)??false):[];}
  revokeComputer(owner:string,id:string){this.computer?.revoke(owner,id);for(const pending of [...this.approvals.values()])if(pending.user===owner&&pending.name==='computer'&&pending.reference===id)pending.resolve(false);}
- async stopComputer(owner?:string){await this.computer?.stop(owner);for(const pending of [...this.approvals.values()])if(pending.name==='computer'&&(!owner||pending.user===owner))pending.resolve(false);}
+ invalidateComputer(owner:string){for(const pending of [...this.approvals.values()])if(pending.name==='computer'&&pending.user===owner)pending.resolve(false);}
+ async stopComputer(owner?:string,pause=false){const work=this.computer?.stop(owner,pause);for(const pending of [...this.approvals.values()])if(pending.name==='computer'&&(!owner||pending.user===owner))pending.resolve(false);await work;}
  browserDefinitions(options:ChatOptions){return this.browser?browserDefinitions(options):[];}
  pluginDefinitions(owner:string,agent:PluginPrincipal|undefined,options:ChatOptions){return this.pluginFiles?.definitions(owner,agent,options)??Promise.resolve([]);}
  pluginFileBinding(owner:string,agent:PluginPrincipal){return this.pluginFiles?.capture(owner,agent);}
