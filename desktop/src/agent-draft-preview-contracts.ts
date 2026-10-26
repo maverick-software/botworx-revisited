@@ -9,7 +9,7 @@ import {profileInput} from './agent-contracts';
 import {chatOptions} from './composer';
 import type {PluginFileBinding} from './plugin-files';
 import type {PreviewWorkspaceSkills} from './preview-workspace-skills';
-import {builderConfiguration,builderSnapshot,legacyBuilderInstructions,type BuilderConfiguration} from './agent-builder';
+import {builderConfiguration,builderSnapshot,legacyBuilderInstructions,legacyBuilderInstructions83,type BuilderConfiguration} from './agent-builder';
 
 export type AgentDraftBehavior=Omit<ReturnType<typeof profileInput>,'revision'>;
 export type AgentDraftExecution=Omit<ChatOptions,'harness'|'provider'|'model'|'thinking'|'goalId'>;
@@ -45,7 +45,7 @@ export function agentDraftSnapshot(value:unknown):AgentDraftSnapshot{
  if(v.provider!=='openai-oauth'&&v.provider!=='openrouter')throw Error('Choose a supported AI provider.');
  const thinking=v.thinking??'default';if(!['default','none','minimal','low','medium','high','xhigh','max','ultra'].includes(thinking as string))throw Error('Choose a supported thinking level.');
  keys(v,['name','description','instructions','personality','provider','model','thinking','behavior','execution','builder']);
- if(v.builder!==undefined){const canonical=builderSnapshot(builderConfiguration(v.builder),v.provider,model,thinking as Thinking),execution=agentDraftExecution(v.execution??canonical.execution);if(name!==canonical.name||description!==canonical.description||instructions!==canonical.instructions&&instructions!==legacyBuilderInstructions||personality!==''||JSON.stringify(agentDraftBehavior(v.behavior))!==JSON.stringify(canonical.behavior)||execution.permission!=='chat'||execution.mode!=='chat'||execution.files.length||execution.windows?.length||execution.skills?.length||execution.tools?.length||execution.sources?.length)throw Error('The agent builder can only discuss configuration without action tools.');return {...canonical,instructions};}
+ if(v.builder!==undefined){const canonical=builderSnapshot(builderConfiguration(v.builder),v.provider,model,thinking as Thinking),execution=agentDraftExecution(v.execution??canonical.execution);if(name!==canonical.name||description!==canonical.description||instructions!==canonical.instructions&&instructions!==legacyBuilderInstructions&&instructions!==legacyBuilderInstructions83||personality!==''||JSON.stringify(agentDraftBehavior(v.behavior))!==JSON.stringify(canonical.behavior)||execution.permission!=='chat'||execution.mode!=='chat'||execution.files.length||execution.windows?.length||execution.skills?.length||execution.tools?.length||execution.sources?.length)throw Error('The agent builder can only discuss configuration without action tools.');return {...canonical,instructions};}
  return {name,description,instructions,personality,provider:v.provider,model,thinking:thinking as Thinking,behavior:agentDraftBehavior(v.behavior),...(v.execution!==undefined?{execution:agentDraftExecution(v.execution)}:{})};
 }
 export function agentDraftPreviewInput(value:unknown):AgentDraftPreviewInput{
