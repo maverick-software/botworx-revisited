@@ -1,0 +1,15 @@
+# Computer use design update
+
+Delivered and inspected in the normal installed Agentopia 0.44.82 application.
+
+The page follows the supplied desktop reference: a short title and subtitle, a compact rounded Control card, an application icon and blue enabled switch, and a separate Always-allowed apps card with a centered “None yet” state. Card rows and the empty state are 64 pixels high, with 16-pixel horizontal padding, 14-pixel corners and a 728-pixel maximum content width. Dark cards use `#242424`. Longer explanations are collapsed, and Add app opens the compact native application picker. Stop and Resume remain available when access is enabled or paused.
+
+Only ComputerSettings, its stylesheet, and the Computer page's scoped SettingsPanel class changed. Permission calls, account guards and error handling remain intact. The executable, backend archive, Windows helper 1.0.4, dependencies, runtime resources, database schema and root package version remain byte-identical. The earlier bundled Computer plugin compatibility correction is preserved.
+
+Both desktop type checks and nine controlled Electron interface checks passed. True light and dark captures covered empty and populated states, the enabled blue switch, native-choice discovery, saving/removing permissions, Stop/Resume, failed saves, account changes and composer presentation. The final packaged smoke verified loaded asset URLs and hashes, the actual stylesheet rules, computed card styling and rendered application content. Two earlier smoke failures remain recorded: an unsupported test fetch through the internal URL scheme, and a screenshot timeout in a hidden startup window. The test reader was corrected without changing production protocol or security settings.
+
+Installation used a fresh logical snapshot, a verified full-profile recovery archive and a verified copy of the old UI, followed by normal closure, a UI-folder swap and normal reopening. All 3,831 existing records across 144 tables remain, including both accounts, 123 chats and 430 messages. All 191 Vault records remain readable. The final comparison found all 112 protected settings identical, including both AI connection records; image generation remains disabled.
+
+The installed dark page was inspected directly. Add app listed native choices and closed without adding permission. The page is left open with Any App off, no individual allowances, the explanation collapsed and the picker closed. No production permission toggle, agent assignment or preferred theme was changed.
+
+Final [completion record](F:/Agentopia/.supabase/desktop-computer-design83/1793022817345/installation-1793022877845/completion.json), [package proof](F:/Agentopia/.supabase/desktop-computer-design83/1793022817345/package-proof.json), and [post-inspection comparison](F:/Agentopia/.supabase/desktop-computer-design83/1793022817345/installation-1793022877845/frozen-comparator-1793023198199/evidence.json). This is an installed renderer repair; earlier full installers contain the earlier interface.
