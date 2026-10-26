@@ -13,7 +13,7 @@ from urllib.parse import unquote, urlparse
 from logical_row_fingerprints71 import Fingerprints, lines, IDENTIFIER
 
 
-def audit(archive, out, instance, expected_port, additional_empty_tables=(), expected_composio_plugin=None, consolidation_policy=None, composio_service_policy=None):
+def audit(archive, out, instance, expected_port, additional_empty_tables=(), expected_composio_plugin=None, consolidation_policy=None, composio_service_policy=None, expected_new_migration=None):
     archive, out = Path(archive), Path(out)
     assert len(set(additional_empty_tables)) == len(additional_empty_tables)
     assert all(IDENTIFIER.fullmatch(name) for name in additional_empty_tables)
@@ -63,7 +63,7 @@ def audit(archive, out, instance, expected_port, additional_empty_tables=(), exp
         nonce = uuid.uuid4().hex
         begin, end = '__AUDIT_BEGIN_' + nonce + '__', '__AUDIT_END_' + nonce + '__'
         commands = ['BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;',
-            "SELECT jsonb_build_object('publicTables',(SELECT coalesce(jsonb_agg(c.relname ORDER BY c.relname),'[]') FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN('r','p') AND NOT EXISTS(SELECT 1 FROM pg_depend d WHERE d.classid='pg_class'::regclass AND d.objid=c.oid AND d.deptype='e')),'migrations',(SELECT count(*) FROM agentopia_desktop.migrations),'readableVault',(SELECT count(decrypted_secret) FROM vault.decrypted_secrets));"]
+            "SELECT jsonb_build_object('publicTables',(SELECT coalesce(jsonb_agg(c.relname ORDER BY c.relname),'[]') FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN('r','p') AND NOT EXISTS(SELECT 1 FROM pg_depend d WHERE d.classid='pg_class'::regclass AND d.objid=c.oid AND d.deptype='e')),'migrations',(SELECT count(*) FROM agentopia_desktop.migrations),'newMigrationChecksum',(SELECT checksum FROM agentopia_desktop.migrations WHERE version='0089-unified-agent-instructions.sql'),'readableVault',(SELECT count(decrypted_secret) FROM vault.decrypted_secrets));"]
         if additional_empty_tables:
             counts = ','.join("'" + name + "',(SELECT count(*) FROM public.\"" + name + '\")' for name in additional_empty_tables)
             commands[1] = commands[1].replace("'migrations',", "'additionalEmptyTables',jsonb_build_object(" + counts + "),'migrations',")
@@ -122,6 +122,10 @@ def audit(archive, out, instance, expected_port, additional_empty_tables=(), exp
         assert sorted('public.' + name for name in metadata['publicTables']) == sorted([name for name in expected if name.startswith('public.')] + ['public.' + name for name in additional_empty_tables] + ['public.' + name for name in additional_data_tables]), 'The archive must cover every original application table; new tables require explicit empty-table or checked migration declarations.'
         assert all(count == 0 for count in metadata.get('additionalEmptyTables', {}).values()), 'A newly added table has unexpected data.'
         assert metadata['migrations'] >= 71
+        if expected_new_migration is not None:
+            assert expected_new_migration['name'] == '0089-unified-agent-instructions.sql'
+            assert re.fullmatch('[a-f0-9]{64}', expected_new_migration['sha256'])
+            assert metadata['migrations'] == 89 and metadata['newMigrationChecksum'] == expected_new_migration['sha256'], 'The installed schema89 migration checksum differs from the package proof.'
         differences = sorted(name for name in expected.keys() | actual.keys() if expected.get(name) != actual.get(name))
         assert not differences, 'Saved rows differ: ' + ', '.join(differences)
         assert 0 <= metadata.get('additionalComposioRows', 0) <= manifest['accounts']
@@ -134,7 +138,7 @@ def audit(archive, out, instance, expected_port, additional_empty_tables=(), exp
         assert json.loads(Path('/home/agentopia/.config/agentopia/runtime-secrets.json').read_text())['root_key'] == root_key
         assert tomllib.loads(Path('supabase/config.toml').read_text())['db']['root_key'] == root_key
         report = {'success': True, 'at': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'tablesCompared': len(expected),
-            'allApplicationTablesCovered': True, 'schemaMigrations': metadata['migrations'], 'savedRowsCompared': sum(row['rows'] for row in expected.values()),
+            'newMigrationChecksum': metadata['newMigrationChecksum'], 'allApplicationTablesCovered': True, 'schemaMigrations': metadata['migrations'], 'savedRowsCompared': sum(row['rows'] for row in expected.values()),
             'originalDocumentRowsCompared': expected['public.desktop_media_files']['rows'], 'accounts': expected['auth.users']['rows'],
             'chats': expected['public.conversation_sessions']['rows'], 'messages': expected['public.chat_messages_v2']['rows'],
             'readableVaultRecords': metadata['readableVault'], 'encryptionRootBindingsVerified': 4,

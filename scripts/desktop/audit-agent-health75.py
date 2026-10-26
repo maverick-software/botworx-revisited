@@ -5,8 +5,9 @@ from urllib.parse import urlparse,unquote
 
 out=Path(sys.argv[1]);assert out.parent==Path('/mnt/f/Agentopia/.supabase/desktop-agent-health75') and re.fullmatch(r'\d{13}',out.name)
 assert out.is_dir() and out.resolve()==out
-expected=json.loads((out/'intent.json').read_text());version=expected.get('version','0.44.75');assert version in ['0.44.75','0.44.76','0.44.77','0.44.78','0.44.79','0.44.80','0.44.81','0.44.82'];schema=expected.get('schemaMigrationCount',82 if version=='0.44.76' else 73);assert isinstance(schema,int) and schema in [73,82,83,84,87,88]
+expected=json.loads((out/'intent.json').read_text());version=expected.get('version','0.44.75');assert version in ['0.44.75','0.44.76','0.44.77','0.44.78','0.44.79','0.44.80','0.44.81','0.44.82','0.44.83'];schema=expected.get('schemaMigrationCount',82 if version=='0.44.76' else 73);assert isinstance(schema,int) and schema in [73,82,83,84,87,88,89]
 if version in ['0.44.81','0.44.82']:assert schema==88
+if version=='0.44.83':assert schema==89
 assert expected['readOnly'] is True and re.fullmatch('[a-f0-9]{64}',expected['expectedImageSha256'])
 assert Path('/opt/agentopia/runtime-instance').read_text().strip()=='a91a4800-e08f-4440-a4ec-588762d01bfd'
 os.umask(0o077);os.chdir('/home/agentopia/app')
@@ -66,6 +67,10 @@ for owner in data['owners']:
 visibility=sql("SELECT coalesce(jsonb_agg(jsonb_build_object('memory',m.id,'visible',desktop_agent_memory_visible(m.user_id,m.project_id,m.id),'foreignIdentityMatches',(SELECT count(*) FROM agents a CROSS JOIN LATERAL jsonb_array_elements(desktop_search_agent_memory(m.user_id,a.id,m.project_id,m.title,30)) result(value) WHERE a.user_id=m.user_id AND a.id<>m.agent_id AND result.value->>'id'=m.id::text))),'[]') FROM desktop_agent_memories m;")
 for row in visibility:require(row['foreignIdentityMatches']==0,'memory-identity-search-isolation',row['memory'])
 migration=sql("SELECT jsonb_build_object('count',(SELECT count(*) FROM agentopia_desktop.migrations),'checksum',(SELECT checksum FROM agentopia_desktop.migrations WHERE version='0072-agent-document-library.sql'))");require(migration['count']==schema and migration['checksum']==expected['expectedMigrationChecksum'],'installed-schema'+str(schema),'0072-agent-document-library.sql')
+if schema==89:
+    unified=sql("SELECT jsonb_build_object('checksum',(SELECT checksum FROM agentopia_desktop.migrations WHERE version='0089-unified-agent-instructions.sql'))")
+    require(unified['checksum']==expected['expectedUnifiedInstructionsChecksum'],'unified-agent-instructions-migration','0089-unified-agent-instructions.sql')
+
 documents=sql("SELECT jsonb_build_object('retainedOriginals',(SELECT count(*) FROM desktop_media_files),'invalidBindings',(SELECT count(*) FROM desktop_media_files f LEFT JOIN media_library m ON m.id=f.media_id WHERE m.id IS NULL OR m.user_id<>f.user_id OR f.sha256<>encode(sha256(f.bytes),'hex')),'authenticatedTableRead',has_table_privilege('authenticated','desktop_media_files','SELECT'),'anonTableRead',has_table_privilege('anon','desktop_media_files','SELECT'),'authenticatedRpcRead',has_function_privilege('authenticated','desktop_read_agent_document(uuid,uuid,uuid,boolean)','EXECUTE'),'anonRpcRead',has_function_privilege('anon','desktop_read_agent_document(uuid,uuid,uuid,boolean)','EXECUTE'),'brokerTableRead',has_table_privilege('service_role','desktop_media_files','SELECT'),'brokerRpcRead',has_function_privilege('service_role','desktop_read_agent_document(uuid,uuid,uuid,boolean)','EXECUTE'))")
 require(documents['invalidBindings']==0,'preserved-original-store-valid','desktop_media_files')
 require(not any(documents[key] for key in ('authenticatedTableRead','anonTableRead','authenticatedRpcRead','anonRpcRead')) and documents['brokerTableRead'] and documents['brokerRpcRead'],'broker-only-original-access','desktop_media_files')
