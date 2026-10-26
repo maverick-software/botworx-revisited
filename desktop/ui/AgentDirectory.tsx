@@ -12,11 +12,12 @@ import {pluginName} from './plugin-presentation';
 import './agent-directory.css';
 
 export type AgentTemplate={name:string;description:string;instructions:string};
-const templates:AgentTemplate[]=[
+export const agentTemplates:AgentTemplate[]=[
  {name:'Research Assistant',description:'Research questions, compare sources, and prepare grounded summaries.',instructions:'Research the user’s question using approved sources and available tools. Record the source for factual claims, distinguish evidence from inference, and explain uncertainty. Ask for missing context when it materially affects the result.'},
  {name:'Project Coordinator',description:'Review progress, organize next steps, and prepare project updates.',instructions:'Help the user coordinate their projects. Review the approved project context, identify completed work, blockers and next steps, and prepare clear updates. Keep project boundaries and approvals intact. Do not claim work was performed without evidence.'},
  {name:'Writing Assistant',description:'Draft and revise clear documents using your brief and source material.',instructions:'Help the user write and improve documents. Follow their brief, preserve factual meaning, and use the provided sources. Ask for missing audience or format requirements when needed. Clearly identify any facts that still need verification.'}
 ];
+const templates=agentTemplates;
 const relative=(value?:string|null)=>{const instant=Date.parse(value??'');if(!Number.isFinite(instant))return 'No recorded use';const minutes=Math.max(0,Math.floor((Date.now()-instant)/60000));return minutes<1?'Just now':minutes<60?minutes+' minutes ago':minutes<1440?Math.floor(minutes/60)+' hours ago':Math.floor(minutes/1440)+' days ago';};
 const stamp=(value?:string|null)=>Number.isFinite(Date.parse(value??''))?Date.parse(value!):0;
 // Imported MCP labels include a server alias after a middle dot. Keep that alias
