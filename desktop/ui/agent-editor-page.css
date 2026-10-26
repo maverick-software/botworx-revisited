@@ -52,6 +52,7 @@
 .agent-builder-dock-title{display:block;font-size:13px;font-weight:500;margin-bottom:12px;line-height:1.5}
 .agent-builder-composer{border:1px solid var(--border);border-radius:18px;padding:11px;gap:6px}
 .agent-builder-composer:focus-within{border-color:var(--muted)}
+.agent-builder-composer textarea:focus{outline:none;box-shadow:none}
 .agent-builder-composer textarea{min-height:72px;font-size:13px;resize:none}
 .agent-builder-model-row{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:10px;margin-top:9px;min-width:0}
 .agent-builder-model-row>small{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px}
