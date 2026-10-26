@@ -23,3 +23,13 @@ The runtime connection repair must not recreate the Broker, provision a new data
 Verify the actual Connect tool schema and read-only listing shape, catalog pagination/search, explicit service authorization path, and service capability availability without chat setup. Test saved/new-agent and preview scopes, revocation, cross-account isolation, generic meta-tool bypass attempts, transient local outages and retained drafts. Keep image generation disabled and provider choices unchanged.
 
 Before installing the correction, capture a fresh consistent baseline and verified application recovery, qualify the exact packaged upgrade and cold reopening, verify the installer payload, then inspect the corrected installed workflow. Report any authentication handoff or provider limitation explicitly. Existing accounts, chats, credentials, agent definitions and workspace references must remain preserved.
+
+## Source verification before release 0.44.80
+
+The merged service adapter, capability and OAuth checks pass 54 tests, including token-refresh ownership races and the two background synchronization/recovery interleavings. Both TypeScript targets pass. Seven Electron UI checks cover browsing without chat initialization, explicit QuickBooks connection, multiple-account selection, terminal partial-scan status through a search, retry, narrow windows and expired authorization. The published catalog contains 1,645 service definitions; every definition passes the canonical capability-package checks.
+
+The merged runtime reliability runner passes 42 JavaScript and 15 Python checks. It first reproduces the retained rejected draft-read problem against accepted release 79, then verifies the correction. The release tooling checks exact updater paths, original-row comparisons and narrow protected-setting renewal rules. No live model request or production restart was used for these checks.
+
+The broader preview fixture suite retains the same 18 failures observed against the accepted baseline. They were not counted as passing or used to claim full-suite success. Focused preview binding and authority checks pass. The unchanged importer shutdown fixture also rejects its existing ANALYZE command; directly affected process-record checks pass.
+
+The saved provider schemas establish the nested list action, direct tool account selector and argument validation. Public provider documentation does not establish that a missing account array means disconnected. Those responses therefore retain an unknown status and prevent complete-inventory conversion; the UI provides an explicit retry. Real account listing and installed-workflow verification remain separate delivery checks.
