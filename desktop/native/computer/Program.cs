@@ -3,6 +3,8 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Windows.Automation;
+using System.Security.Cryptography;
+using Microsoft.Win32.SafeHandles;
 
 namespace Agentopia.Computer;
 
@@ -45,6 +47,9 @@ internal static class Win
     [DllImport("advapi32.dll")] public static extern nint GetSidSubAuthorityCount(nint sid);
     [DllImport("advapi32.dll")] public static extern nint GetSidSubAuthority(nint sid,uint index);
     [DllImport("kernel32.dll")] public static extern bool CloseHandle(nint handle);
+    [StructLayout(LayoutKind.Sequential)] public struct FileIdentity { public uint Attributes;public System.Runtime.InteropServices.ComTypes.FILETIME Creation,Access,Write;public uint Volume,SizeHigh,SizeLow,Links,IndexHigh,IndexLow; }
+    [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] public static extern uint GetFinalPathNameByHandle(SafeFileHandle file,StringBuilder path,uint length,uint flags);
+    [DllImport("kernel32.dll",SetLastError=true)] public static extern bool GetFileInformationByHandle(SafeFileHandle file,out FileIdentity identity);
     [StructLayout(LayoutKind.Sequential)] public struct Input { public uint Type;public InputUnion Data; }
     [StructLayout(LayoutKind.Explicit)] public struct InputUnion { [FieldOffset(0)]public MouseInput Mouse;[FieldOffset(0)]public KeyInput Key; }
     [StructLayout(LayoutKind.Sequential)] public struct MouseInput { public int X,Y;public uint Data,Flags,Time;public nuint Extra; }
@@ -60,7 +65,7 @@ internal sealed record Box(int Left,int Top,int Width,int Height)
     public static Box From(Win.Rect r)=>new(r.Left,r.Top,r.Width,r.Height);
     public bool Contains(int x,int y)=>x>=Left&&y>=Top&&x<Left+Width&&y<Top+Height;
 }
-internal sealed record WindowInfo(string Handle,int Pid,string Started,string App,string Title,string ClassName,Box Client,Box Frame,Box Outer,Box[] Captures,string RootOwner,string Owner,string Popup,bool Enabled,bool Minimized,bool Foreground,string? Blocked);
+internal sealed record WindowInfo(string Handle,int Pid,string Started,string App,string ExecutablePath,string Sha256,string Title,string ClassName,Box Client,Box Frame,Box Outer,Box[] Captures,string RootOwner,string Owner,string Popup,bool Enabled,bool Minimized,bool Foreground,string? Blocked);
 internal sealed record NodeInfo(string Ref,string Role,string Name,string AutomationId,Box Bounds,bool Enabled,bool Focused);
 internal sealed record SnapshotInfo(string Id,WindowInfo Window,NodeInfo[] Nodes,string? Focused,bool Truncated);
 internal sealed record ElementInfo(AutomationElement Element,int[] Runtime,NodeInfo Node);
@@ -68,6 +73,25 @@ internal sealed record Snapshot(SnapshotInfo View,Dictionary<string,ElementInfo>
 
 internal static class Desktop
 {
+    // Retained read handles deny in-place writes; replacement remains allowed. A cache entry is
+    // reused only for the same opened Windows file identity and canonical path.
+    // PID names, filenames and timestamps alone never authorize an application.
+    private static readonly Dictionary<string,(FileStream File,string Digest)> Binaries=[];
+    private static (string Path,string Digest) Binary(Process process)
+    {
+        string filename=process.MainModule?.FileName??throw new InvalidOperationException("The application executable identity is unavailable.");
+        var file=new FileStream(filename,FileMode.Open,FileAccess.Read,FileShare.Read|FileShare.Delete);bool retained=false;
+        try{
+            var final=new StringBuilder(32768);uint size=Win.GetFinalPathNameByHandle(file.SafeFileHandle,final,(uint)final.Capacity,0);
+            if(size==0||size>=final.Capacity||!Win.GetFileInformationByHandle(file.SafeFileHandle,out var identity))throw new InvalidOperationException("The application executable identity could not be verified.");
+            string canonical=final.ToString();if(canonical.StartsWith(@"\\?\UNC\",StringComparison.OrdinalIgnoreCase))canonical=@"\\"+canonical[8..];else if(canonical.StartsWith(@"\\?\",StringComparison.Ordinal))canonical=canonical[4..];
+            string key=canonical.ToUpperInvariant()+":"+identity.Volume+":"+identity.IndexHigh+":"+identity.IndexLow;
+            if(Binaries.TryGetValue(key,out var cached))return(canonical,cached.Digest);
+            string digest=Convert.ToHexString(SHA256.HashData(file)).ToLowerInvariant();
+            if(Binaries.Count>=128){string oldest=Binaries.Keys.First();Binaries[oldest].File.Dispose();Binaries.Remove(oldest);}
+            Binaries.Add(key,(file,digest));retained=true;return(canonical,digest);
+        }finally{if(!retained)file.Dispose();}
+    }
     public static readonly HashSet<int> ProtectedPids=[];
     private static volatile bool stopped;
     public static void InputCheckpoint(){if(stopped||((Win.GetAsyncKeyState(17)&0x8000)!=0&&(Win.GetAsyncKeyState(18)&0x8000)!=0&&(Win.GetAsyncKeyState(8)&0x8000)!=0)){stopped=true;throw new OperationCanceledException("Computer use stopped.");}}
@@ -97,7 +121,8 @@ internal static class Desktop
         // Chromium/WebRTC crops transparent resize borders using Win32 metrics:
         // https://chromium.googlesource.com/external/webrtc/+/HEAD/modules/desktop_capture/win/window_capture_utils.cc
         var captureBoxes=new List<Box>();if((Win.GetWindowStyle(handle,-16)&0x40080)!=0){int side=Win.GetSystemMetrics(32),bottom=Win.GetSystemMetrics(33),edge=Win.GetSystemMetrics(6),xedge=Win.GetSystemMetrics(5);captureBoxes.Add(new(outer.Left+side,outer.Top+edge,outer.Width-2*side,outer.Height-edge-bottom));int popupSide=Math.Max(0,side-xedge),popupBottom=Math.Max(0,bottom-edge);captureBoxes.Add(new(outer.Left+popupSide,outer.Top,outer.Width-2*popupSide,outer.Height-popupBottom));}
-        var info=new WindowInfo(handle.ToInt64().ToString(),(int)pid,process.StartTime.ToUniversalTime().Ticks.ToString(),app,title,className,clientBox,Box.From(frame),Box.From(outer),captureBoxes.ToArray(),Win.GetAncestor(handle,3).ToInt64().ToString(),Win.GetWindow(handle,4).ToInt64().ToString(),Win.GetLastActivePopup(handle).ToInt64().ToString(),Win.IsWindowEnabled(handle),Win.IsIconic(handle),Win.GetAncestor(Win.GetForegroundWindow(),2)==handle,blocked);
+        var binary=Binary(process);
+        var info=new WindowInfo(handle.ToInt64().ToString(),(int)pid,process.StartTime.ToUniversalTime().Ticks.ToString(),app,binary.Path,binary.Digest,title,className,clientBox,Box.From(frame),Box.From(outer),captureBoxes.ToArray(),Win.GetAncestor(handle,3).ToInt64().ToString(),Win.GetWindow(handle,4).ToInt64().ToString(),Win.GetLastActivePopup(handle).ToInt64().ToString(),Win.IsWindowEnabled(handle),Win.IsIconic(handle),Win.GetAncestor(Win.GetForegroundWindow(),2)==handle,blocked);
         if(requireAllowed&&blocked!=null)throw new InvalidOperationException(blocked);return info;
     }
     public static string Text(nint handle){var value=new StringBuilder(512);Win.GetWindowText(handle,value,value.Capacity);return value.ToString();}
@@ -108,7 +133,7 @@ internal static class Desktop
     }
     public static WindowInfo Bound(JsonElement args)
     {
-        nint handle=(nint)long.Parse(args.GetProperty("handle").GetString()!);var info=Inspect(handle);if(info.Pid!=args.GetProperty("pid").GetInt32()||info.Started!=args.GetProperty("started").GetString())throw new InvalidOperationException("The window identity changed. Select it again.");return info;
+        nint handle=(nint)long.Parse(args.GetProperty("handle").GetString()!);var info=Inspect(handle);if(info.Pid!=args.GetProperty("pid").GetInt32()||info.Started!=args.GetProperty("started").GetString()||!args.TryGetProperty("executablePath",out var expectedPath)||!string.Equals(info.ExecutablePath,expectedPath.GetString(),StringComparison.OrdinalIgnoreCase)||!args.TryGetProperty("sha256",out var expectedDigest)||info.Sha256!=expectedDigest.GetString())throw new InvalidOperationException("The window application identity changed. Discover it again.");return info;
     }
     public static nint Handle(WindowInfo info)=>(nint)long.Parse(info.Handle);
     public static void Foreground(WindowInfo info)
