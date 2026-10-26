@@ -34,6 +34,9 @@ for(const [name,digest]of Object.entries(proof.uiFiles))assert.equal(await hash(
 assert(!(await list(true)).includes(cfg.distribution),'QA runtime is already active.');
 const source='F:/Agentopia-Data/profiles/a91a4800-e08f-4440-a4ec-588762d01bfd/profile';
 assert.notEqual(path.resolve(cfg.profile).toLowerCase(),path.resolve(source).toLowerCase());
+assert(path.resolve(cfg.home).toLowerCase().startsWith(path.resolve('F:/Agentopia-Acceptance').toLowerCase()+path.sep),'Use the qualified isolated QA home.');
+assert(path.resolve(cfg.profile).toLowerCase().startsWith(path.resolve(cfg.home).toLowerCase()+path.sep));
+const binding=await json(path.join(cfg.profile,'runtime-binding.json'));assert.equal(binding.distribution,cfg.distribution);assert.equal(binding.instanceId,cfg.instance);
 const readyPointer=await json('F:/Agentopia/.supabase/desktop-live-readiness76/current.json'),ready=await json(readyPointer.evidence),sourceOwner=ready.accounts[0].owner;
 assert(/^[a-f0-9-]{36}$/i.test(sourceOwner));
 const out=path.join(proof.out,'live87-'+attempt),pointer=path.join(proof.out,'live87-'+attempt+'.json');
@@ -63,6 +66,7 @@ try{
       if(url.origin!=='https://api.openai.com'||!['/v1/models','/v1/responses'].includes(url.pathname))return refuse('Only the declared OAuth connection may access external services.');
       if(url.pathname==='/v1/responses'){
        const body=JSON.parse(args.body),context=JSON.stringify([body.instructions,body.input]);
+       if(s.calls.some(row=>row.outcome==='unconfirmed'||row.status!==null&&(row.status<200||row.status>=300)))return refuse('A previous dispatch failed or is uncertain. Inspect it without another model request.');
        if(body.model!==model||body.tools?.length||/data:image\/|\"(?:input_image|image_url)\"/.test(context))return refuse('This acceptance permits only text, the selected model and no tools or images.');
       }
      }
@@ -70,7 +74,7 @@ try{
     };
     const start=AgentDraftPreviews.prototype.start;AgentDraftPreviews.prototype.start=async function(user,raw){
      const input=agentDraftPreviewInput(raw),state=s.builder87,policy=input.snapshot.behavior.policy,execution=input.snapshot.execution;
-     if(user.id!==s.owner||input.sourceAgentId!==null||!input.creationId||!input.snapshot.builder||input.snapshot.provider!=='openai-oauth'||input.snapshot.model!==model||execution?.permission!=='chat'||execution.mode!=='chat'||execution.files.length||execution.skills?.length||execution.tools?.length||policy.tools===null||policy.tools.length||policy.delegation||policy.memory||policy.memoryWrite||policy.delegateAgents.length)return refuse('Builder request left the declared passive creation scope.');
+     if(user.id!==s.owner||input.sourceAgentId!==null||!input.creationId||!input.snapshot.builder||input.snapshot.provider!=='openai-oauth'||input.snapshot.model!==model||execution?.permission!=='chat'||execution.mode!=='chat'||execution.files.length||execution.skills?.length||execution.tools?.length||execution.windows?.length||execution.sources?.length||policy.tools===null||policy.tools.length||policy.delegation||policy.memory||policy.memoryWrite||policy.delegateAgents.length||policy.maxDepth!==0||policy.maxTurns!==1)return refuse('Builder request left the declared passive creation scope.');
      if(state.inputs.some(row=>row.requestId===input.requestId))return refuse('Automatic request replay is forbidden. Inspect the saved request.');
      let kind;
      if(state.inputs.length===0&&input.text===initial)kind='initial';
