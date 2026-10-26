@@ -1,0 +1,17 @@
+.computer-settings{min-width:0;font-size:13px;line-height:1.6}
+.computer-settings .setting-row>div{min-width:0;flex:1}
+.computer-settings .setting-row button{flex-shrink:0}
+.computer-settings .switch{display:flex;align-items:center;gap:8px;margin:0}
+.computer-settings .switch input{appearance:none;position:relative;width:38px;height:22px;margin:0;padding:0;border:0;border-radius:20px;background:var(--border);box-shadow:none;cursor:pointer}
+.computer-settings .switch input:before{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:var(--surface);box-shadow:0 1px 3px #0003}
+.computer-settings .switch input:checked{background:var(--solid)}
+.computer-settings .switch input:checked:before{transform:translateX(16px)}
+.computer-settings .switch input:focus-visible{outline:2px solid var(--text);outline-offset:3px}
+.computer-settings .switch input:disabled{cursor:wait;opacity:.5}
+.computer-settings .computer-window-choice{cursor:default}
+.computer-settings .computer-window-choice>span{flex:1}
+.computer-settings .computer-window-choice>button{flex-shrink:0}
+.computer-settings .computer-picker-toolbar{flex-wrap:wrap;gap:12px}
+.computer-settings .computer-picker-toolbar h3{margin:0}
+.computer-settings .computer-error{padding:12px;border:1px solid var(--border);border-radius:10px}
+.computer-settings .computer-error button{margin-left:12px}
