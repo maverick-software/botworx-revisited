@@ -2,15 +2,7 @@ import React,{useEffect,useMemo,useState} from 'react';
 import {parse} from 'yaml';
 import type {PluginRecord} from '../src/plugin-contracts';
 import {call} from './ui';
-import type {Agent} from '../src/contracts';
-import {ToolConnections} from './ToolConnections';
 import {ChatCapabilitySettings,type ChatSettingsContext} from './CapabilitySettings';
-import {ToolConnectionsPanel} from './ProjectSettingsPanels';
-import {ChatCoordinationSettings} from './ChatCoordinationSettings';
-import type {Run} from './Panels';
-export function ToolsPage({owner,agents,edit,run,plugins,context}:{owner:string;agents:Agent[];edit:(agent:Agent)=>void;run:Run;plugins:()=>void;context:ChatSettingsContext}){
- return <section className="library-page customize-page" aria-label="Tools"><h1>Tools</h1><p>Manage agent connections, credentials and chat capabilities.</p><ChatCapabilitySettings kind="chat-tools" context={context}/><ToolConnections agents={agents} edit={edit}/><ToolConnectionsPanel run={run} managePlugins={plugins}/><ChatCoordinationSettings owner={owner}/></section>;
-}
 export function SkillsPage({owner,context,manage}:{owner:string;context:ChatSettingsContext;manage:()=>void}){
  const [choose,setChoose]=useState(false);
  const [packages,setPackages]=useState<PluginRecord[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[filter,setFilter]=useState(''),[revision,setRevision]=useState(0);

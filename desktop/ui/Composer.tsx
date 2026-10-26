@@ -26,6 +26,7 @@ export function Composer({scope,administrator,terminal,project,editProject,remov
  const mention=!disabled&&!mentionHidden?contextMention(value,caret):null;
 
  const chooseAgent=(peer:Agent,range:AgentMention|null)=>{setChoosingAgent(true);void run(async()=>{await selectAgent(peer);if(range){setValue(removeAgentMention(value,range));setCaret(range.start);}setMentionHidden(true);requestAnimationFrame(()=>{input.current?.focus();if(range)input.current?.setSelectionRange(range.start,range.start);});}).finally(()=>setChoosingAgent(false));};
+ const [pluginChooser,setPluginChooser]=useState(false);
  const [readingContext,setReadingContext]=useState(false);
  const [goalMode,setGoalMode]=useState(false),[goalBusy,setGoalBusy]=useState(false),[goalError,setGoalError]=useState('');
  useEffect(()=>{setGoalMode(false);setGoalError('');},[scope]);
@@ -50,7 +51,7 @@ export function Composer({scope,administrator,terminal,project,editProject,remov
  {attaching&&<div className="attachment-status" role="status">Adding attachments…</div>}
  {!!(selectedFiles.length+selectedSources.length)&&options.permission==='chat'&&<div className="attachment-status" role="status">Chat only blocks attachments. Change permissions or remove them before sending.</div>}
 
- <AgentTools agent={agent} options={options} change={change} open={false} close={()=>{}} show={()=>capabilitySettings?.('chat-tools')} configure={configureAgent} disabled={disabled}/>
+ <AgentTools agent={agent} options={options} change={change} open={pluginChooser} close={()=>setPluginChooser(false)} show={()=>setPluginChooser(true)} configure={configureAgent} disabled={disabled}/>
 
  <textarea ref={input} onPaste={paste} aria-autocomplete="list" aria-controls={mention?mentionList:undefined} aria-expanded={!!mention} aria-activedescendant={mention?mentionActive:undefined} onSelect={event=>setCaret(event.currentTarget.selectionStart)} aria-label="Message" placeholder={goalMode?'Describe your goal, define measurable outcomes for best results':options.mode==='plan'?'Describe what you want to plan…':agent?`Message ${agent.name}`:'Ask anything'} value={value} onChange={e=>{setValue(e.target.value);setCaret(e.target.selectionStart);setMentionHidden(false);}} disabled={disabled||choosingAgent||goalBusy} rows={1} onKeyDown={e=>{if(e.defaultPrevented||e.nativeEvent.isComposing)return;if(e.key==='Enter'&&!e.shiftKey&&(preferences.sendWith==='enter'||e.ctrlKey||e.metaKey)){e.preventDefault();void send();}}}/>
  {voice.phase!=='idle'&&!voice.open&&<div className="dictation-strip"><span className={voice.phase==='recording'?'recording-dot':''}/><span>{voice.phase==='recording'?'Listening…':voice.phase==='transcribing'?'Transcribing locally…':'Preparing Whisper…'}</span>{voice.phase==='recording'&&<button type="button" onClick={()=>void voice.stop()}><Check size={15}/>Use dictation</button>}<button type="button" aria-label="Cancel dictation" onClick={()=>voice.cancel()}><X size={16}/></button></div>}
