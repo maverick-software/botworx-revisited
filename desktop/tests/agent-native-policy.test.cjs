@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
-const {CodexHarness}=require(path.join(process.env.AGENTOPIA_AGENT_TEST_BUILD??path.resolve(__dirname,'../build'),'codex-harness.js'));
+const {CodexHarness}=require(path.join(process.env.SYLVANA_AGENT_TEST_BUILD??path.resolve(__dirname,'../build'),'codex-harness.js'));
 
 test('restricted agent policy cannot approve native shell or patches under Full access',async()=>{
  const harness=new CodexHarness({}, {}, '', '',()=>{},async()=>{});

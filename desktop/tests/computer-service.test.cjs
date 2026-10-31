@@ -13,7 +13,7 @@ const snapshot=async(f,options,ref)=>await(await f.service.prepare(owner,options
 const click=(ref,snap)=>({window_id:ref.id,snapshot_id:snap.snapshot_id,ref:null,x:100,y:100,button:'left',count:1});
 
 test('control overlays are unavailable even with an older helper, and cannot be selected or reached through a changed grant',async()=>{
- for(const app of ['codex-computer-use','CODEX-COMPUTER-USE','Agentopia.Computer']){
+ for(const app of ['codex-computer-use','CODEX-COMPUTER-USE','Sylvana.Computer']){
   const f=fixture();f.window.app=app;
   const choices=await f.service.choicesFor(owner,[],guard);assert.equal(choices[0].available,false);assert.match(choices[0].reason,/control and overlay/);
   await assert.rejects(f.service.select(owner,[choices[0].id],[],guard),/control and overlay/);assert.equal(f.service.status(owner.id).selected,0);assert.equal(f.captures,0);await f.service.stop();
@@ -101,4 +101,63 @@ test('modal routing follows an explicit bounded owner chain and rejects unrelate
   else{await assert.rejects(snapshot(f,options,ref),/outside the shared window/);assert.equal(f.captures,0);assert(f.client.calls.length<10);}
   await f.service.stop();
  }
+});
+
+class ComputerMemorySettings{values=new Map();get(key){return structuredClone(this.values.get(key));}async set(key,value){this.values.set(key,structuredClone(value));}}
+const strongFixture=(settings=new ComputerMemorySettings())=>{const f=fixture();Object.assign(f.window,{executablePath:'C:\\VerifiedApps\\Verification.exe',sha256:'a'.repeat(64)});f.service.configure(settings);return {...f,settings};};
+const dynamicOptions=()=>({thinking:'default',mode:'chat',permission:'ask',files:[],windows:[]});
+const discover=async(f,options=dynamicOptions(),user=owner)=>await(await f.service.prepare(user,options,'computer_windows',{},guard)).run(signal());
+const allowFixture=async f=>{const [app]=await f.service.availableApps(owner,guard);return f.service.allowApp(owner,app.id,guard);};
+
+test('persistent settings default off, isolate accounts, require native app identity, and survive service restart',async()=>{
+ const f=strongFixture();assert.deepEqual(f.service.settings(owner.id),{anyApp:false,paused:false,apps:[]});assert.equal(f.service.hasAccess(owner),false);assert.equal((await discover(f)).windows.length,0);
+ const [app]=await f.service.availableApps(owner,guard);await assert.rejects(f.service.allowApp(other,app.id,guard),/expired/);await assert.rejects(f.service.allowApp(owner,{executablePath:app.executablePath},guard),/available application/);const saved=await f.service.allowApp(owner,app.id,guard);assert.equal(saved.apps.length,1);assert.equal(f.service.hasAccess(other),false);
+ const initial=(await discover(f)).windows[0];assert(initial.available);await f.service.stop(owner.id);const next=strongFixture(f.settings);assert.equal(next.service.settings(owner.id).apps[0].sha256,'a'.repeat(64));assert.equal(next.service.hasAccess(owner),true);assert.equal(next.service.references(owner.id,[initial.id])[0].available,false);const fresh=(await discover(next)).windows[0];assert.notEqual(fresh.id,initial.id);assert.equal((await discover(next,dynamicOptions(),other)).windows.length,0);await next.service.stop();
+ const weak=fixture();weak.service.configure(new ComputerMemorySettings());assert.deepEqual(await weak.service.availableApps(owner,guard),[]);await weak.service.stop();
+});
+
+test('saved app permission discovers windows across chats and sends successive ordinary inputs without repeated review',async()=>{
+ const f=strongFixture();await allowFixture(f);const options=dynamicOptions(),ref=(await discover(f,options)).windows[0];const first=await snapshot(f,options,ref),action=await f.service.prepare(owner,options,'computer_click',click(ref,first),guard);assert.equal(action.review,false);const result=await action.run(signal());const next=await f.service.prepare(owner,{...options,windows:[]},'computer_type',{window_id:ref.id,snapshot_id:result.observation.snapshot_id,text:'Second chat input'},guard);assert.equal(next.review,false);assert((await next.run(signal())).sent);assert.equal(f.client.calls.filter(row=>row.method==='action').length,2);await f.service.stop();
+});
+
+test('saved permissions preserve Chat only, file-only, administrator and Plan inspection boundaries',async()=>{
+ const f=strongFixture();await f.service.updateSettings(owner,{anyApp:true},guard);const options=dynamicOptions();assert.equal(computerDefinitions(owner,options,f.service.hasAccess(owner)).length,7);for(const permission of ['chat','files']){assert.equal(computerDefinitions(owner,{...options,permission},true).length,0);await assert.rejects(f.service.prepare(owner,{...options,permission},'computer_windows',{},guard),/disable/);}assert.equal(computerDefinitions({...owner,admin:false},options,true).length,0);
+ const plan={...options,mode:'plan'},ref=(await discover(f,plan)).windows[0],snap=await snapshot(f,plan,ref);assert.deepEqual(computerDefinitions(owner,plan,true).map(row=>row.name),['computer_windows','computer_snapshot']);await assert.rejects(f.service.prepare(owner,plan,'computer_click',click(ref,snap),guard),/Plan mode/);await f.service.stop();
+});
+
+test('same executable filename with changed path or bytes loses saved app authority',async()=>{
+ for(const mutation of ['path','digest']){const f=strongFixture();await allowFixture(f);const ref=(await discover(f)).windows[0],options=dynamicOptions(),snap=await snapshot(f,options,ref),prepared=await f.service.prepare(owner,options,'computer_click',click(ref,snap),guard);if(mutation==='path')f.window.executablePath='C:\\OtherApps\\Verification.exe';else f.window.sha256='b'.repeat(64);await assert.rejects(prepared.run(signal()),/identity changed/);assert.equal(f.client.calls.filter(row=>row.method==='action').length,0);assert.equal((await discover(f)).windows.length,0);await f.service.stop();}
+});
+
+test('permission removal invalidates automatic prepared input even when its window also had a legacy grant',async()=>{
+ const f=strongFixture(),{ref,options}=await f.grant();await allowFixture(f);const replacements=await f.service.choicesFor(owner,[],guard),[legacy]=await f.service.select(owner,[replacements[0].id],[],guard),opts={...options,windows:[legacy.id]},snap=await snapshot(f,opts,legacy),prepared=await f.service.prepare(owner,opts,'computer_click',click(legacy,snap),guard);assert.equal(prepared.review,false);const rule=f.service.settings(owner.id).apps[0];await f.service.removeApp(owner,rule.id,guard);await assert.rejects(prepared.run(signal()),/permissions changed/);assert.equal(f.client.calls.filter(row=>row.method==='action').length,0);await f.service.stop();
+});
+
+test('permission revocation after foreground transfer prevents native dispatch',async()=>{
+ const f=strongFixture();await f.service.updateSettings(owner,{anyApp:true},guard);const options=dynamicOptions(),ref=(await discover(f)).windows[0],snap=await snapshot(f,options,ref),prepared=await f.service.prepare(owner,options,'computer_click',click(ref,snap),guard);f.client.allowForeground=async()=>{await f.service.updateSettings(owner,{anyApp:false},guard);return true;};await assert.rejects(prepared.run(signal()));assert.equal(f.client.calls.filter(row=>row.method==='action').length,0);await f.service.stop();
+});
+
+test('emergency Stop persists pause without grants, retains saved choices, and only explicit Resume permits fresh discovery',async()=>{
+ const f=strongFixture();await allowFixture(f);await f.service.updateSettings(owner,{anyApp:true},guard);const prepared=await f.service.prepare(owner,dynamicOptions(),'computer_windows',{},guard);await f.service.stop(owner.id,true);assert.deepEqual({...f.service.settings(owner.id),apps:[]},{anyApp:true,paused:true,apps:[]});assert.equal(f.service.settings(owner.id).apps.length,1);await assert.rejects(prepared.run(signal()),/permissions changed/);const next=strongFixture(f.settings);assert.equal(next.service.hasAccess(owner),false);await next.service.updateSettings(owner,{anyApp:false},guard);assert.equal(next.service.settings(owner.id).paused,true);await next.service.resume(owner,guard);assert.equal(next.service.settings(owner.id).anyApp,false);assert.equal(next.service.settings(owner.id).apps.length,1);assert.equal((await discover(next)).windows.length,1);await next.service.stop();
+});
+
+test('failed encrypted settings publication fails closed until an explicit successful update',async()=>{
+ const f=strongFixture();await f.service.updateSettings(owner,{anyApp:true},guard);const write=f.settings.set.bind(f.settings);f.settings.set=async()=>{throw Error('Controlled write failure');};await assert.rejects(f.service.updateSettings(owner,{anyApp:false},guard),/Controlled write/);assert.equal(f.service.hasAccess(owner),false);assert.equal(f.service.settings(owner.id).paused,true);f.settings.set=write;await f.service.updateSettings(owner,{anyApp:false},guard);assert.equal(f.service.settings(owner.id).paused,true);await f.service.resume(owner,guard);assert.equal(f.service.hasAccess(owner),false);await f.service.stop();
+});
+
+test('computer model guard withholds tools from models that cannot receive images or call tools',()=>{const {computerModelSupported}=require('../build/computer-definitions.js');assert.equal(computerModelSupported({supportsTools:true,inputModalities:['text','image']}),true);assert.equal(computerModelSupported({supportsTools:false,inputModalities:['image']}),false);assert.equal(computerModelSupported({supportsTools:true,inputModalities:['text']}),false);});
+
+test('dynamic computer tools keep host plugin, preview scope and current request guards while Default inputs run without reviews',async()=>{
+ const {Plugins}=require('../build/plugins.js'),{ToolService}=require('../build/tool-service.js'),{previewToolScope}=require('../build/tool-execution-scope.js'),{ownHostTool}=require('../build/host-plugin-contracts.js'),original=Plugins.prototype.hostAvailability;let pluginEnabled=true;Plugins.prototype.hostAvailability=async()=>new Set(pluginEnabled?['sylvana-computer']:[]);
+ try{
+  const f=strongFixture();await allowFixture(f);const options=dynamicOptions(),definitions=computerDefinitions(owner,options,true).map(ownHostTool),request={id:randomUUID(),conversation_id:randomUUID()};request.assistant_message_id=request.id+':assistant';const rows=[],live={id:request.id,user_id:owner.id,conversation_id:request.conversation_id,status:'running'},db={from(table){if(!['desktop_preview_tool_calls','desktop_preview_requests'].includes(table))throw Error('Unexpected table '+table);let mode='read',value,patch,filters=[];const query={select(){return query;},insert(row){mode='insert';value=row;return query;},update(row){mode='update';patch=row;return query;},eq(key,want){filters.push(row=>key==='arguments->>provider_call_id'?row.arguments.provider_call_id===want:row[key]===want);return query;},is(key,want){filters.push(row=>(row[key]??null)===want);return query;},maybeSingle(){return finish(true);},single(){return finish(true);},then(a,b){return finish(false).then(a,b);}};async function finish(single){if(table==='desktop_preview_requests')return {data:filters.every(fn=>fn(live))?{...live}:null,error:null};if(mode==='insert'){rows.push({...structuredClone(value),created_at:new Date().toISOString()});return {data:rows.at(-1),error:null};}const selected=rows.filter(row=>filters.every(fn=>fn(row)));if(mode==='update')for(const row of selected)Object.assign(row,structuredClone(patch));return {data:single?selected[0]??null:selected,error:null};}return query;}};
+  const tools=new ToolService(db,{},()=>{},async()=>owner);tools.computer=f.service;f.service.accessChanged=id=>tools.invalidateComputer(id);const scope=previewToolScope({owner:owner.id,request:request.id,conversation:request.conversation_id,options,computerEnabled:true,policy:{tools:null,delegation:false,delegateAgents:[],memory:false,memoryWrite:false,maxDepth:0,maxTurns:1},definitions,validate:guard}),execute=(name,args={})=>tools.execute(owner,request,{id:randomUUID(),name,arguments:JSON.stringify(args)},options,signal(),undefined,undefined,undefined,scope);
+  assert.throws(()=>previewToolScope({owner:owner.id,request:request.id,conversation:request.conversation_id,options,policy:{tools:[],delegation:false,delegateAgents:[],memory:false,memoryWrite:false,maxDepth:0,maxTurns:1},definitions,validate:guard}),/not implemented/);
+  const ref=(await execute('computer_windows')).windows[0],snap=await execute('computer_snapshot',{window_id:ref.id});assert((await execute('computer_click',click(ref,snap))).sent);assert(rows.every(row=>row.status==='completed'));assert(!rows.some(row=>row.approval));assert(rows.every(row=>row.user_id===owner.id));
+  live.status='completed';assert.match((await execute('computer_snapshot',{window_id:ref.id})).error,/no longer active/);live.status='running';pluginEnabled=false;await assert.rejects(execute('computer_windows'),/plugin is disabled/);assert.equal((await tools.availableDefinitions(owner.id,undefined,definitions)).length,0);await f.service.stop();
+ }finally{Plugins.prototype.hostAvailability=original;}
+});
+
+test('settings policy changes immediately cancel pending computer reviews before any saved update completes',async()=>{
+ const {ToolService}=require('../build/tool-service.js'),tools=new ToolService({}, {},()=>{},async()=>owner),f=strongFixture();tools.computer=f.service;f.service.accessChanged=id=>tools.invalidateComputer(id);const id=randomUUID(),pending=tools.awaitApproval(owner.id,id,signal(),'computer',randomUUID());const settings=await f.service.updateSettings(owner,{anyApp:true},guard);assert.equal(await pending,false);assert.equal(settings.anyApp,true);assert.equal(f.service.status(owner.id).selected,0);await f.service.stop();
 });

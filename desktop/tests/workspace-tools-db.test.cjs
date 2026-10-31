@@ -5,8 +5,8 @@ const {createClient}=require('@supabase/supabase-js'),{Broker}=require('./legacy
 class Secrets{data=new Map();get(k){return this.data.get(k);}async set(k,v){this.data.set(k,v);}}
 const check=r=>{if(r.error)throw new Error(r.error.message);return r.data;};
 test('both provider tool loops perform owned, reviewed edits; denial, cancellation, history, and RLS remain enforced',async()=>{
- const state=JSON.parse(execFileSync('wsl.exe',['-d',testDistribution(),'-u','agentopia','--cd','/home/agentopia/app','--exec','supabase','stack','status','--output-format','json'],{encoding:'utf8',windowsHide:true})),db=createClient(state.env.API_URL,state.env.SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
- const secrets=new Secrets(),secondSecrets=new Secrets(),events=[],broker=new Broker(state.env,secrets,new Providers(secrets,'urn:uuid:'+randomUUID()),e=>events.push(e)),other=new Broker(state.env,secondSecrets,new Providers(secondSecrets,'urn:uuid:'+randomUUID()),()=>{}),originalFetch=global.fetch,accounts=[],root=await mkdtemp(path.join(os.tmpdir(),'agentopia-tools-db-')),file=path.join(root,'notes.md');
+ const state=JSON.parse(execFileSync('wsl.exe',['-d',testDistribution(),'-u','sylvana','--cd','/home/sylvana/app','--exec','supabase','stack','status','--output-format','json'],{encoding:'utf8',windowsHide:true})),db=createClient(state.env.API_URL,state.env.SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
+ const secrets=new Secrets(),secondSecrets=new Secrets(),events=[],broker=new Broker(state.env,secrets,new Providers(secrets,'urn:uuid:'+randomUUID()),e=>events.push(e)),other=new Broker(state.env,secondSecrets,new Providers(secondSecrets,'urn:uuid:'+randomUUID()),()=>{}),originalFetch=global.fetch,accounts=[],root=await mkdtemp(path.join(os.tmpdir(),'sylvana-tools-db-')),file=path.join(root,'notes.md');
  const password=randomBytes(24).toString('base64url')+'Aa1!';let agent,reference,counter=0,bodies=[];
  const wait=async predicate=>{for(let n=0;n<200;n++){const value=await predicate();if(value)return value;await new Promise(r=>setTimeout(r,40));}throw new Error('Tool workflow timed out.');};
  try{

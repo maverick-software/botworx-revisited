@@ -49,7 +49,7 @@ export function creationCredentialBinding(value:unknown,expected:Identity):Creat
  * performs sign-in, Save, inspection mutation or network execution. */
 export class CreationCredentialJournal{
  constructor(private store:Store,private owner:()=>Promise<string>){}
- private async checked(id:Identity,guard:()=>Promise<void>){if(await this.owner()!==id.owner)throw Error('Your Agentopia account changed.');await guard();if(await this.owner()!==id.owner)throw Error('Your Agentopia account changed.');}
+ private async checked(id:Identity,guard:()=>Promise<void>){if(await this.owner()!==id.owner)throw Error('Your Sylvana account changed.');await guard();if(await this.owner()!==id.owner)throw Error('Your Sylvana account changed.');}
  private read(value:Identity){const id=identity(value),raw=this.store.get(creationCredentialJournalKey(id));return raw===undefined?undefined:creationCredentialJournal(raw,id);}
  async status(value:Identity,guard:()=>Promise<void>){const id=identity(value);await this.checked(id,guard);const old=this.read(id);return old?{phase:old.phase,connections:old.phase==='prepared'?old.entries.length:old.transfers.length,...(old.phase==='completed'?{agentId:old.agentId}:{})}:null;}
  async reset(value:Identity,guard:()=>Promise<void>){const id=identity(value);await this.checked(id,guard);const old=this.read(id);if(!old)return;if(old.phase==='completed')throw Error('A completed connection handoff cannot be reset.');if(!await this.store.compareAndSetMany([[creationCredentialJournalKey(id),old,undefined]]))throw Error('The pending connection handoff changed before reset.');await this.checked(id,guard);}

@@ -1,3 +1,4 @@
+import {currentFileHref} from './legacy-brand';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {lstat} from 'node:fs/promises';
@@ -21,8 +22,8 @@ export class RestoredWorkspaceLinks{
  constructor(private secrets:Pick<Secrets,'get'|'workspaceImportIds'>,private files:Pick<WorkspaceFiles,'list'>,private workspaces:string,private recovery:string){}
  async resolve(owner:string,args:Record<string,unknown>,guard:()=>Promise<void>):Promise<RecoveredChatLink|undefined>{
   need(storageUuid(owner),'Use the current workspace account.');if(typeof args.href!=='string'||args.href.length>4000||/[\x00-\x1f\x7f]/.test(args.href))return;
-  const href=args.href.trim();if(!href||/^(?:https?:|sandbox:|#|\/\/)/i.test(href))return;let absolute:string|undefined,referenceId:string|undefined,relative='',fragment='';
-  if(/^agentopia-file:/i.test(href)){const url=new URL(href);need(!url.username&&!url.password&&!url.port&&!url.search,'Use a valid recovered workspace link.');referenceId=url.hostname;relative=decodeURIComponent(url.pathname.replace(/^\//,''));fragment=url.hash;}
+  const href=currentFileHref(args.href.trim());if(!href||/^(?:https?:|sandbox:|#|\/\/)/i.test(href))return;let absolute:string|undefined,referenceId:string|undefined,relative='',fragment='';
+  if(/^sylvana-file:/i.test(currentFileHref(href))){const url=new URL(currentFileHref(href));need(!url.username&&!url.password&&!url.port&&!url.search,'Use a valid recovered workspace link.');referenceId=url.hostname;relative=decodeURIComponent(url.pathname.replace(/^\//,''));fragment=url.hash;}
   else{const suffix=sourceLinkSuffix(href),hash=suffix.href.indexOf('#'),value=hash<0?suffix.href:suffix.href.slice(0,hash);fragment=hash>=0?suffix.href.slice(hash):suffix.fragment?'#'+suffix.fragment:'';if(/^file:/i.test(value)){const url=new URL(value);if(url.hostname&&url.hostname!=='localhost'||url.search)return;absolute=fileURLToPath(url);}else absolute=decodeURIComponent(value);if(!path.isAbsolute(absolute))return;absolute=path.resolve(absolute);}
   await guard();const receipts=this.secrets.workspaceImportIds(owner).map(id=>{const key='scheduled-workspace-import:'+owner+':'+id,receipt=this.secrets.get<WorkspaceImportReceipt>(key);need(receipt?.version===1&&receipt.owner===owner&&receipt.id===id,'The saved workspace recovery identity changed.');return {key,receipt};}).filter(({receipt})=>receipt.phase==='complete'&&same(receipt.workspaces,this.workspaces)&&same(receipt.recovery,this.recovery));
   const matches:{key:string;receipt:WorkspaceImportReceipt;alias:WorkspaceImportAlias;relative:string;specificity:number}[]=[];

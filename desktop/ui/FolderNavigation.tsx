@@ -22,7 +22,7 @@ function TreeDirectory({owner,reference,path,depth,filter,selected,revision,retr
  const [entries,setEntries]=useState<{name:string;kind:string}[]>([]),[error,setError]=useState(''),[warning,setWarning]=useState(''),[menuPath,setMenuPath]=useState<string|null>(null),[truncated,setTruncated]=useState(false);
  useEffect(()=>{let live=true;const id=crypto.randomUUID();
   const load=()=>{const version=++sequence.current;void call<{entries:typeof entries;truncated:boolean}>('workspace.list',{owner,referenceId:reference,path}).then(result=>{if(live&&version===sequence.current){loaded.current=true;setEntries(result.entries);setTruncated(result.truncated);setError('');}}).catch(e=>{if(live&&version===sequence.current){setEntries([]);setError(e.message);}});};refresh.current=load;
-  const off=window.agentopia.onChat(event=>{if(event.kind!=='workspace'||event.ownerId!==owner||event.workspace?.id!==id)return;if(event.workspace.error)setWarning(event.workspace.error);load();notify.current(path);});
+  const off=window.sylvana.onChat(event=>{if(event.kind!=='workspace'||event.ownerId!==owner||event.workspace?.id!==id)return;if(event.workspace.error)setWarning(event.workspace.error);load();notify.current(path);});
   load();void call<{warning?:string}>('workspace.watch',{owner,id,referenceId:reference,path}).then(result=>{if(live){setWarning(result.warning??'');load();}}).catch(e=>{if(live)setWarning(e.message);});
   return()=>{live=false;sequence.current++;off();void call('workspace.unwatch',{owner,id}).catch(()=>{});};
  },[owner,reference,path,retry]);

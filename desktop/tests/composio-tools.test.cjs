@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),{randomUUID}=require('node:crypto');
-const build=process.env.AGENTOPIA_COMPOSIO_TEST_BUILD;
+const build=process.env.SYLVANA_COMPOSIO_TEST_BUILD;
 const {fixture,tool,response,key}=require('./fixtures/composio.cjs');
 const {RemoteTools}=require(path.join(build,'remote-tools.js')),{ToolService}=require(path.join(build,'tool-service.js')),{defaultChatOptions}=require(path.join(build,'contracts.js')),{providerHistory}=require(path.join(build,'composer.js'));
 

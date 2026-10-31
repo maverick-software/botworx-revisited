@@ -54,7 +54,7 @@ export class WorkspaceTools{
   const target=reference.kind==='file'?root:path.join(root,...segments),relative=path.relative(root,target);
   this.files.checkPath(target);
   const denied=this.protectedPaths.some(folder=>[root,target].some(candidate=>{const rel=path.relative(path.resolve(folder),candidate);return rel===''||!rel.startsWith('..'+path.sep)&&rel!=='..'&&!path.isAbsolute(rel);}));
-  if(denied)throw new Error('Agentopia application and credential storage cannot be used as a tool workspace.');
+  if(denied)throw new Error('Sylvana application and credential storage cannot be used as a tool workspace.');
   if(reference.kind==='folder'&&(relative==='..'||relative.startsWith('..'+path.sep)||path.isAbsolute(relative)))throw new Error('The path leaves the selected workspace.');
   let current=reference.kind==='file'?path.dirname(root):root;
   for(const [index,segment] of (reference.kind==='file'?[path.basename(root)]:segments).entries()){
@@ -69,7 +69,7 @@ export class WorkspaceTools{
   const stat=await lstat(file);if(!stat.isFile()||stat.isSymbolicLink()||stat.nlink>1||stat.size>256000||!textTypes.has(path.extname(file).toLowerCase()))throw new Error('Workspace tools support regular text/code files smaller than 256 KB.');
   const data=await readFile(file),text=data.toString('utf8');if(data.includes(0)||!Buffer.from(text,'utf8').equals(data)||text.length>160000)throw new Error('Use a UTF-8 text file with at most 160,000 characters.');return text;
  }
- guardManagedPath(file:string){this.files.checkPath(file);if(this.protectedPaths.some(folder=>{const relative=path.relative(path.resolve(folder),file);return relative===''||relative!=='..'&&!relative.startsWith('..'+path.sep)&&!path.isAbsolute(relative);}))throw new Error('Agentopia application and credential storage cannot be managed as workspace items.');}
+ guardManagedPath(file:string){this.files.checkPath(file);if(this.protectedPaths.some(folder=>{const relative=path.relative(path.resolve(folder),file);return relative===''||relative!=='..'&&!relative.startsWith('..'+path.sep)&&!path.isAbsolute(relative);}))throw new Error('Sylvana application and credential storage cannot be managed as workspace items.');}
  async browserInput(user:string,options:ChatOptions,args:BrowserFileSpec,signal:AbortSignal):Promise<BrowserFileRead>{
   signal.throwIfAborted();if(!['ask','full'].includes(options.permission)||!options.files.includes(args.reference_id)||typeof args.path!=='string')throw new Error('Attach this file to the current message before sharing it with a website.');const reference=this.files.list(user).find(row=>row.id===args.reference_id);if(!reference)throw new Error('The attached upload reference is unavailable.');const check=async()=>{signal.throwIfAborted();const current=this.files.list(user).find(row=>row.id===reference.id);if(!current||current.path!==reference.path||current.name!==reference.name||current.kind!==reference.kind||current.source!==reference.source)throw new Error('The attached upload reference changed or was removed.');};
   if(reference.source==='clipboard'){if(args.path!=='')throw new Error('Use an empty path for an attached image.');const image=(await this.files.preview(user,reference.id)).image,bytes=Buffer.from(image.slice(image.indexOf(',')+1),'base64');await check();return {name:reference.name,bytes,check};}
@@ -172,7 +172,7 @@ export class WorkspaceTools{
   return mutateWorkspace(async()=>{
    signal.throwIfAborted();await guard();const args={reference_id:preview.referenceId,path:preview.relativePath},resolved=await this.resolve(user,options,args,true);if(resolved.target!==preview.path)throw new Error('The reviewed file path changed. Request a new edit.');
    const checkCurrent=async()=>{let current:string|null=null;try{current=await this.text(preview.path);}catch(error){if(preview.before!==null)throw error;try{await lstat(preview.path);throw new Error('A file now exists at the proposed path. Review a new edit.');}catch(missing){if((missing as NodeJS.ErrnoException).code!=='ENOENT')throw missing;}}if((current===null?null:hashText(current))!==preview.beforeHash)throw new Error('The file changed after review. No edit was applied; request a fresh diff.');};
-   await checkCurrent();const temporary=path.join(path.dirname(preview.path),'.agentopia-edit-'+randomUUID());
+   await checkCurrent();const temporary=path.join(path.dirname(preview.path),'.sylvana-edit-'+randomUUID());
    try{await writeFile(temporary,preview.after,{encoding:'utf8',flag:'wx',mode:0o600});signal.throwIfAborted();await this.resolve(user,options,args,true);await guard();await checkCurrent();signal.throwIfAborted();if(preview.before===null)await link(temporary,preview.path);else await rename(temporary,preview.path);}finally{await unlink(temporary).catch(()=>{});}
    return {path:preview.relativePath,sha256:preview.afterHash,changed:preview.before!==preview.after,created:preview.before===null};
   });

@@ -1,7 +1,7 @@
 const {writeFileSync}=require('node:fs'),path=require('node:path');
 const {legacyDistribution,parseRuntimeBinding}=require('../build/runtime-binding.js');
 function testDistribution(env=process.env){
- const distribution=env.AGENTOPIA_TEST_DISTRIBUTION??legacyDistribution;
+ const distribution=env.SYLVANA_TEST_DISTRIBUTION??legacyDistribution;
  if(distribution!==legacyDistribution)parseRuntimeBinding({format:1,distribution,instanceId:distribution.slice(legacyDistribution.length+1)});
  return distribution;
 }

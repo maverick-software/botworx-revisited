@@ -18,10 +18,10 @@ export async function withMcp<T>(address:string,token:McpCredential,signal:Abort
  };
  const options={fetch:guardedFetch,requestInit:{headers:new Headers(typeof token==='string'&&token?{Authorization:'Bearer '+token}:undefined)}};let client:Client|undefined;
  try{
-  client=new Client({name:'Agentopia',version:'0.8.0'},{versionNegotiation:{mode:'auto'}});
+  client=new Client({name:'Sylvana',version:'0.8.0'},{versionNegotiation:{mode:'auto'}});
   try{await client.connect(new StreamableHTTPClientTransport(url,options),{signal:deadline,timeout:15000});}
   catch(error){await client.close().catch(()=>{});deadline.throwIfAborted();const code=(error as any)?.code??(error as any)?.status;if(code===401||code===403)throw error;
-   client=new Client({name:'Agentopia',version:'0.8.0'},{versionNegotiation:{mode:'auto'}});await client.connect(new SSEClientTransport(url,options),{signal:deadline,timeout:15000});
+   client=new Client({name:'Sylvana',version:'0.8.0'},{versionNegotiation:{mode:'auto'}});await client.connect(new SSEClientTransport(url,options),{signal:deadline,timeout:15000});
   }
   return await operation(client);
  }finally{await client?.close().catch(()=>{});}

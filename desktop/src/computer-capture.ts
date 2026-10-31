@@ -2,7 +2,7 @@ import {BrowserWindow,desktopCapturer,nativeImage,session,type DesktopCapturerSo
 import {randomUUID} from 'node:crypto';
 import type {ComputerBox,NativeComputerWindow} from './computer-contracts';
 
-const origin='https://agentopia-capture.invalid/';
+const origin='https://sylvana-capture.invalid/';
 const documentURL='data:text/html;charset=UTF-8,'+encodeURIComponent('<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; media-src blob:; base-uri \'none\'; form-action \'none\'"><title>Private window capture</title>');
 const readFrame=String.raw`(async()=>{
  let stream,timer;
@@ -25,7 +25,7 @@ type Capture={controller:AbortController;window?:BrowserWindow;source?:DesktopCa
 
 /** Captures only the granted HWND. No audio, camera access, network, or renderer bridge. */
 export class ComputerCapture{
- private readonly partition='agentopia-private-capture-'+randomUUID();private isolated?:Session;private active?:Capture;private geometry=new WeakMap<NativeImage,ComputerBox>();
+ private readonly partition='sylvana-private-capture-'+randomUUID();private isolated?:Session;private active?:Capture;private geometry=new WeakMap<NativeImage,ComputerBox>();
  bounds(image:NativeImage){const box=this.geometry.get(image);return box?{...box}:undefined;}
  stop(){this.active?.controller.abort(new Error('Window capture was cancelled. Take a new snapshot before continuing.'));}
  private captureSession(){

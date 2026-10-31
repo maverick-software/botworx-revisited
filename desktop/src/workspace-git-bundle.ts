@@ -17,7 +17,7 @@ export async function workspaceBundlePack(file:string,hashBytes:20|32,guard:()=>
   const offset=boundary.index+boundary[0].length,lines=text.slice(0,boundary.index).split(/\r?\n/),signature=lines.shift(),format=hashBytes===32?'sha256':'sha1';
   if(signature==='# v3 git bundle'){if(lines[0]?.startsWith('@object-format=')){if(lines.shift()!=='@object-format='+format)throw Error('The Git recovery bundle uses another object format.');}else if(hashBytes!==20)throw Error('The Git recovery bundle uses another object format.');}
   else if(signature!=='# v2 git bundle'||hashBytes!==20)throw Error('The Git recovery bundle format is unsupported.');
-  const reference=lines.length===1?new RegExp('^([a-f0-9]{'+hashBytes*2+'}) (refs/agentopia/recovery/[a-f0-9]{64})$').exec(lines[0]):null;
+  const reference=lines.length===1?new RegExp('^([a-f0-9]{'+hashBytes*2+'}) (refs/sylvana/recovery/[a-f0-9]{64})$').exec(lines[0]):null;
   if(!reference||size<offset+12+hashBytes||prefix.length<offset+8||prefix.subarray(offset,offset+4).toString('ascii')!=='PACK'||![2,3].includes(prefix.readUInt32BE(offset+4)))throw Error('The private Git recovery bundle has an incomplete or invalid pack.');
   const trailer=Buffer.alloc(hashBytes);await read(trailer,size-hashBytes);await guard();signal.throwIfAborted();
   if(identity(await handle.stat({bigint:true}))!==identity(before)||identity(await lstat(file,{bigint:true}))!==identity(before))throw Error('The private Git recovery bundle changed while inspecting it.');

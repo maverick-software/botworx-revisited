@@ -14,7 +14,7 @@ import sqlite3
 import uuid
 
 PINNED_CODEX = '0.163.0'
-MARKER = '.agentopia-native-relocation.json'
+MARKER = '.sylvana-native-relocation.json'
 
 
 def normalized(value):
@@ -54,7 +54,7 @@ def save_manifest(marker, manifest):
 def uninitialized_home(home, owner, provider):
     """A reserved home may exist before Codex has initialized its index."""
     if owner.name == '_':
-        marker = home / '.agentopia-scope.json'
+        marker = home / '.sylvana-scope.json'
         no_links(marker)
         binding = json.loads(marker.read_text(encoding='utf-8'))
         if (set(binding) != {'format', 'owner', 'provider', 'scope'} or
@@ -62,7 +62,7 @@ def uninitialized_home(home, owner, provider):
                 not isinstance(binding.get('owner'), str) or
                 not isinstance(binding.get('scope'), str)):
             raise ValueError('A compact native home has an invalid scope binding.')
-        # Use the exact property order used by Agentopia's native-home binding.
+        # Use the exact property order used by Sylvana's native-home binding.
         canonical = {key: binding[key] for key in ['format', 'owner', 'provider', 'scope']}
         encoded = json.dumps(canonical, separators=(',', ':'), ensure_ascii=False)
         if hashlib.sha256(encoded.encode('utf-8')).hexdigest()[:32] != home.name:
@@ -97,7 +97,7 @@ def repair(destination):
     for native in [destination / 'codex', destination / 'draft-previews' / 'codex']:
         no_links(native)
         if native.exists():
-            # Only Agentopia's exact owner/provider/scope home depth is eligible.
+            # Only Sylvana's exact owner/provider/scope home depth is eligible.
             for owner in native.iterdir():
                 no_links(owner)
                 if not owner.is_dir():

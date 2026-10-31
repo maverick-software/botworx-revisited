@@ -1,3 +1,4 @@
+import {currentBrandKind} from './legacy-brand';
 import {editorDraftRecords} from './agent-editor-draft-contracts';
 import {createHash} from 'node:crypto';
 import {selectedContextFiles} from './selected-context';
@@ -13,7 +14,7 @@ import type {Secrets} from './secrets';
 export const portableSettingKeys=['preferences','model-choices','prefer-chatgpt','composer','chat-drafts','desktop-location','voice-preferences','notification-preferences','composio-state','google-documents','agent-editor-drafts'] as const;
 type Key=typeof portableSettingKeys[number];
 export type PortableSettings=Partial<Record<Key,unknown>>;
-export type PortableSettingsRecord={format:1;kind:'agentopia-portable-settings';databaseManifestSha256:string;accounts:{owner:string;settings:PortableSettings}[];indexSha256:string};
+export type PortableSettingsRecord={format:1;kind:'sylvana-portable-settings';databaseManifestSha256:string;accounts:{owner:string;settings:PortableSettings}[];indexSha256:string};
 const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 function object(value:unknown,keys?:readonly string[]):asserts value is Record<string,any>{if(!value||typeof value!=='object'||Array.isArray(value)||keys&&Object.keys(value).some(key=>!keys.includes(key)))throw Error('Invalid portable settings fields.');}
 function options(value:unknown){object(value,['thinking','permission','mode','files','windows','harness','skills','provider','model','goalId','tools','sources']);const result=chatOptions(value);delete result.windows;delete result.goalId;return result;}
@@ -21,10 +22,10 @@ export function cleanPortableSetting(key:Key,value:unknown):unknown{
  switch(key){
   case 'preferences':object(value,['theme','textSize','sendWith','sidebarCollapsed','sidebarWidth']);if(!['light','dark','system'].includes(value.theme)||!['standard','large'].includes(value.textSize)||!['enter','ctrl-enter'].includes(value.sendWith)||typeof value.sidebarCollapsed!=='boolean'||value.sidebarWidth!==undefined&&(!Number.isInteger(value.sidebarWidth)||value.sidebarWidth<200||value.sidebarWidth>400))throw Error('Invalid portable appearance settings.');return structuredClone(value);
   case 'prefer-chatgpt':if(typeof value!=='boolean')throw Error('Invalid portable provider preference.');return value;
-  case 'model-choices':object(value,['openai-oauth','openrouter']);return Object.fromEntries(Object.entries(value).map(([provider,choice])=>{object(choice,['model','thinking']);if(typeof choice.model!=='string'||!choice.model||choice.model.length>200||!thinkingValues.includes(choice.thinking))throw Error('Invalid portable model choice.');return [provider,{model:choice.model,thinking:choice.thinking}];}));
+  case 'model-choices':object(value,['openai-oauth','openai-api','openrouter','sylvana']);return Object.fromEntries(Object.entries(value).map(([provider,choice])=>{object(choice,['model','thinking']);if(typeof choice.model!=='string'||!choice.model||choice.model.length>200||!thinkingValues.includes(choice.thinking))throw Error('Invalid portable model choice.');return [provider,{model:choice.model,thinking:choice.thinking}];}));
   case 'composer':return options(value);
   case 'desktop-location':object(value,['view','conversationId','agentId','projectId','child']);if(value.child)object(value.child,['requestId','threadId']);return desktopLocation(value);
-  case 'voice-preferences':object(value,['mode','spoken','deviceId','voice','rate','silenceMs','threshold']);return voicePreferences(value);
+  case 'voice-preferences':object(value,['mode','spoken','deviceId','voice','rate','silenceMs','threshold','connection','tier','managedVoice']);return voicePreferences(value);
   case 'notification-preferences':return notificationPreferences(value);
   case 'composio-state':return portableComposioState(value);
   case 'google-documents':return googleDocumentJournal(value);
@@ -37,12 +38,12 @@ export function cleanPortableSetting(key:Key,value:unknown):unknown{
 }
 export function portableSettingsId(record:Omit<PortableSettingsRecord,'indexSha256'>|PortableSettingsRecord){return createHash('sha256').update(JSON.stringify({format:record.format,kind:record.kind,databaseManifestSha256:record.databaseManifestSha256,accounts:record.accounts})).digest('hex');}
 export function validatePortableSettings(record:PortableSettingsRecord){
- object(record,['format','kind','databaseManifestSha256','accounts','indexSha256']);if(record.format!==1||record.kind!=='agentopia-portable-settings'||!/^[a-f0-9]{64}$/.test(record.databaseManifestSha256)||!Array.isArray(record.accounts)||record.accounts.length>10000||Buffer.byteLength(JSON.stringify(record),'utf8')>64*1024**2||record.indexSha256!==portableSettingsId(record))throw Error('The portable settings record is invalid or changed.');
+ object(record,['format','kind','databaseManifestSha256','accounts','indexSha256']);if(record.format!==1||currentBrandKind(record.kind)!=='sylvana-portable-settings'||!/^[a-f0-9]{64}$/.test(record.databaseManifestSha256)||!Array.isArray(record.accounts)||record.accounts.length>10000||Buffer.byteLength(JSON.stringify(record),'utf8')>64*1024**2||record.indexSha256!==portableSettingsId(record))throw Error('The portable settings record is invalid or changed.');
  const owners=new Set<string>();for(const account of record.accounts){object(account,['owner','settings']);if(!uuid.test(account.owner)||owners.has(account.owner.toLowerCase()))throw Error('Invalid portable settings owner.');owners.add(account.owner.toLowerCase());object(account.settings,portableSettingKeys);for(const [key,value]of Object.entries(account.settings))cleanPortableSetting(key as Key,value);const settings=account.settings;if(settings['agent-editor-drafts'])editorDraftRecords(settings['agent-editor-drafts'],account.owner);if(settings['composio-state'])composioState(settings['composio-state'],true);if(settings.composer)selectedContextFiles((settings.composer as any).sources,account.owner,'ask');for(const draft of Object.values(settings['chat-drafts']??{}) as ChatDraft[])selectedContextFiles(draft.options.sources,account.owner,'ask');}return record;
 }
 export function capturePortableSettings(owners:string[],databaseManifestSha256:string,read:(owner:string)=>PortableSettings){
  const accounts=owners.map(owner=>{const input=read(owner);object(input,portableSettingKeys);return {owner,settings:Object.fromEntries(Object.entries(input).map(([key,value])=>[key,cleanPortableSetting(key as Key,value)]))};});
- const record={format:1 as const,kind:'agentopia-portable-settings' as const,databaseManifestSha256,accounts};return validatePortableSettings({...record,indexSha256:portableSettingsId(record)});
+ const record={format:1 as const,kind:'sylvana-portable-settings' as const,databaseManifestSha256,accounts};return validatePortableSettings({...record,indexSha256:portableSettingsId(record)});
 }
 export function readPortableSettings(secrets:Secrets,owner:string):PortableSettings{const result:PortableSettings={};for(const key of portableSettingKeys){const value=secrets.get(key+':'+owner);if(value!==undefined)result[key]=structuredClone(value);}return result;}
 export async function applyPortableSettings(secrets:Secrets,record:PortableSettingsRecord,owner:string,guard:()=>Promise<void>){

@@ -12,7 +12,7 @@ export class ChatWorkspaceSkills{
  constructor(private files:WorkspaceFiles){}
  private references(owner:string,options:ChatOptions){return options.files.map(id=>{const row=this.files.list(owner).find(row=>row.id===id);if(!row)throw Error('An attached workspace reference is unavailable.');return structuredClone(row);});}
  async capture(user:Identity,options:ChatOptions,signal:AbortSignal,validate:()=>Promise<void>){
-  if(!options.skills?.length)return;const references=this.references(user.id,options),selected=options.skills.filter(selection=>!selection.startsWith('agentopia-plugin:')&&path.isAbsolute(selection)&&references.some(ref=>ref.kind==='folder'&&ref.source!=='clipboard'&&inside(path.join(ref.path,'.agents','skills'),selection)));
+  if(!options.skills?.length)return;const references=this.references(user.id,options),selected=options.skills.filter(selection=>!selection.startsWith('sylvana-plugin:')&&path.isAbsolute(selection)&&references.some(ref=>ref.kind==='folder'&&ref.source!=='clipboard'&&inside(path.join(ref.path,'.agents','skills'),selection)));
   if(!selected.length)return;const guard=async()=>{signal.throwIfAborted();await validate();signal.throwIfAborted();};return capturePreviewWorkspaceSkills(user.id,references,selected,guard,file=>this.files.checkPath(file),{instructionsOnly:options.permission==='chat'});
  }
  async validate(user:Identity,options:ChatOptions,snapshot:PreviewWorkspaceSkills,signal:AbortSignal){

@@ -8,7 +8,7 @@ const copy=v=>JSON.parse(JSON.stringify(v)),check=r=>{if(r.error)throw new Error
 test('pinned portable plugin schemas, host support, secret exclusion, and deterministic integrity',()=>{
  const pkg=validatePluginPackage(examplePluginPackage);assert.equal(pkg.manifest.name,'microsoft-learn');
  assert.equal(pluginDigest(pkg),pluginDigest({mcp:pkg.mcp,manifest:pkg.manifest}));
- for(const change of [p=>delete p.manifest.$schema,p=>p.manifest.name='../outside',p=>p.manifest.version='latest',p=>p.manifest.hooks='./run.js',p=>p.manifest.extensions={'com.openai':{hooks:'./hooks.json'}},p=>p.manifest.extensions={'com.agentopia':{adapter:'serper'}},p=>p.mcp.mcpServers.docs={type:'stdio',command:'powershell'},p=>p.mcp.mcpServers.docs.headers={Authorization:'secret'},p=>p.mcp.mcpServers.docs.url='https://example.com/mcp?api_key=secret',p=>p.mcp.mcpServers.docs.url='https://user:secret@example.com/mcp',p=>p.mcp.mcpServers.docs.url='file:///C:/Windows',p=>p.mcp.mcpServers.docs.url='http://remote.example/mcp',p=>delete p.mcp,p=>p.extra=true]){const value=copy(pkg);change(value);assert.throws(()=>validatePluginPackage(value));}
+ for(const change of [p=>delete p.manifest.$schema,p=>p.manifest.name='../outside',p=>p.manifest.version='latest',p=>p.manifest.hooks='./run.js',p=>p.manifest.extensions={'com.openai':{hooks:'./hooks.json'}},p=>p.manifest.extensions={'com.sylvana':{adapter:'serper'}},p=>p.mcp.mcpServers.docs={type:'stdio',command:'powershell'},p=>p.mcp.mcpServers.docs.headers={Authorization:'secret'},p=>p.mcp.mcpServers.docs.url='https://example.com/mcp?api_key=secret',p=>p.mcp.mcpServers.docs.url='https://user:secret@example.com/mcp',p=>p.mcp.mcpServers.docs.url='file:///C:/Windows',p=>p.mcp.mcpServers.docs.url='http://remote.example/mcp',p=>delete p.mcp,p=>p.extra=true]){const value=copy(pkg);change(value);assert.throws(()=>validatePluginPackage(value));}
  for(const p of searchPlugins)assert.equal(validatePluginPackage(p,true).manifest.name,p.manifest.name);
  assert.throws(()=>validatePluginPackage(JSON.parse('{"manifest":{"__proto__":{}}}')));
 });
@@ -20,7 +20,7 @@ test('tool descriptors compile bounded local schemas and reject invalid descript
 });
 
 test('plugins preserve owned MCP connections, bind imported tools, revoke access, validate results, and run reviewed Tavily searches',async()=>{
- const state=JSON.parse(execFileSync('wsl.exe',['-d',testDistribution(),'-u','agentopia','--cd','/home/agentopia/app','--exec','supabase','stack','status','--output-format','json'],{encoding:'utf8',windowsHide:true}));
+ const state=JSON.parse(execFileSync('wsl.exe',['-d',testDistribution(),'-u','sylvana','--cd','/home/sylvana/app','--exec','supabase','stack','status','--output-format','json'],{encoding:'utf8',windowsHide:true}));
  const db=createClient(state.env.API_URL,state.env.SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}}),registry=new Plugins(db),remote=new RemoteTools(db),password=randomBytes(24).toString('base64url')+'Aa1!',accounts=[],agents=[],realFetch=global.fetch;
  let requests=0,executions=0,searches=0,schemaEpoch=1,badOutput=false,tavilyCreated=false;
  const server=createServer(async(req,res)=>{if(req.method!=='POST'){res.writeHead(405);return res.end();}let raw='';for await(const chunk of req)raw+=chunk;const body=JSON.parse(raw);requests++;res.setHeader('Content-Type','application/json');if(body.id===undefined){res.writeHead(202);return res.end();}let result;

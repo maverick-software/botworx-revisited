@@ -10,8 +10,8 @@ const {Providers}=require('../build/providers.js');
 const {coreServicesReady}=require('../build/runtime.js');
 class MemorySecrets{constructor(){this.data=new Map();}get(key){return this.data.get(key);}async set(key,value){if(value===undefined)this.data.delete(key);else this.data.set(key,value);}}
 function state(){
- if(process.env.AGENTOPIA_NATIVE_TEST_STATUS)return JSON.parse(readFileSync(process.env.AGENTOPIA_NATIVE_TEST_STATUS,'utf8'));
- return JSON.parse(execFileSync('wsl.exe',['--distribution',testDistribution(),'--user','agentopia','--cd','/home/agentopia/app','--exec','supabase','stack','status','--output-format','json'],{encoding:'utf8',windowsHide:true}));
+ if(process.env.SYLVANA_NATIVE_TEST_STATUS)return JSON.parse(readFileSync(process.env.SYLVANA_NATIVE_TEST_STATUS,'utf8'));
+ return JSON.parse(execFileSync('wsl.exe',['--distribution',testDistribution(),'--user','sylvana','--cd','/home/sylvana/app','--exec','supabase','stack','status','--output-format','json'],{encoding:'utf8',windowsHide:true}));
 }
 function check(result){if(result.error)throw result.error;return result.data;}
 test('native database: account permissions, agent defaults, chat idempotency, streaming persistence and last-admin protection',async()=>{

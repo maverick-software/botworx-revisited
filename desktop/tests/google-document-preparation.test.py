@@ -8,9 +8,9 @@ class GoogleDocumentPreparation(base.ComposioPreparation):
     def setUp(self):
         super().setUp();self.operation={'id':str(uuid.uuid4()),'binding':'a'*64,'connectionId':self.state['connections'][0]['id'],'referenceId':self.case.reference,'relative':'','name':'Report.docx','sha256':'b'*64,'bytes':120,'extension':'.docx','phase':'held','createdAt':'2026-10-22T03:45:00.000Z','updatedAt':'2026-10-22T03:45:02.000Z'};self.journal={'format':1,'operations':[self.operation]};self.settings['accounts'][0]['settings']['google-documents']=self.journal;self.case.descriptor['requiresDesktopRecoveryFormat']=11;self.save_settings()
     def test_operations_are_restored_with_original_ids_and_held_state(self):
-        result=self.case.prepare();self.assertFalse(result['databaseImported']);saved=recovery.load(self.case.appdata/'Agentopia/restored-settings.json');self.assertEqual(saved['accounts'][0]['settings']['google-documents'],self.journal);self.assertEqual(self.case.prepare()['operationId'],result['operationId'])
+        result=self.case.prepare();self.assertFalse(result['databaseImported']);saved=recovery.load(self.case.appdata/'Sylvana/restored-settings.json');self.assertEqual(saved['accounts'][0]['settings']['google-documents'],self.journal);self.assertEqual(self.case.prepare()['operationId'],result['operationId'])
     def test_completed_cloud_identity_remains_intact(self):
-        self.operation['phase']='completed';self.operation['cloudId']='cloud_123';self.save_settings();self.case.prepare();saved=recovery.load(self.case.appdata/'Agentopia/restored-settings.json');self.assertEqual(saved['accounts'][0]['settings']['google-documents']['operations'][0]['cloudId'],'cloud_123')
+        self.operation['phase']='completed';self.operation['cloudId']='cloud_123';self.save_settings();self.case.prepare();saved=recovery.load(self.case.appdata/'Sylvana/restored-settings.json');self.assertEqual(saved['accounts'][0]['settings']['google-documents']['operations'][0]['cloudId'],'cloud_123')
     def test_old_capability_cannot_discard_pending_uploads(self):
         self.case.descriptor['requiresDesktopRecoveryFormat']=10;self.refused('Google document operations require')
     def test_boolean_format_cannot_pass_as_a_format_number(self):

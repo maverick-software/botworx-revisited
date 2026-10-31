@@ -3,12 +3,13 @@ import {readFileSync,writeFileSync,unlinkSync,statSync,readdirSync} from 'node:f
 import path from 'node:path';
 import {desktopOperation} from './operation-lock.mjs';desktopOperation('packaging');
 const root=path.resolve(import.meta.dirname,'../..'),lock=path.join(root,'desktop/.build-lock');
+const stage=path.resolve(process.env.SYLVANA_STAGE_DIR??path.join(root,'desktop/staging'));
 try{writeFileSync(lock,String(process.pid),{flag:'wx'});}catch{throw new Error('Another desktop build or package operation holds desktop/.build-lock. Let it finish before packaging again.');}
 process.on('exit',()=>{try{unlinkSync(lock);}catch{}});
-const env={...process.env,AGENTOPIA_BUILD_LOCK_OWNED:'1'};
+const env={...process.env,SYLVANA_BUILD_LOCK_OWNED:'1',SYLVANA_STAGE_DIR:stage,SYLVANA_PACKAGE_RESOURCES:path.join(root,'desktop/resources')};
 function run(args){const result=spawnSync(process.execPath,args,{cwd:root,env,stdio:'inherit'});if(result.status!==0)throw new Error(`Desktop build step failed (${result.status??'spawn error'}).`);}
 run(['scripts/desktop/build.mjs']);
-run([process.env.npm_execpath,'--prefix','desktop/staging','install','--ignore-scripts']);
+run([process.env.npm_execpath,'--prefix',stage,'install','--ignore-scripts']);
 const forge=JSON.parse(readFileSync(path.join(root,'node_modules/@electron-forge/cli/package.json'),'utf8'));
 // Squirrel's x86 resource and metadata writers both load the large archive.
 // The metadata writer can silently discard it after a successful embed. Enable
@@ -23,10 +24,10 @@ const helpers=['WriteZipToSetup.exe','rcedit.exe','Setup.exe'].map(name=>{
 });
 try{
  for(const helper of helpers)writeFileSync(helper.file,helper.adjusted);
- run([path.join(root,'node_modules/@electron-forge/cli',forge.bin['electron-forge']),'make','desktop/staging']);
+ run([path.join(root,'node_modules/@electron-forge/cli',forge.bin['electron-forge']),'make',stage]);
 }finally{for(const helper of helpers)writeFileSync(helper.file,helper.original);}
-const output=path.join(root,'desktop/staging/out/make/squirrel.windows/x64');
+const output=path.join(stage,'out/make/squirrel.windows/x64');
 const full=readdirSync(output).find(name=>name.endsWith('-full.nupkg'));
-if(!full||statSync(path.join(output,'AgentopiaSetup.exe')).size<statSync(path.join(output,full)).size*0.9){
+if(!full||statSync(path.join(output,'SylvanaSetup.exe')).size<statSync(path.join(output,full)).size*0.9){
  throw new Error('The installer payload was not embedded. Inspect Squirrel-Releasify.log; a successful Forge exit alone is insufficient.');
 }

@@ -1,6 +1,6 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),os=require('node:os');
 const fs=require('node:fs/promises'),{randomUUID}=require('node:crypto');
-const build=process.env.AGENTOPIA_AGENT_DOCUMENT_BUILD||path.join(__dirname,'../build');
+const build=process.env.SYLVANA_AGENT_DOCUMENT_BUILD||path.join(__dirname,'../build');
 const {AgentDocuments}=require(path.join(build,'agent-documents.js'));
 const {libraryExpected,libraryMetadata,libraryMutation}=require(path.join(build,'agent-library-contracts.js'));
 const owner=randomUUID(),agent=randomUUID(),id=randomUUID(),expected={version:1,updatedAt:'2026-10-23T01:00:00.123456+00:00'};

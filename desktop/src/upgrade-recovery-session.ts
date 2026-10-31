@@ -1,3 +1,6 @@
+import {SylvanaAccount} from './sylvana-account';
+import {establishWebSession} from './local-web-session';
+import {localSessionEnded} from './session-end';
 import {createClient,type SupabaseClient} from '@supabase/supabase-js';
 import type {Secrets} from './secrets';
 import {SessionPersistence} from './session-persistence';
@@ -11,9 +14,9 @@ import type {UpgradeRecoveryState} from './workspace-import-contracts';
 
 type Client=Pick<SupabaseClient,'auth'>;
 type Recovery=Pick<RestoredWorkspaces,'status'|'inspect'|'finish'|'copies'|'reveal'>;
-type Options={env:Record<string,string>;profile:string;home:string;secrets:Secrets;privatePaths:string[];gitExecutable?:string;reveal:(folder:string)=>Promise<void>};
+type Options={env:Record<string,string>;profile:string;home:string;secrets:Secrets;privatePaths:string[];gitExecutable?:string;openBrowser?:(url:string)=>Promise<unknown>;reveal:(folder:string)=>Promise<void>};
 type Ports={auth:Client;admin:Client;recovery:Recovery;pending:(owners:string[],guard:()=>Promise<void>)=>Promise<string[]>};
-const signedOut='Sign in to Agentopia to review workspace recovery.';
+const signedOut='Sign in to Sylvana to review workspace recovery.';
 function need(value:unknown,message:string):asserts value{if(!value)throw Error(message);}
 function data<R extends {data?:unknown;error:unknown}>(result:R):R['data']{need(!result.error,'The local account service could not verify this sign-in. Retry when it is available.');return result.data;}
 
@@ -21,18 +24,19 @@ function data<R extends {data?:unknown;error:unknown}>(result:R):R['data']{need(
  * are available before migrations, without constructing any agent or queue. */
 export class UpgradeRecoverySession{
  private ports:Ports;private persistence:SessionPersistence;private unsubscribe:()=>void;
- private closing=false;private sealed=false;private active?:Promise<unknown>;private epoch=0;
+ private account:SylvanaAccount;private closing=false;private sealed=false;private active?:Promise<unknown>;private epoch=0;
  constructor(private options:Options,ports?:Ports){
   const url=new URL(options.env.API_URL);need(url.protocol==='http:'&&['127.0.0.1','localhost','[::1]'].includes(url.hostname)&&!url.username&&!url.password&&!url.search&&!url.hash&&url.pathname==='/','Upgrade recovery requires the local account service.');
   if(ports)this.ports=ports;else{
    const authOptions={auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}},auth=createClient(url.href,options.env.ANON_KEY,authOptions),admin=createClient(url.href,options.env.SERVICE_ROLE_KEY,authOptions),files=new WorkspaceFiles(options.secrets,undefined,[options.profile,...options.privatePaths]),workspaces=scheduledWorkspaceDirectory(options.profile,nativeOutputDirectory(options.profile,options.home));
    this.ports={auth,admin,recovery:new RestoredWorkspaces(options.profile,workspaces,options.secrets,files,options.gitExecutable),pending:(owners,guard)=>pendingWorkspaceUpgradeOwners({profile:options.profile,workspaces,owners,secrets:options.secrets,guard,signal:AbortSignal.timeout(15*60000)})};
   }
+  this.account=new SylvanaAccount(options.secrets,options.openBrowser??(async()=>{throw Error('The system browser is unavailable.');}));
   this.persistence=new SessionPersistence(options.secrets);
   const subscription=this.ports.auth.auth.onAuthStateChange((event,session)=>this.persistence.capture(event,session));this.unsubscribe=()=>subscription.data.subscription.unsubscribe();
  }
  async initialize(){await this.persistence.restore(this.ports.auth.auth);}
- private available(){need(!this.closing&&!this.sealed,'The upgrade is continuing or Agentopia is closing. Wait for startup to finish.');}
+ private available(){need(!this.closing&&!this.sealed,'The upgrade is continuing or Sylvana is closing. Wait for startup to finish.');}
  private run<T>(work:()=>Promise<T>):Promise<T>{
   this.available();need(!this.active,'Wait for the current recovery operation to finish.');
   const operation=Promise.resolve().then(work);this.active=operation;void operation.finally(()=>{if(this.active===operation)this.active=undefined;}).catch(()=>{});return operation;
@@ -43,8 +47,9 @@ export class UpgradeRecoverySession{
   if(session.expires_at&&session.expires_at*1000<Date.now()+60000)data(await auth.refreshSession());
   const user=data(await auth.getUser()).user;need(user&&storageUuid(user.id),'Your session expired. Sign in again.');
   const savedUser=data(await this.ports.admin.auth.admin.getUserById(user.id)).user;
-  need(savedUser?.id===user.id,'This local account is no longer available.');need(!savedUser.banned_until||Date.parse(savedUser.banned_until)<=Date.now(),'This Agentopia account is suspended.');
+  need(savedUser?.id===user.id,'This local account is no longer available.');need(!savedUser.banned_until||Date.parse(savedUser.banned_until)<=Date.now(),'This Sylvana account is suspended.');
   const saved=data(await auth.getSession()).session;this.available();need(this.epoch===epoch&&saved?.user.id===user.id,'Your recovery account changed. Sign in again.');
+  try{await this.account.verifySession(user.id);}catch(error){if(localSessionEnded(error))return null;throw error;}
   return {id:user.id,email:user.email??''};
  }
  private async authenticated(){const account=await this.current();need(account,signedOut);return account;}
@@ -68,14 +73,17 @@ export class UpgradeRecoverySession{
   return {account,recovery,canContinue:pending.length===0,otherAccountPending:pending.some(owner=>owner!==account.id)};
  }
  call(action:string,args:Record<string,unknown>={}){
+  if(action==='recovery.upgrade.cancel'){this.epoch++;this.account.cancel();return Promise.resolve();}
   return this.run(async()=>{
    if(action==='recovery.upgrade.state')return this.state();
-   if(action==='recovery.upgrade.signIn'){
-    need(typeof args.email==='string'&&args.email.length<=254&&typeof args.password==='string'&&args.password.length>0&&args.password.length<=256,'Enter your local account email and password.');this.epoch++;
-    data(await this.ports.auth.auth.signInWithPassword({email:args.email,password:args.password}));await this.authenticated();return;
+   if(action==='recovery.upgrade.signIn')throw Error('Continue with Sylvana to review recovery.');
+   if(action==='recovery.upgrade.sylvanaSignIn'){
+    const epoch=++this.epoch,guard=()=>{this.available();need(epoch===this.epoch,'Your recovery sign-in changed.');};
+    const connection=await this.account.connect();guard();
+    await establishWebSession({connection,account:this.account,auth:this.ports.auth as SupabaseClient,admin:this.ports.admin as SupabaseClient,secrets:this.options.secrets,persistence:this.persistence,guard});await this.authenticated();return;
    }
    if(action==='recovery.upgrade.signOut'){
-    this.epoch++;this.persistence.suspend();try{data(await this.ports.auth.auth.signOut({scope:'local'}));await this.options.secrets.set('session',undefined);}finally{this.persistence.resume();}return;
+    this.epoch++;this.account.cancel();const current=data(await this.ports.auth.auth.getSession()).session;if(current?.user.id)await this.account.disconnect(current.user.id).catch(()=>{});this.persistence.suspend();try{data(await this.ports.auth.auth.signOut({scope:'local'}));await this.options.secrets.set('session',undefined);}finally{this.persistence.resume();}return;
    }
    need(action.startsWith('recovery.workspaces.'),'Finish workspace recovery before using chats, agents, schedules or tools.');
    const account=await this.authenticated();need(args.owner===account.id,'This workspace recovery belongs to another account.');const guard=this.guard(account.id);
@@ -91,5 +99,5 @@ export class UpgradeRecoverySession{
   });
  }
  beginUpgrade(){return this.run(async()=>{const account=await this.authenticated();need((await this.pending(account.id)).length===0,'Finish reviewing the remaining workspace recovery before continuing the upgrade.');await this.guard(account.id)();this.sealed=true;});}
- async shutdown(){this.closing=true;await this.active?.catch(()=>{});this.persistence.suspend();this.unsubscribe();}
+ async shutdown(){this.closing=true;this.epoch++;this.account.cancel();await this.active?.catch(()=>{});this.persistence.suspend();this.unsubscribe();}
 }

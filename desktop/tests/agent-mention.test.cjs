@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
-const {agentMention,removeAgentMention,resolveAgentAddress}=require(path.join(process.env.AGENTOPIA_AGENT_TEST_BUILD??path.resolve(__dirname,'../build'),'agent-mention.js'));
+const {agentMention,removeAgentMention,resolveAgentAddress}=require(path.join(process.env.SYLVANA_AGENT_TEST_BUILD??path.resolve(__dirname,'../build'),'agent-mention.js'));
 test('explicit mentions resolve at the caret while retaining message text',()=>{
  assert.deepEqual(agentMention('@Mi',3),{start:0,end:3,query:'mi'});
  const text='Please @Mira inspect this';const mention=agentMention(text,12);assert.deepEqual(mention,{start:7,end:12,query:'mira'});assert.equal(removeAgentMention(text,mention),'Please inspect this');

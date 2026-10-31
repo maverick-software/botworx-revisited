@@ -1,3 +1,4 @@
+import {currentBrandKind} from './legacy-brand';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {createReadStream,createWriteStream} from 'node:fs';
@@ -11,7 +12,7 @@ import {storageDirectory,storageWithin} from './storage-files';
 export type RecoveryEntry={path:string;kind:'file'|'folder';size:number;mode:number;sha256?:string};
 export type RecoveryInventory={entries:RecoveryEntry[];files:number;folders:number;bytes:number;fingerprint:string;contentSha256:string};
 export type RecoveryExtra={name:'history.bundle'|'index.bin'|'git-state.tar.gz';path:string;size:number;sha256:string};
-export type WorkspaceRecoveryManifest={format:1;kind:'agentopia-workspace-recovery';entries:RecoveryEntry[];extras:Omit<RecoveryExtra,'path'>[];contentSha256:string;metadata:Record<string,unknown>};
+export type WorkspaceRecoveryManifest={format:1;kind:'sylvana-workspace-recovery';entries:RecoveryEntry[];extras:Omit<RecoveryExtra,'path'>[];contentSha256:string;metadata:Record<string,unknown>};
 export type RecoveryArtifact={path:string;sha256:string;manifestSha256:string;bytes:number;files:number;expandedBytes:number};
 export const workspaceRecoveryLimits={entries:250000,bytes:512*1024**3,manifest:64*1024**2,depth:64,milliseconds:300000};
 type Guard=()=>Promise<void>;
@@ -48,14 +49,14 @@ export async function workspaceRecoveryInventory(root:string,guard:Guard,signal:
 
 function manifest(value:unknown):WorkspaceRecoveryManifest{
  if(!value||typeof value!=='object')throw invalid();const item=value as WorkspaceRecoveryManifest;
- if(item.format!==1||item.kind!=='agentopia-workspace-recovery'||!Array.isArray(item.entries)||!item.entries.length||item.entries.length>workspaceRecoveryLimits.entries||!Array.isArray(item.extras)||item.extras.length>3||!item.metadata||typeof item.metadata!=='object'||Array.isArray(item.metadata))throw invalid();
+ if(item.format!==1||currentBrandKind(item.kind)!=='sylvana-workspace-recovery'||!Array.isArray(item.entries)||!item.entries.length||item.entries.length>workspaceRecoveryLimits.entries||!Array.isArray(item.extras)||item.extras.length>3||!item.metadata||typeof item.metadata!=='object'||Array.isArray(item.metadata))throw invalid();
  const seen=new Set<string>();let total=0;for(const entry of item.entries){relative(entry.path,true);const key=process.platform==='win32'?entry.path.toLowerCase():entry.path;if(seen.has(key)||!['file','folder'].includes(entry.kind)||!Number.isSafeInteger(entry.size)||entry.size<0||!Number.isInteger(entry.mode)||entry.mode<0||entry.mode>0o777||entry.kind==='folder'&&(entry.size!==0||entry.sha256!==undefined)||entry.kind==='file'&&!/^[a-f0-9]{64}$/.test(entry.sha256??'')||entry.path==='.git')throw invalid();seen.add(key);total+=entry.size;}
  if(item.entries[0].path!==''||item.entries[0].kind!=='folder'||total>workspaceRecoveryLimits.bytes||contentId(item.entries)!==item.contentSha256)throw invalid();
  const extra=new Set();for(const entry of item.extras){if(!['history.bundle','index.bin','git-state.tar.gz'].includes(entry.name)||extra.has(entry.name)||!Number.isSafeInteger(entry.size)||entry.size<0||entry.size>workspaceRecoveryLimits.bytes||!/^[a-f0-9]{64}$/.test(entry.sha256))throw invalid();extra.add(entry.name);total+=entry.size;}if(total>workspaceRecoveryLimits.bytes)throw invalid();return item;
 }
 
 export async function writeWorkspaceRecovery(root:string,inventory:RecoveryInventory,extras:RecoveryExtra[],metadata:Record<string,unknown>,destination:string,guard:Guard,signal:AbortSignal):Promise<RecoveryArtifact>{
- await guard();await storageDirectory(root);if(storageWithin(root,destination))throw Error('Recovery must be saved outside the workspace being archived.');await storageDirectory(path.dirname(destination));const check=budget(signal),record=manifest({format:1,kind:'agentopia-workspace-recovery',entries:inventory.entries,extras:extras.map(({path:unused,...entry})=>entry),contentSha256:inventory.contentSha256,metadata}),encoded=Buffer.from(JSON.stringify(record));if(encoded.length>workspaceRecoveryLimits.manifest)throw Error('The workspace recovery manifest is too large.');
+ await guard();await storageDirectory(root);if(storageWithin(root,destination))throw Error('Recovery must be saved outside the workspace being archived.');await storageDirectory(path.dirname(destination));const check=budget(signal),record=manifest({format:1,kind:'sylvana-workspace-recovery',entries:inventory.entries,extras:extras.map(({path:unused,...entry})=>entry),contentSha256:inventory.contentSha256,metadata}),encoded=Buffer.from(JSON.stringify(record));if(encoded.length>workspaceRecoveryLimits.manifest)throw Error('The workspace recovery manifest is too large.');
  const tar=pack(),output=createWriteStream(destination,{flags:'wx',mode:0o600}),done=pipeline(tar,createGzip({level:6}),output,{signal});done.catch(()=>{});
  async function entry(header:Partial<Header>&Pick<Header,'name'>,file?:string,expected?:string,data?:Buffer){
   await guard();check();let accept!:(error?:Error|null)=>void;const completed=new Promise<void>((resolve,reject)=>{accept=error=>error?reject(error):resolve();});completed.catch(()=>{});const target=tar.entry({...header,mtime:new Date(0),uid:0,gid:0},accept);

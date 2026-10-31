@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),os=require('node:os'),fs=require('node:fs/promises');
-const build=process.env.AGENTOPIA_PLUGIN_IMPORT_BUILD;
+const build=process.env.SYLVANA_PLUGIN_IMPORT_BUILD;
 const {planPluginUpdate}=require(path.join(build,'plugin-update.js')),{pluginDigest}=require(path.join(build,'plugin-validation.js')),{Plugins}=require(path.join(build,'plugins.js')),{NativePluginSkills}=require(path.join(build,'native-plugin-skills.js'));
 const copy=v=>JSON.parse(JSON.stringify(v));
 const file=value=>Buffer.from('---\nname: update-fixture\ndescription: Reviewed update fixture.\n---\n'+value).toString('base64');
@@ -30,7 +30,7 @@ test('another owner, a stale review and managed package replacement cannot reach
  f.set({source:'bundled'});await assert.rejects(f.registry.call('plugins.update',args,{id:'owner'}));assert.equal(f.calls.length,0);
 });
 test('updating removes the old owned skill cache while retaining the new digest and another account',async()=>{
- const directory=await fs.mkdtemp(path.join(os.tmpdir(),'agentopia-plugin-update-'));let current=pkg;
+ const directory=await fs.mkdtemp(path.join(os.tmpdir(),'sylvana-plugin-update-'));let current=pkg;
  const service=new NativePluginSkills({skillPackages:async()=>[{name:current.manifest.name,package:current,digest:pluginDigest(current)}]},directory,''),client={request:async()=>({})};
  try{
   const old=await service.capture('alice','agent'),oldRoots=await service.configure(client,old,async()=>{});await service.configure(client,await service.capture('bob','agent'),async()=>{});

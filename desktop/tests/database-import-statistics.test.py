@@ -7,7 +7,7 @@ branch=next(node for node in ast.walk(tree) if isinstance(node,ast.If) and isins
 CODE=compile(ast.fix_missing_locations(ast.Module(body=branch.body,type_ignores=[])),str(SOURCE),'exec')
 class ImportStatisticsTests(unittest.TestCase):
  def setUp(self):
-  self.temp=tempfile.TemporaryDirectory(prefix='agentopia-import-statistics-');self.root=Path(self.temp.name);self.source=self.root/'backup';self.source.mkdir();self.events=[];self.resumed=False;self.fail_import=False;self.fail_analyze=False
+  self.temp=tempfile.TemporaryDirectory(prefix='sylvana-import-statistics-');self.root=Path(self.temp.name);self.source=self.root/'backup';self.source.mkdir();self.events=[];self.resumed=False;self.fail_import=False;self.fail_analyze=False
   self.key=self.root/'database-key';self.key.write_text('ORIGINAL GENERATED KEY');self.database=self.root/'opt/database';self.database.mkdir(parents=True);(self.database/'0001-baseline.sql').write_text('GENERATED BASELINE')
   files=[]
   for name in ['auth.dump','application.dump','vault.dump','pgsodium_root.key']:
@@ -17,7 +17,7 @@ class ImportStatisticsTests(unittest.TestCase):
  def run_import(self):
   def sql(query):
    if query.startswith("SELECT to_regclass"):return 't' if self.resumed else 'f'
-   if query.startswith('SELECT count(*) FROM agentopia_desktop.imports'):return '1'
+   if query.startswith('SELECT count(*) FROM sylvana_desktop.imports'):return '1'
    if query=='SELECT count(*) FROM auth.users':return '2' if self.resumed else '0'
    if query.startswith('SELECT count(*) FROM pg_tables'):return '0'
    if query=='ANALYZE':
@@ -28,7 +28,7 @@ class ImportStatisticsTests(unittest.TestCase):
    self.events.append('import')
    if self.fail_import:raise RuntimeError('Generated import failure')
   def run(args,**kwargs):self.events.append('stop' if args[1]=='stop' else 'start')
-  def paths(value):return self.root/'missing-runtime-secrets.json' if str(value)=='/home/agentopia/.config/agentopia/runtime-secrets.json' else Path(value)
+  def paths(value):return self.root/'missing-runtime-secrets.json' if str(value)=='/home/sylvana/.config/sylvana/runtime-secrets.json' else Path(value)
   def append(source,destination):destination.write(b'GENERATED RESTORE SQL\n')
   scope={'Path':paths,'sys':types.SimpleNamespace(argv=['manage.py','import',str(self.source)]),'json':json,'hashlib':hashlib,'sql':sql,'sql_file':imported,'ROOT':self.root/'opt','tempfile':tempfile,'append_restore':append,'glob':types.SimpleNamespace(glob=lambda pattern:[str(self.key)]),'subprocess':types.SimpleNamespace(run=run,DEVNULL=object()),'wait_database_shutdown':lambda directory,**kwargs:self.events.append('shutdown-verified'),'os':os}
   exec(CODE,scope)

@@ -9,7 +9,8 @@ async function metadata(url:string,signal:AbortSignal,fetcher:typeof fetch){
 }
 export async function imageModels(provider:ImageProvider,signal:AbortSignal,fetcher:typeof fetch=fetch):Promise<ImageModel[]>{
  if(provider==='openai-api')return [{id:'gpt-image-2.5-sunburst',name:'GPT Image 2.5 Sunburst'},{id:'gpt-image-2.5-flare',name:'GPT Image 2.5 Flare'},{id:'gpt-image-2',name:'GPT Image 2'}];
- const value=await metadata('https://openrouter.ai/api/v1/images/models',signal,fetcher);
+ const value=await metadata(provider==='sylvana'?'https://sylvana.invalid/v1/models':'https://openrouter.ai/api/v1/images/models',signal,fetcher);
+ if(provider==='sylvana')return value.data.filter((m:any)=>m.capabilities?.includes('images')).map((m:any)=>({id:m.id,name:m.name}));
  if(!Array.isArray(value.data))throw new Error('The image catalog has an unsupported format.');
  return value.data.filter((row:any)=>typeof row.id==='string'&&/^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._:-]*$/i.test(row.id)&&row.id.length<=200&&row.architecture?.output_modalities?.includes('image')).slice(0,1000).map((row:any)=>({id:row.id,name:typeof row.name==='string'?row.name.slice(0,200):row.id}));
 }
@@ -17,6 +18,7 @@ function enumValue(parameters:any,name:string,value:string){return parameters[na
 function count(parameters:any,name:string,value:number){const p=parameters[name];return p?.type==='range'&&Number.isFinite(p.min)&&Number.isFinite(p.max)&&p.min<=value&&p.max>=value;}
 export async function imageRoute(provider:ImageProvider,model:string,input:ImageGenerationInput,signal:AbortSignal,fetcher:typeof fetch=fetch):Promise<ImageRoute>{
  if(provider==='openai-api'){if(!/^gpt-image-[a-z0-9.-]+$/i.test(model))throw new Error('Choose a supported OpenAI image model.');return {parameters:{},pricing:[]};}
+ if(provider==='sylvana'){if(!['standard','advanced'].includes(model))throw Error('Choose Standard or Advanced for image generation.');const value=await metadata('https://sylvana.invalid/v1/images/models/'+model+'/endpoints',signal,fetcher);const p=value.endpoints?.[0]?.supported_parameters??{};if(input.transparentBackground&&(!enumValue(p,'background','transparent')||!enumValue(p,'output_format','png')))throw Error('This Sylvana image service level does not support transparent backgrounds.');return {parameters:{...(p.background&&input.transparentBackground?{background:'transparent'}:{}),...(p.output_format?{output_format:'png'}:{})},pricing:[]};}
  if(!/^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._:-]*$/i.test(model))throw new Error('Choose a catalog image model.');
  const value=await metadata('https://openrouter.ai/api/v1/images/models/'+model.split('/').map(encodeURIComponent).join('/')+'/endpoints',signal,fetcher);
  if(value.id!==model||!Array.isArray(value.endpoints))throw new Error('The image endpoint catalog has an unsupported format.');

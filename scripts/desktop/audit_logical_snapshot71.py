@@ -13,7 +13,12 @@ from urllib.parse import unquote, urlparse
 from logical_row_fingerprints71 import Fingerprints, lines, IDENTIFIER
 
 
-def audit(archive, out, instance, expected_port, additional_empty_tables=(), expected_composio_plugin=None):
+def audit(archive, out, instance, expected_port, additional_empty_tables=(), expected_composio_plugin=None, consolidation_policy=None, composio_service_policy=None, expected_new_migration=None):
+    migration_schemas = {'0089-unified-agent-instructions.sql': 89, '0090-agent-builder-resources.sql': 90}
+    if expected_new_migration is not None:
+        assert expected_new_migration['name'] in migration_schemas
+        assert re.fullmatch('[a-f0-9]{64}', expected_new_migration['sha256'])
+    migration_name = expected_new_migration['name'] if expected_new_migration is not None else '0089-unified-agent-instructions.sql'
     archive, out = Path(archive), Path(out)
     assert len(set(additional_empty_tables)) == len(additional_empty_tables)
     assert all(IDENTIFIER.fullmatch(name) for name in additional_empty_tables)
@@ -32,7 +37,18 @@ def audit(archive, out, instance, expected_port, additional_empty_tables=(), exp
     db = urlparse(state['env']['DB_URL'])
     assert db.port == expected_port == tomllib.loads(Path('supabase/config.toml').read_text())['db']['port']
     binary = Path(glob.glob('/home/agentopia/.supabase/cache/stack/slim-services/postgres/*/linux-amd64/*/bin/psql')[0]).parent
-    store = Fingerprints(out / 'row-fingerprints.sqlite')
+    if composio_service_policy is not None:
+        assert consolidation_policy is None and expected_composio_plugin is None
+        from composio_service_row_checks80 import ComposioServiceFingerprints
+        store = ComposioServiceFingerprints(out / 'row-fingerprints.sqlite', composio_service_policy)
+        additional_data_tables = ()
+    elif consolidation_policy is not None:
+        from consolidation_row_checks79 import ConsolidationFingerprints
+        store = ConsolidationFingerprints(out / 'row-fingerprints.sqlite', consolidation_policy)
+        additional_data_tables = store.new_tables
+    else:
+        store = Fingerprints(out / 'row-fingerprints.sqlite')
+        additional_data_tables = ()
     env = dict(os.environ, PGPASSWORD=unquote(db.password or ''), PGOPTIONS='-c default_transaction_read_only=on',
                PGTZ='UTC', PGAPPNAME='agentopia_complete_logical71_readonly')
     try:
@@ -52,7 +68,7 @@ def audit(archive, out, instance, expected_port, additional_empty_tables=(), exp
         nonce = uuid.uuid4().hex
         begin, end = '__AUDIT_BEGIN_' + nonce + '__', '__AUDIT_END_' + nonce + '__'
         commands = ['BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;',
-            "SELECT jsonb_build_object('publicTables',(SELECT coalesce(jsonb_agg(c.relname ORDER BY c.relname),'[]') FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN('r','p') AND NOT EXISTS(SELECT 1 FROM pg_depend d WHERE d.classid='pg_class'::regclass AND d.objid=c.oid AND d.deptype='e')),'migrations',(SELECT count(*) FROM agentopia_desktop.migrations),'readableVault',(SELECT count(decrypted_secret) FROM vault.decrypted_secrets));"]
+            "SELECT jsonb_build_object('publicTables',(SELECT coalesce(jsonb_agg(c.relname ORDER BY c.relname),'[]') FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN('r','p') AND NOT EXISTS(SELECT 1 FROM pg_depend d WHERE d.classid='pg_class'::regclass AND d.objid=c.oid AND d.deptype='e')),'migrations',(SELECT count(*) FROM agentopia_desktop.migrations),'newMigrationChecksum',(SELECT checksum FROM agentopia_desktop.migrations WHERE version='" + migration_name + "'),'readableVault',(SELECT count(decrypted_secret) FROM vault.decrypted_secrets));"]
         if additional_empty_tables:
             counts = ','.join("'" + name + "',(SELECT count(*) FROM public.\"" + name + '\")' for name in additional_empty_tables)
             commands[1] = commands[1].replace("'migrations',", "'additionalEmptyTables',jsonb_build_object(" + counts + "),'migrations',")
@@ -74,6 +90,9 @@ def audit(archive, out, instance, expected_port, additional_empty_tables=(), exp
             columns = ','.join('"' + part + '"' for part in record['columns'])
             condition = ' WHERE NOT (' + approved_composio + ')' if name == 'public.desktop_plugins' and approved_composio else ''
             commands += ['\\echo ' + begin + name, 'COPY (SELECT ' + columns + ' FROM ' + schema + '."' + table + '"' + condition + ') TO STDOUT;', '\\echo ' + end]
+        for table in additional_data_tables:
+            assert 'public.' + table not in expected and IDENTIFIER.fullmatch(table)
+            commands += ['\\echo ' + begin + 'public.' + table, 'COPY (SELECT row_to_json(t)::text FROM public.\"' + table + '\" t) TO STDOUT;', '\\echo ' + end]
         commands += ['COMMIT;']
         sql = out / 'read-only-audit.sql'
         sql.write_text('\n'.join(commands) + '\n')
@@ -87,22 +106,31 @@ def audit(archive, out, instance, expected_port, additional_empty_tables=(), exp
                         if line == (end + '\n').encode():
                             active = None
                         else:
-                            store.row('live', active, line)
+                            if active in expected:
+                                store.row('live', active, line)
+                            else:
+                                store.collect_new(active.split('.')[1], line)
                     elif metadata is None:
                         metadata = json.loads(line)
                     else:
                         assert line.startswith(begin.encode()), 'Unexpected audit framing.'
                         active = line.decode('ascii').strip()[len(begin):]
-                        assert active in expected
-                        store.begin('live', active, expected[active]['columns'])
+                        assert active in expected or active in ['public.' + name for name in additional_data_tables]
+                        if active in expected:
+                            store.begin('live', active, expected[active]['columns'])
             finally:
                 process.stdout.close()
                 code = process.wait(timeout=120)
             assert code == 0 and active is None and metadata, 'Live audit failed; inspect private diagnostics.'
+        migration = store.verify_migration() if consolidation_policy is not None or composio_service_policy is not None else None
         actual = store.result('live')
-        assert sorted('public.' + name for name in metadata['publicTables']) == sorted([name for name in expected if name.startswith('public.')] + ['public.' + name for name in additional_empty_tables]), 'The archive must cover every original application table; only explicitly named empty new tables are allowed.'
+        assert sorted('public.' + name for name in metadata['publicTables']) == sorted([name for name in expected if name.startswith('public.')] + ['public.' + name for name in additional_empty_tables] + ['public.' + name for name in additional_data_tables]), 'The archive must cover every original application table; new tables require explicit empty-table or checked migration declarations.'
         assert all(count == 0 for count in metadata.get('additionalEmptyTables', {}).values()), 'A newly added table has unexpected data.'
         assert metadata['migrations'] >= 71
+        if expected_new_migration is not None:
+            assert expected_new_migration['name'] in migration_schemas
+            assert re.fullmatch('[a-f0-9]{64}', expected_new_migration['sha256'])
+            assert metadata['migrations'] == migration_schemas[expected_new_migration['name']] and metadata['newMigrationChecksum'] == expected_new_migration['sha256'], 'The installed migration checksum differs from the package proof.'
         differences = sorted(name for name in expected.keys() | actual.keys() if expected.get(name) != actual.get(name))
         assert not differences, 'Saved rows differ: ' + ', '.join(differences)
         assert 0 <= metadata.get('additionalComposioRows', 0) <= manifest['accounts']
@@ -115,7 +143,7 @@ def audit(archive, out, instance, expected_port, additional_empty_tables=(), exp
         assert json.loads(Path('/home/agentopia/.config/agentopia/runtime-secrets.json').read_text())['root_key'] == root_key
         assert tomllib.loads(Path('supabase/config.toml').read_text())['db']['root_key'] == root_key
         report = {'success': True, 'at': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'tablesCompared': len(expected),
-            'allApplicationTablesCovered': True, 'schemaMigrations': metadata['migrations'], 'savedRowsCompared': sum(row['rows'] for row in expected.values()),
+            'newMigrationChecksum': metadata['newMigrationChecksum'], 'allApplicationTablesCovered': True, 'schemaMigrations': metadata['migrations'], 'savedRowsCompared': sum(row['rows'] for row in expected.values()),
             'originalDocumentRowsCompared': expected['public.desktop_media_files']['rows'], 'accounts': expected['auth.users']['rows'],
             'chats': expected['public.conversation_sessions']['rows'], 'messages': expected['public.chat_messages_v2']['rows'],
             'readableVaultRecords': metadata['readableVault'], 'encryptionRootBindingsVerified': 4,
@@ -123,7 +151,9 @@ def audit(archive, out, instance, expected_port, additional_empty_tables=(), exp
             'providerRequests': 0, 'completeDecodedDumpBuffered': False, 'maximumCopyRowBytes': store.maximum_row_bytes,
             'copyRowLimitBytes': 64 * 1024 * 1024, 'fingerprintAlgorithm': 'sorted row SHA-256 with duplicate multiplicity',
             'additionalEmptyTablesVerified': len(additional_empty_tables), 'additionalComposioCatalogRowsVerified': metadata.get('additionalComposioRows', 0),
-            'allOriginalRowsComparedWithoutExclusions': True}
+            'allOriginalRowsComparedWithoutExclusions': consolidation_policy is None,
+            'allOriginalRowsComparedWithVerifiedMigrationProjection': consolidation_policy is not None,
+            **({('composioServiceMigration' if composio_service_policy is not None else 'consolidationMigration'): migration} if migration else {})}
         (out / 'archive-table-fingerprints.json').write_text(json.dumps(expected, indent=2))
         return report
     finally:

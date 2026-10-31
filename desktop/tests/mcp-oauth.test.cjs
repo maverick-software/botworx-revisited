@@ -1,6 +1,6 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
 const {createServer}=require('node:http'),{createHash}=require('node:crypto');
-const build=process.env.AGENTOPIA_OAUTH_TEST_BUILD||path.resolve(__dirname,'../build');
+const build=process.env.SYLVANA_OAUTH_TEST_BUILD||path.resolve(__dirname,'../build');
 const {McpOAuth}=require(path.join(build,'mcp-oauth.js')),{oauthNetwork,publicOAuthAddress}=require(path.join(build,'mcp-oauth-network.js')),{withMcp}=require(path.join(build,'mcp-client.js'));
 const scope={owner:'owner-a',agent:'agent-a',connection:'connection-a'};
 async function fixture(t,options={}){
@@ -56,11 +56,37 @@ test('a reopened engine restores credentials and coalesces simultaneous refreshe
  assert.deepEqual(await Promise.all([cold.token(scope,new AbortController().signal),cold.token(scope,new AbortController().signal)]),['access-refreshed','access-refreshed']);
  assert.equal(f.counts.refreshes,1);assert.equal(f.browser.length,1);assert.equal(f.records.size,1);
 });
+
+test('cancellation after a successful refresh preserves rotated credentials for reopening',async t=>{
+ const f=await fixture(t,{expired:true});await f.oauth.connect(scope);const controller=new AbortController(),set=f.store.set;
+ f.store.set=async(key,value)=>{await set(key,value);if(value?.tokens?.access_token==='access-refreshed')controller.abort(Error('Catalog closed'));};
+ await assert.rejects(f.oauth.token(scope,controller.signal),/Catalog closed/);assert.equal(f.records.size,1);assert.equal([...f.records.values()][0].tokens.access_token,'access-refreshed');
+ assert.equal(await f.make().token(scope,new AbortController().signal),'access-refreshed');assert.equal(f.counts.refreshes,1);
+});
+
+test('an account switch after refresh receives no token and retains the original owner rotation',async t=>{
+ const f=await fixture(t,{expired:true});await f.oauth.connect(scope);const checked=f.oauth.checked.bind(f.oauth);
+ f.oauth.checked=async(...args)=>{if(f.counts.refreshes)f.setOwner('owner-b');return checked(...args);};
+ await assert.rejects(f.oauth.token(scope,new AbortController().signal),/needs browser sign-in/);assert.equal([...f.records.values()][0].tokens.access_token,'access-refreshed');
+ f.setOwner(scope.owner);assert.equal(await f.make().token(scope,new AbortController().signal),'access-refreshed');assert.equal(f.counts.refreshes,1);
+});
+
+test('explicit disconnect after refresh persistence still removes the grant',async t=>{
+ const f=await fixture(t,{expired:true});await f.oauth.connect(scope);const set=f.store.set;let disconnect;
+ f.store.set=async(key,value)=>{await set(key,value);if(value?.tokens?.access_token==='access-refreshed')disconnect=f.oauth.disconnect(scope);};
+ await assert.rejects(f.oauth.token(scope,new AbortController().signal));await disconnect;assert.equal(f.records.size,0);
+});
+
+test('a replacement grant wins an atomic refresh comparison',async t=>{
+ const f=await fixture(t,{expired:true});await f.oauth.connect(scope);let replacement;
+ f.store.compareAndSetMany=async entries=>{const [key]=entries[0];replacement={...f.records.get(key),tokens:{access_token:'access-replacement',refresh_token:'new-grant',token_type:'Bearer'},expiresAt:Date.now()+3600000};f.records.set(key,replacement);return false;};
+ await assert.rejects(f.oauth.token(scope,new AbortController().signal),/needs browser sign-in/);assert.equal([...f.records.values()][0],replacement);assert.equal(await f.make().token(scope,new AbortController().signal),'access-replacement');
+});
 test('a provided public client avoids dynamic registration',async t=>{
  const f=await fixture(t);await f.oauth.connect(scope,{clientId:'provided-public-client'});assert.equal(f.counts.registrations,0);assert.equal(new URL(f.browser[0]).searchParams.get('client_id'),'provided-public-client');
 });
 test('client metadata registration uses the declared public HTTPS document',async t=>{
- const f=await fixture(t);await f.oauth.connect(scope,{clientMetadataUrl:'https://agentopia.example/oauth-client.json'});assert.equal(f.counts.registrations,0);assert.equal(new URL(f.browser[0]).searchParams.get('client_id'),'https://agentopia.example/oauth-client.json');
+ const f=await fixture(t);await f.oauth.connect(scope,{clientMetadataUrl:'https://sylvana.example/oauth-client.json'});assert.equal(f.counts.registrations,0);assert.equal(new URL(f.browser[0]).searchParams.get('client_id'),'https://sylvana.example/oauth-client.json');
 });
 for(const missing of [false,true])test('wrong or missing advertised callback issuer cannot exchange a code: '+missing,async t=>{
  const f=await fixture(t,{hold:true}),pending=f.oauth.connect(scope);pending.catch(()=>{});await f.opened;
@@ -112,7 +138,7 @@ test('the SQL-facing adapter enforces ownership and reviewed assignments before 
  const rows={agents:[{id:scope.agent,user_id:scope.owner,active:true}],agent_mcp_connections:[{id:scope.connection,agent_id:scope.agent,vault_server_url_id:'url-secret',is_active:true,auth_config:{},connection_name:'Reviewed OAuth'}],desktop_plugin_connections:[{user_id:scope.owner,agent_id:scope.agent,connection_id:scope.connection,plugin_name:pkg.manifest.name,server_name:name}],desktop_plugins:[{user_id:scope.owner,name:pkg.manifest.name,package:pkg,digest:pluginDigest(pkg),source:'imported',enabled:true}],desktop_agent_plugins:[{user_id:scope.owner,agent_id:scope.agent,plugin_name:pkg.manifest.name,enabled:true}]};
  // Only persistence is controlled here. The actual Plugins authorization code,
  // OAuth adapter, RemoteTools and pinned MCP client all execute unchanged.
- const db={from:table=>{let selected=rows[table]??[];const query={select:()=>query,eq:(key,value)=>{selected=selected.filter(row=>row[key]===value);return query;},single:async()=>({data:selected.length===1?selected[0]:null,error:selected.length===1?null:{message:'not owned'}}),maybeSingle:async()=>({data:selected[0]??null,error:null})};return query;},rpc:async(name,args)=>{assert.equal(name,'get_secret');assert.equal(args.secret_id,'url-secret');return {data:[{key:f.base+'/mcp'}],error:null};}};
+ const db={from:table=>{let selected=rows[table]??[];const query={select:()=>query,eq:(key,value)=>{selected=selected.filter(row=>row[key]===value);return query;},like:(key,pattern)=>{assert.equal(pattern,'composio-service-%');selected=selected.filter(row=>typeof row[key]==='string'&&row[key].startsWith('composio-service-'));return query;},single:async()=>({data:selected.length===1?selected[0]:null,error:selected.length===1?null:{message:'not owned'}}),maybeSingle:async()=>({data:selected[0]??null,error:null}),then:(resolve,reject)=>Promise.resolve({data:selected,error:null}).then(resolve,reject)};return query;},rpc:async(name,args)=>{assert.equal(name,'get_secret');assert.equal(args.secret_id,'url-secret');return {data:[{key:f.base+'/mcp'}],error:null};}};
  const adapter=new McpOAuthConnections(db,f.store,async()=>scope.owner,f.open);await adapter.connect(scope);assert.equal(f.counts.registrations,0);
  const tools=new RemoteTools(db,undefined,adapter),result=await tools.inspect(scope.owner,scope.agent,scope.connection,new AbortController().signal);assert.equal(result.count,1);assert.equal(result.tools[0].name,'read_note');assert(!JSON.stringify(result).includes('access-initial'));
  const opened=f.browser.length;rows.desktop_agent_plugins[0].enabled=false;await assert.rejects(adapter.token(scope,new AbortController().signal),/disabled|assigned/);assert.equal(await adapter.status(scope),false);rows.desktop_agent_plugins[0].enabled=true;

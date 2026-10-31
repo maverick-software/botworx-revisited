@@ -1,0 +1,11 @@
+.model-popover.service-level-popover{width:184px;padding:5px;border-radius:10px}
+.model-popover.service-level-popover .service-level-option{display:flex;align-items:center;justify-content:space-between;gap:20px;width:100%;min-height:36px;margin:0;padding:8px 10px;border:0;border-radius:6px;background:transparent;color:var(--text);font-size:13px;font-weight:400;line-height:20px;text-align:left;box-shadow:none}
+.model-popover.service-level-popover .service-level-option:hover,.model-popover.service-level-popover .service-level-option[aria-pressed="true"]{background:var(--hover);color:var(--text)}
+.model-popover.service-level-popover .service-level-option:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.model-popover.service-level-popover .service-level-option svg{flex-shrink:0;color:var(--focus)}
+.service-level-card{z-index:1000;width:260px;max-width:calc(100vw - 24px);padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);box-shadow:var(--shadow);font-size:12px;line-height:1.5;animation:fade-in .12s ease-out}
+.service-level-card>strong{font-size:13px;font-weight:600}
+.service-level-card>p{margin:6px 0 12px;color:var(--muted)}
+.service-level-card dl{margin:0}.service-level-card dl>div{display:flex;justify-content:space-between;gap:16px;margin:8px 0}.service-level-card dt{display:flex;align-items:center;gap:7px}.service-level-card dd{margin:0;color:var(--muted)}
+.service-level-card>small{display:block;margin-top:12px;color:var(--muted);font-size:10px}
+.service-level-card[data-state="closed"]{animation:none}

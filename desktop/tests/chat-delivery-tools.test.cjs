@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),{randomUUID}=require('node:crypto');
-const build=process.env.AGENTOPIA_DELIVERY_BUILD,{ToolService}=require(path.join(build,'tool-service.js')),{defaultAgentPolicy}=require(path.join(build,'agent-contracts.js')),{chatDeliveryReceipt}=require(path.join(build,'chat-delivery.js'));
+const build=process.env.SYLVANA_DELIVERY_BUILD,{ToolService}=require(path.join(build,'tool-service.js')),{defaultAgentPolicy}=require(path.join(build,'agent-contracts.js')),{chatDeliveryReceipt}=require(path.join(build,'chat-delivery.js'));
 const options={provider:'openai-oauth',model:'fixture-model',thinking:'high',permission:'ask',mode:'chat',files:[]};
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 function fixture({grant=false,policy=defaultAgentPolicy}={}){

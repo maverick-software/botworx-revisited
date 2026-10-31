@@ -4,6 +4,7 @@ import type {ChatOptions} from './contracts';
 import type {ToolDefinition,ToolSource} from './tool-contracts';
 import type {RemoteTools,RemotePlan} from './remote-tools';
 import {instructionAppId} from './instruction-app-references';
+import {automaticComposioSource} from './composio-mcp-contracts';
 
 export const previewRemoteToolNames=['web_search','mcp_search','mcp_call'];
 type PreviewRemoteBody={owner:string;mode:'chat'|'plan';sources:ToolSource[];definitions:ToolDefinition[];bindings:Array<{id:string;signature:string}>;key:string};
@@ -27,19 +28,19 @@ export function previewRemotePrincipal(value:PreviewRemoteTools):RemotePrincipal
 /** Accepted configuration fingerprints contain no endpoint, token or credential. */
 export class PreviewRemoteToolBindings{
  constructor(private remote:RemoteTools){}
- async capture(owner:string,agentId:RemotePrincipal,options:ChatOptions,signal:AbortSignal,guard:()=>Promise<void>):Promise<PreviewRemoteTools|undefined>{
+ async capture(owner:string,agentId:RemotePrincipal,options:ChatOptions,signal:AbortSignal,guard:()=>Promise<void>,acceptedSourceIds?:ReadonlySet<string>):Promise<PreviewRemoteTools|undefined>{
   const check=async()=>{signal.throwIfAborted();await guard();signal.throwIfAborted();};await check();if(!['ask','full'].includes(options.permission))return;
-  const plan=await this.remote.plan(owner,agentId,options);await check();if(!plan.definitions.length)return;
+  const plan=await this.remote.plan(owner,agentId,options,[],acceptedSourceIds);await check();if(!plan.definitions.length)return;
   const sources=plan.sources.map(source=>({id:source.id,name:source.name,kind:source.kind,ready:source.ready,enabled:source.enabled,detail:source.detail,...(source.plugin!==undefined?{plugin:source.plugin}:{}),...(source.validation!==undefined?{validation:source.validation}:{})})).sort((a,b)=>a.id.localeCompare(b.id)),bindings=[];
   if(sources.length>1000)throw Error('Choose fewer preview connections.');
   for(const source of sources){await check();bindings.push({id:source.id,signature:await this.remote.fingerprint(owner,agentId,source.id,signal)});await check();}
   const body={...(typeof agentId==='string'?{version:1 as const,agentId}:{version:2 as const,principal:creationResourcePrincipal(agentId)}),owner,mode:options.mode,sources,definitions:structuredClone(plan.definitions),bindings},value={...body,key:key(body)};validatePreviewRemoteTools(value);return value;
  }
  async validate(owner:string,agentId:RemotePrincipal,options:ChatOptions,value:PreviewRemoteTools,signal:AbortSignal,guard:()=>Promise<void>){
-  previewRemotePlan(owner,agentId,options,value);const current=await this.capture(owner,agentId,{...options,tools:value.sources.map(source=>source.id)},signal,guard);if(!current||canonical(current)!==canonical(value))throw changed();
+  previewRemotePlan(owner,agentId,options,value);const current=await this.capture(owner,agentId,{...options,tools:value.sources.map(source=>source.id)},signal,guard,new Set(value.sources.map(source=>source.id)));if(!current||canonical(current)!==canonical(value))throw changed();
  }
 }
 export function previewRemotePlan(owner:string,agentId:RemotePrincipal,options:ChatOptions,value:PreviewRemoteTools):RemotePlan{
- validatePreviewRemoteTools(value);if(value.owner!==owner||canonical(previewRemotePrincipal(value))!==canonical(agentId)||value.mode!==options.mode||!['ask','full'].includes(options.permission)||value.sources.some(source=>options.tools!==undefined&&!options.tools.includes(source.id)))throw changed();
+ validatePreviewRemoteTools(value);if(value.owner!==owner||canonical(previewRemotePrincipal(value))!==canonical(agentId)||value.mode!==options.mode||!['ask','full'].includes(options.permission)||value.sources.some(source=>!automaticComposioSource(source)&&options.tools!==undefined&&!options.tools.includes(source.id)))throw changed();
  return {mode:value.mode,sources:structuredClone(value.sources),definitions:structuredClone(value.definitions),denied:new Set()};
 }

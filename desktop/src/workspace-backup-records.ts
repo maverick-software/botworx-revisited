@@ -1,3 +1,4 @@
+import {currentBrandKind} from './legacy-brand';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 import type {Secrets} from './secrets';
@@ -8,7 +9,7 @@ import {storageUuid,storageWithin} from './storage-files';
 
 type ObjectRecord=Record<string,any>;
 export type WorkspaceOwnerRecords={
- format:1;kind:'agentopia-workspace-owner-records';databaseManifestSha256:string;
+ format:1;kind:'sylvana-workspace-owner-records';databaseManifestSha256:string;
  sourceWorkspaces:string;sourceRecovery:string;
  accounts:{owner:string;journals:ScheduledWorkspaceJournal[];operations:ObjectRecord[]}[];
  indexSha256:string;
@@ -24,7 +25,7 @@ const amount=(value:unknown,max=512*1024**3)=>need(Number.isSafeInteger(value)&&
 const same=(left:unknown,right:string)=>typeof left==='string'&&path.isAbsolute(left)&&(process.platform==='win32'?path.resolve(left).toLowerCase()===path.resolve(right).toLowerCase():path.resolve(left)===path.resolve(right));
 const optional=(record:ObjectRecord,key:string,check:(value:any)=>void)=>{if(record[key]!==undefined)check(record[key]);};
 const gitObject=(value:unknown)=>need(typeof value==='string'&&/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(value));
-const reference=(owner:string,run:string,operation:string)=>'refs/agentopia/recovery/'+createHash('sha256').update([owner,run,operation].join(':')).digest('hex');
+const reference=(owner:string,run:string,operation:string)=>'refs/sylvana/recovery/'+createHash('sha256').update([owner,run,operation].join(':')).digest('hex');
 function roots(workspaces:unknown,recovery:unknown){for(const value of [workspaces,recovery])need(typeof value==='string'&&value.length<=32767&&path.isAbsolute(value)&&!/[\x00-\x1f\x7f]/.test(value)&&path.resolve(value)!==path.parse(path.resolve(value)).root);need(!storageWithin(workspaces as string,recovery as string)&&!storageWithin(recovery as string,workspaces as string));}
 function artifact(value:unknown,file:string){object(value,['path','sha256','manifestSha256','bytes','files','expandedBytes']);need(same(value.path,file));sha(value.sha256);sha(value.manifestSha256);amount(value.bytes);amount(value.files,250000);amount(value.expandedBytes);}
 function binding(value:unknown){object(value,['id','path','kind']);uuid(value.id);need(typeof value.path==='string'&&path.isAbsolute(value.path)&&value.path.length<=32767&&!/[\x00-\x1f\x7f]/.test(value.path)&&['file','folder'].includes(value.kind));}
@@ -59,8 +60,8 @@ function operation(value:unknown,owner:string,saved:Map<string,ScheduledWorkspac
  if(value.git!==undefined)git(value.git,owner,value.runId,value.id,roots.recovery,value.origin);
  optional(value,'gitDirectory',directory=>need(typeof directory==='string'&&same(path.dirname(directory),path.join(source.workspace.commonDirectory,'worktrees'))));
  if(value.gitProgress!==undefined){object(value.gitProgress,['phase','reference','commit']);need(['planned','reference','bundled','complete'].includes(value.gitProgress.phase)&&value.gitProgress.reference===reference(owner,value.runId,value.id));optional(value.gitProgress,'commit',gitObject);}
- optional(value,'staged',file=>need(same(file,path.join(path.dirname(source.path),'.agentopia-archive-'+value.id))));
- optional(value,'stagedGit',file=>need(value.gitDirectory&&same(file,path.join(path.dirname(value.gitDirectory),'.agentopia-archive-'+value.id))));
+ optional(value,'staged',file=>need(same(file,path.join(path.dirname(source.path),'.sylvana-archive-'+value.id))));
+ optional(value,'stagedGit',file=>need(value.gitDirectory&&same(file,path.join(path.dirname(value.gitDirectory),'.sylvana-archive-'+value.id))));
  optional(value,'restoration',entry=>restoration(entry,owner,roots.workspaces));if(value.restorations!==undefined){need(Array.isArray(value.restorations)&&value.restorations.length<=100);value.restorations.forEach((entry:unknown)=>restoration(entry,owner,roots.workspaces));}
  const copies=[...(value.restorations??[]),...(value.restoration?[value.restoration]:[])];need(new Set(copies.map(copy=>copy.id)).size===copies.length);
  return value;
@@ -70,7 +71,7 @@ export function workspaceOwnerRecordsId(record:Omit<WorkspaceOwnerRecords,'index
  * private artifacts, live snapshots and retained copies. This record neither
  * grants file access nor makes an interrupted operation safe to replay. */
 export function validateWorkspaceOwnerRecords(value:unknown):WorkspaceOwnerRecords{
- object(value,['format','kind','databaseManifestSha256','sourceWorkspaces','sourceRecovery','accounts','indexSha256']);need(value.format===1&&value.kind==='agentopia-workspace-owner-records');roots(value.sourceWorkspaces,value.sourceRecovery);sha(value.databaseManifestSha256);sha(value.indexSha256);
+ object(value,['format','kind','databaseManifestSha256','sourceWorkspaces','sourceRecovery','accounts','indexSha256']);need(value.format===1&&currentBrandKind(value.kind)==='sylvana-workspace-owner-records');roots(value.sourceWorkspaces,value.sourceRecovery);sha(value.databaseManifestSha256);sha(value.indexSha256);
  need(Array.isArray(value.accounts)&&value.accounts.length<=10000&&Buffer.byteLength(JSON.stringify(value),'utf8')<=64*1024**2&&value.indexSha256===workspaceOwnerRecordsId(value as WorkspaceOwnerRecords));const owners=new Set<string>();let total=0;
  for(const account of value.accounts){object(account,['owner','journals','operations']);uuid(account.owner);need(!owners.has(account.owner.toLowerCase()));owners.add(account.owner.toLowerCase());need(Array.isArray(account.journals)&&Array.isArray(account.operations));total+=account.journals.length+account.operations.length;need(total<=25000);
   const saved=new Map<string,ScheduledWorkspaceJournal>();for(const item of account.journals){const entry=journal(item,account.owner,value.sourceWorkspaces);need(!saved.has(entry.runId));saved.set(entry.runId,entry);}
@@ -82,5 +83,5 @@ export function validateWorkspaceOwnerRecords(value:unknown):WorkspaceOwnerRecor
 export function captureWorkspaceOwnerRecords(secrets:Pick<Secrets,'get'|'scheduledWorkspaceRecoveryIds'>,workspaces:Pick<ScheduledWorkspaces,'directory'|'retained'>,recovery:string,owners:string[],databaseManifestSha256:string){
  need(Array.isArray(owners)&&owners.length<=10000);owners.forEach(uuid);need(new Set(owners.map(owner=>owner.toLowerCase())).size===owners.length);sha(databaseManifestSha256);roots(workspaces.directory,recovery);
  const accounts=owners.map(owner=>({owner,journals:workspaces.retained(owner),operations:secrets.scheduledWorkspaceRecoveryIds(owner).map(id=>{uuid(id);const saved=secrets.get<ObjectRecord>('scheduled-workspace-recovery:'+owner+':'+id);need(saved&&saved.id===id);return structuredClone(saved);})}));
- const record={format:1 as const,kind:'agentopia-workspace-owner-records' as const,databaseManifestSha256,sourceWorkspaces:workspaces.directory,sourceRecovery:recovery,accounts};return validateWorkspaceOwnerRecords({...record,indexSha256:workspaceOwnerRecordsId(record)});
+ const record={format:1 as const,kind:'sylvana-workspace-owner-records' as const,databaseManifestSha256,sourceWorkspaces:workspaces.directory,sourceRecovery:recovery,accounts};return validateWorkspaceOwnerRecords({...record,indexSha256:workspaceOwnerRecordsId(record)});
 }

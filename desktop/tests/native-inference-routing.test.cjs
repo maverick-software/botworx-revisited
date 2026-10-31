@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),{randomUUID}=require('node:crypto');
-const {CodexGateway,NativeAuthorizationError}=require(path.join(process.env.AGENTOPIA_GOAL_BUILD,'codex-gateway.js')),{CodexHarness}=require(path.join(process.env.AGENTOPIA_GOAL_BUILD,'codex-harness.js'));
+const {CodexGateway,NativeAuthorizationError}=require(path.join(process.env.SYLVANA_GOAL_BUILD,'codex-gateway.js')),{CodexHarness}=require(path.join(process.env.SYLVANA_GOAL_BUILD,'codex-harness.js'));
 const threadId=randomUUID(),turnId=randomUUID(),headers=()=>({'thread-id':threadId,'x-codex-turn-metadata':JSON.stringify({thread_id:threadId,turn_id:turnId})}),sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 test('missing, mismatched and oversized routing are rejected before credential retrieval',async()=>{
  let credentials=0;const gateway=await new CodexGateway('openrouter',async()=>{credentials++;throw Error('No credential expected');},new Set(['owned-model'])).start(),fetcher=global.fetch;

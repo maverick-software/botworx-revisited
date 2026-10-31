@@ -1,5 +1,6 @@
 import type {ChatEvent} from './contracts';
 import type {NativeState} from './native-contracts';
+import {questionKey} from './native-questions';
 import type {ToolActivity} from './tool-contracts';
 import {readNotificationPreferences,type NotificationStore} from './notification-preferences';
 export type ResponseAlert={owner:string;conversationId:string;kind:'response'|'goal'|'permission'|'question';status:'completed'|'failed'|'interrupted'|'pending';child?:{requestId:string;threadId:string}};
@@ -22,7 +23,7 @@ export class ResponseNotifications{
   if((event.kind==='native'||event.kind==='native-background')&&event.native){
    const states:NativeState[]=[],seen=new Set<NativeState>();
    const visit=(state:NativeState)=>{if(seen.has(state))return;seen.add(state);states.push(state);for(const child of state.children??[]){childIds.add(child.threadId);visit(child.state);}for(const report of state.reports??[])visit(report.state);};visit(event.native);
-   for(const state of states){for(const approval of state.approvals??[])if(approval.status==='pending')attention('attention:native:'+event.requestId+':'+approval.id,approval.kind==='input'?'question':'permission',approval.threadId);for(const entry of state.tools??[])tool(entry);}
+   for(const state of states){for(const approval of state.approvals??[])if(approval.status==='pending')attention('attention:native:'+event.requestId+':'+approval.id,approval.kind==='input'?'question':'permission',approval.threadId);for(const entry of state.items??[])if(entry.item.type==='agentMessage'&&entry.item.questions?.length&&!entry.questionAnswer)attention('attention:question:'+event.requestId+':'+questionKey(entry),'question',entry.threadId);for(const entry of state.tools??[])tool(entry);}
    this.pending.set(scope,new Set(result.keys()));this.children.set(scope,childIds);
    if(!result.size){this.pending.delete(scope);if(!(event.native.children??[]).some(child=>child.status==='running'))this.children.delete(scope);}
   }else if(event.kind==='tool'&&event.tool){

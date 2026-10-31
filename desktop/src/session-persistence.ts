@@ -15,12 +15,12 @@ export class SessionPersistence {
   if(!this.accepting||!['SIGNED_IN','TOKEN_REFRESHED'].includes(event)||!session)return;
   if(typeof session.access_token!=='string'||typeof session.refresh_token!=='string')throw new Error('The saved sign-in credential is invalid. Sign in again.');
   try{await this.secrets.set('session',{access_token:session.access_token,refresh_token:session.refresh_token});}
-  catch{throw new Error('Agentopia could not save your sign-in securely. Check access to its application data folder before continuing.');}
+  catch{throw new Error('Sylvana could not save your sign-in securely. Check access to its application data folder before continuing.');}
  }
  async restore(auth:SessionClient){
   const saved=this.secrets.get<Tokens>('session');if(!saved)return false;
   let result:Awaited<ReturnType<SessionClient['setSession']>>;
-  try{result=await auth.setSession(saved);}catch{throw new Error('Agentopia could not restore your saved sign-in. Retry startup when the local account service is available.');}
+  try{result=await auth.setSession(saved);}catch{throw new Error('Sylvana could not restore your saved sign-in. Retry startup when the local account service is available.');}
   if(result.error){
    const error=result.error as {code?:string;status?:number};
    if(error.status!==undefined&&error.status>=400&&error.status<500&&error.code&&rejectedCodes.has(error.code)){
@@ -28,9 +28,9 @@ export class SessionPersistence {
     if(current?.access_token===saved.access_token&&current?.refresh_token===saved.refresh_token)await this.secrets.set('session',undefined);
     return false;
    }
-   throw new Error('Agentopia could not restore your saved sign-in. Retry startup when the local account service is available.');
+   throw new Error('Sylvana could not restore your saved sign-in. Retry startup when the local account service is available.');
   }
-  if(!result.data?.session)throw new Error('Agentopia could not restore your saved sign-in. Retry startup when the local account service is available.');
+  if(!result.data?.session)throw new Error('Sylvana could not restore your saved sign-in. Retry startup when the local account service is available.');
   await this.capture('SIGNED_IN',result.data.session);
   return true;
  }

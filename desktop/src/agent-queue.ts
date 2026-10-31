@@ -4,6 +4,7 @@ export class AgentQueue{
  private pending=new Map<string,AgentJob>();private active=new Map<string,{job:AgentJob;done:Promise<void>}>();private pumping=false;private timer?:NodeJS.Timeout;private closed=false;private failures=new Map<string,{owner:string;message:string}>();
  constructor(private available:()=>boolean,private parallel=6){}
  get size(){return this.pending.size+this.active.size;}
+ get busy(){return this.active.size>0||this.pumping;}
  has(id:string){return this.pending.has(id)||this.active.has(id);}
  failure(owner:string){return [...this.failures.values()].filter(value=>value.owner===owner).at(-1)?.message;}
  enqueue(job:AgentJob){if(this.closed)throw new Error('The named-agent queue is closed.');if(this.has(job.id))return;this.pending.set(job.id,job);this.notify();}
@@ -18,6 +19,6 @@ export class AgentQueue{
  }
  async cancelQueued(id:string,reason='Cancelled by you.'){const job=this.pending.get(id);if(!job)return false;this.pending.delete(id);await job.interrupted(reason);return true;}
  async interruptWhere(predicate:(job:AgentJob)=>boolean,reason:string){let count=0;for(const [id,job] of [...this.pending])if(predicate(job)){this.pending.delete(id);count++;await job.interrupted(reason);}return count;}
- async close(){this.closed=true;if(this.timer)clearTimeout(this.timer);await this.interruptWhere(()=>true,'Agentopia closed before this assignment started. Resume explicitly after reviewing its saved state.');}
+ async close(){this.closed=true;if(this.timer)clearTimeout(this.timer);await this.interruptWhere(()=>true,'Sylvana closed before this assignment started. Resume explicitly after reviewing its saved state.');}
  async settled(){await Promise.all([...this.active.values()].map(value=>value.done));}
 }

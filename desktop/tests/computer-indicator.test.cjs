@@ -24,3 +24,15 @@ test('a display move refreshes the layer and a cursor outside the selected monit
 test('renderer failure and an unavailable target display leave no layer behind',async()=>{
  const f=fixture({failed:true});try{await assert.rejects(f.indicator.show('owner','request','reference',left),/renderer failed/);assert(f.made[0].destroyed);await assert.rejects(f.indicator.show('owner','other','reference',{left:10000,top:10000,width:100,height:100}),/display is unavailable/);}finally{f.indicator.dispose();}
 });
+
+test('Escape monitoring is ready before control is shown and follows the last active request',async()=>{
+ const f=fixture(),events=[];f.indicator.dispose();let release;
+ f.indicator=new ComputerIndicator(f.host,signal=>{events.push(signal);return new Promise(resolve=>release=resolve);});
+ try{const first=f.indicator.show('owner','one','reference',left);await Promise.resolve();assert.equal(f.made.length,0);assert.equal(events.length,1);release();await first;assert.equal(f.made[0].shown,1);await f.indicator.show('owner','two','reference',left);assert.equal(events.length,1);f.indicator.end('owner','one');assert(!events[0].aborted);f.indicator.end('owner','two');assert(events[0].aborted);assert(f.made[0].destroyed);}finally{f.indicator.dispose();}
+});
+
+test('Stop during Escape monitor startup cannot start a late desktop indicator',async()=>{
+ const f=fixture();f.indicator.dispose();let release,signal;
+ f.indicator=new ComputerIndicator(f.host,value=>{signal=value;return new Promise(resolve=>release=resolve);});
+ const pending=f.indicator.showDesktop('owner','one');await Promise.resolve();f.indicator.stop();assert(signal.aborted);release();await pending;assert.equal(f.made.length,0);f.indicator.dispose();
+});

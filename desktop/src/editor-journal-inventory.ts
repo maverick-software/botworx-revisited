@@ -1,3 +1,4 @@
+import {currentBrandKey} from './legacy-brand';
 import {createHash,randomUUID} from 'node:crypto';
 import {lstat,mkdir,readFile,readdir,rename,statfs,writeFile} from 'node:fs/promises';
 import path from 'node:path';
@@ -6,7 +7,7 @@ import {draftPreviewId} from './agent-draft-preview-contracts';
 import {editorRetirement,editorRetirementKind,editorRetirementKeys,editorRetirementLocation,type EditorRetirement,type EditorRetirementInput,type EditorRetirementTombstone} from './editor-journal-retirement';
 
 export const editorJournalDirectory='editor-draft-journals';
-export const editorJournalPrefixes=['agentopia.editor-draft.','agentopia.preview.'] as const;
+export const editorJournalPrefixes=['sylvana.editor-draft.','sylvana.preview.'] as const;
 export const editorJournalLimits={text:16000000,fileBytes:128*1024**2,totalBytes:512*1024**2,records:10000};
 export type EditorJournalEntry=readonly [key:string,raw:string];
 export type EditorJournalSnapshot={version:1;sequence:number;key:string;raw:string};
@@ -14,11 +15,12 @@ const snapshotName=/^([0-9]{16})-([a-f0-9]{64})\.json$/;
 export const editorJournalMember=(name:string)=>name===editorJournalDirectory||name.startsWith(editorJournalDirectory+'/')&&snapshotName.test(name.slice(editorJournalDirectory.length+1));
 function fail():never{throw Error('The retained emergency-draft inventory is invalid or exceeds its recovery limit. Preserve the profile before retrying.');}
 export function editorJournalEntry(value:unknown):EditorJournalEntry{
+ if(Array.isArray(value)&&typeof value[0]==='string')value=[currentBrandKey(value[0]),value[1]];
  if(!Array.isArray(value)||value.length!==2||typeof value[0]!=='string'||value[0].length>512||!editorJournalPrefixes.some(prefix=>value[0].startsWith(prefix))||value[0].includes('\0')||typeof value[1]!=='string'||value[1].length>editorJournalLimits.text)fail();return [value[0],value[1]];
 }
 export function editorJournalSnapshot(value:unknown):EditorJournalSnapshot{
  if(!value||typeof value!=='object'||Array.isArray(value))return fail();const v=value as EditorJournalSnapshot;
- if(Object.keys(v).sort().join(',')!=='key,raw,sequence,version'||v.version!==1||!Number.isSafeInteger(v.sequence)||v.sequence<1||v.sequence>9999999999999999)fail();editorJournalEntry([v.key,v.raw]);return v;
+ if(Object.keys(v).sort().join(',')!=='key,raw,sequence,version'||v.version!==1||!Number.isSafeInteger(v.sequence)||v.sequence<1||v.sequence>9999999999999999)fail();editorJournalEntry([v.key,v.raw]);return {...v,key:currentBrandKey(v.key)};
 }
 const sha=(value:Buffer)=>createHash('sha256').update(value).digest('hex');
 export const editorJournalRawHash=(raw:string)=>sha(Buffer.from(JSON.stringify(raw)));
@@ -64,12 +66,12 @@ export class EditorJournalInventory{
 }
 
 type JournalPage={getURL:()=>string;executeJavaScript:<T=unknown>(code:string)=>Promise<T>};
-const readScript=`(()=>{const entries=[];for(let n=0;n<localStorage.length;n++){const key=localStorage.key(n);if(key&&(key.startsWith('agentopia.editor-draft.')||key.startsWith('agentopia.preview.')))entries.push([key,localStorage.getItem(key)]);}return entries.sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0);})()`;
+const readScript=`(()=>{const entries=[];for(let n=0;n<localStorage.length;n++){const key=localStorage.key(n);if(key&&(key.startsWith('sylvana.editor-draft.')||key.startsWith('sylvana.preview.')))entries.push([key,localStorage.getItem(key)]);}return entries.sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0);})()`;
 /** Runs in the trusted blank app origin before renderer startup/migration.
  * It may also capture current copies at a backup barrier. It never evaluates
  * draft contents, overwrites an existing key, or performs a Broker operation. */
 export async function preserveEditorJournalStorage(inventory:EditorJournalInventory,page:JournalPage,restoreMissing=false){
- const trusted=()=>{const url=new URL(page.getURL());if(url.protocol!=='agentopia:'||url.hostname!=='app')throw Error('Emergency drafts require the private application origin.');};
+ const trusted=()=>{const url=new URL(page.getURL());if(url.protocol!=='sylvana:'||url.hostname!=='app')throw Error('Emergency drafts require the private application origin.');};
  trusted();let entries=checkedEntries(await page.executeJavaScript(readScript)),retired=0;trusted();if(restoreMissing){for(const[key,previous,replacement]of await inventory.retirementReplacements(entries)){trusted();await page.executeJavaScript(`(()=>{const [key,previous,replacement]=JSON.parse(${JSON.stringify(JSON.stringify([key,previous,replacement]))});if(localStorage.getItem(key)!==previous)throw Error('The retired draft changed during startup. Its newer bytes are retained.');localStorage.setItem(key,replacement);if(localStorage.getItem(key)!==replacement)throw Error('The retirement receipt could not be restored.');})()`);trusted();retired++;}entries=checkedEntries(await page.executeJavaScript(readScript));trusted();}const result=await inventory.capture(entries);trusted();const again=checkedEntries(await page.executeJavaScript(readScript));if(JSON.stringify(again)!==JSON.stringify(entries))throw Error('Emergency drafts changed during capture. Their copies are retained; retry the backup.');
  let restored=0,conflicts=0;if(restoreMissing){for(const[key,raw]of await inventory.latest()){trusted();const result=await page.executeJavaScript<'restored'|'same'|'conflict'>(`(()=>{const [key,raw]=JSON.parse(${JSON.stringify(JSON.stringify([key,raw]))});const previous=localStorage.getItem(key);if(previous!==null)return previous===raw?'same':'conflict';localStorage.setItem(key,raw);if(localStorage.getItem(key)!==raw)throw Error('An emergency draft could not be restored.');return 'restored';})()`);trusted();if(result==='restored')restored++;else if(result==='conflict')conflicts++;}}
  return {...result,restored,conflicts,retired};

@@ -4,7 +4,7 @@ const {WorkspaceFiles}=require('../build/workspace.js'),{WorkspaceTools}=require
 class Secrets{data=new Map();get(key){return this.data.get(key);}async set(key,value){this.data.set(key,value);}}
 const until=async(predicate)=>{const end=Date.now()+5000;while(!predicate()){if(Date.now()>end)throw new Error('Folder notification did not arrive.');await new Promise(resolve=>setTimeout(resolve,20));}};
 test('visible-folder notifications cover external changes, reject unsafe roots, stop on revocation and account change, and never contain file contents',async()=>{
- const base=await mkdtemp(path.join(os.tmpdir(),'agentopia-folder-monitor-')),root=path.join(base,'workspace'),outside=path.join(base,'outside'),events=[],files=new WorkspaceFiles(new Secrets());await mkdir(root);await mkdir(outside);await mkdir(path.join(root,'nested'));
+ const base=await mkdtemp(path.join(os.tmpdir(),'sylvana-folder-monitor-')),root=path.join(base,'workspace'),outside=path.join(base,'outside'),events=[],files=new WorkspaceFiles(new Secrets());await mkdir(root);await mkdir(outside);await mkdir(path.join(root,'nested'));
  const tools=new WorkspaceTools(files),reference=(await files.add('owner',[root]))[0];let active=true;
  const monitor=new WorkspaceMonitor(files,tools,owner=>active&&owner==='owner',(_owner,event)=>events.push(event),25,80),id=randomUUID(),child=randomUUID(),start=(token,relative='')=>monitor.start('owner',token,reference.id,relative,async()=>{});
  try{
@@ -21,7 +21,7 @@ test('visible-folder notifications cover external changes, reject unsafe roots, 
  }finally{monitor.close();await rm(base,{recursive:true,force:true});}
 });
 test('folder creation is explicit, bounded to an owned workspace, never replaces existing items, and respects a cancelled account guard',async()=>{
- const root=await mkdtemp(path.join(os.tmpdir(),'agentopia-folder-create-')),files=new WorkspaceFiles(new Secrets()),tools=new WorkspaceTools(files),reference=(await files.add('owner',[root]))[0];
+ const root=await mkdtemp(path.join(os.tmpdir(),'sylvana-folder-create-')),files=new WorkspaceFiles(new Secrets()),tools=new WorkspaceTools(files),reference=(await files.add('owner',[root]))[0];
  try{
   assert.deepEqual(await tools.createDirectory('owner',reference.id,'research',async()=>{}),{path:'research'});await tools.createDirectory('owner',reference.id,'research/notes',async()=>{});
   await writeFile(path.join(root,'existing.md'),'keep');await assert.rejects(tools.createDirectory('owner',reference.id,'existing.md',async()=>{}));assert.equal(await readFile(path.join(root,'existing.md'),'utf8'),'keep');
@@ -31,7 +31,7 @@ test('folder creation is explicit, bounded to an owned workspace, never replaces
  }finally{await rm(root,{recursive:true,force:true});}
 });
 test('closing a folder subscription during its asynchronous access check prevents a late watcher from being installed',async()=>{
- const root=await mkdtemp(path.join(os.tmpdir(),'agentopia-folder-pending-')),files=new WorkspaceFiles(new Secrets()),ref=(await files.add('owner',[root]))[0],events=[],monitor=new WorkspaceMonitor(files,new WorkspaceTools(files),()=>true,(_,event)=>events.push(event),20,50),id=randomUUID();let release;
+ const root=await mkdtemp(path.join(os.tmpdir(),'sylvana-folder-pending-')),files=new WorkspaceFiles(new Secrets()),ref=(await files.add('owner',[root]))[0],events=[],monitor=new WorkspaceMonitor(files,new WorkspaceTools(files),()=>true,(_,event)=>events.push(event),20,50),id=randomUUID();let release;
  try{const gate=new Promise(resolve=>release=resolve),pending=monitor.start('owner',id,ref.id,'',()=>gate);monitor.stop('owner',id);release();await assert.rejects(pending,/closed/);await writeFile(path.join(root,'quiet.md'),'quiet');await new Promise(resolve=>setTimeout(resolve,130));assert.equal(events.length,0);const beforeReload=monitor.generation;monitor.close();await assert.rejects(monitor.start('owner',randomUUID(),ref.id,'',async()=>{},beforeReload),/closed/);}
  finally{monitor.close();await rm(root,{recursive:true,force:true});}
 });

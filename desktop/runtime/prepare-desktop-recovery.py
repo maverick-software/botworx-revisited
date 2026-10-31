@@ -33,6 +33,10 @@ def no_links(file,required=False):
     if file.is_file():fail(file.stat().st_nlink==1,'Recovery files must not be hard-linked')
     return file
 
+def brand_kind(value):
+    former='agen'+'topia'
+    return 'sylvana'+value[len(former):] if isinstance(value,str) and value.startswith(former+'-') else value
+
 def load(file,maximum=16*1024**2):
     no_links(file,True);fail(Path(file).stat().st_size<=maximum,'Recovery metadata is too large')
     return json.loads(Path(file).read_text(encoding='utf-8-sig'))
@@ -116,16 +120,16 @@ def validate_editor_journal_archive(archive,capability):
             fail(hashlib.sha256(data).hexdigest()==match[2],'Editor journal content seal differs')
             row=json.loads(data.decode('utf-8'))
             fail(isinstance(row,dict) and set(row)=={'version','sequence','key','raw'} and type(row['version']) is int and row['version']==1 and type(row['sequence']) is int and 1<=row['sequence']<=9007199254740991 and row['sequence']==int(match[1]),'Invalid editor journal envelope')
-            fail(isinstance(row['key'],str) and utf16_length(row['key'])<=512 and '\0' not in row['key'] and row['key'].startswith(('agentopia.editor-draft.','agentopia.preview.')) and isinstance(row['raw'],str) and utf16_length(row['raw'])<=16000000,'Invalid editor journal text')
-            if re.fullmatch(r'agentopia\.(?:editor-draft\.[a-f0-9-]{36}:preview:new:|preview\.[a-f0-9-]{36}:new:)[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}',row['key']):fail(capability>=17,'Creation-bound preview journals require a newer recovery capability')
+            fail(isinstance(row['key'],str) and utf16_length(row['key'])<=512 and '\0' not in row['key'] and row['key'].startswith(('sylvana.editor-draft.','sylvana.preview.')) and isinstance(row['raw'],str) and utf16_length(row['raw'])<=16000000,'Invalid editor journal text')
+            if re.fullmatch(r'sylvana\.(?:editor-draft\.[a-f0-9-]{36}:(?:preview|builder):new:|preview\.[a-f0-9-]{36}:new:)[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}',row['key']):fail(capability>=17,'Creation-bound preview journals require a newer recovery capability')
             try:marker=json.loads(row['raw'])
             except (ValueError,TypeError):continue
-            if isinstance(marker,dict) and marker.get('kind')=='agentopia-editor-draft-retirement':fail(capability>=16,'Editor draft retirements require a newer recovery capability')
+            if isinstance(marker,dict) and brand_kind(marker.get('kind'))=='sylvana-editor-draft-retirement':fail(capability>=16,'Editor draft retirements require a newer recovery capability')
 
 def validate_bundle(root):
     root=no_links(root,True);descriptor=load(root/'desktop-recovery.json')
     fail(not (root/'BACKUP-INCOMPLETE.txt').exists() and not (root/'WORKSPACE-BACKUP-INCOMPLETE.txt').exists(),'This recovery bundle was marked incomplete')
-    fail(descriptor.get('format')==2 and descriptor.get('kind')=='agentopia-desktop-recovery' and descriptor.get('codex')=='0.163.0','Unsupported desktop recovery format')
+    fail(descriptor.get('format')==2 and brand_kind(descriptor.get('kind'))=='sylvana-desktop-recovery' and descriptor.get('codex')=='0.163.0','Unsupported desktop recovery format')
     capability=descriptor.get('requiresDesktopRecoveryFormat',2);fail(capability in (2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18),'Unsupported desktop recovery capability')
     fail(capability>=3 or not any(name in descriptor for name in ('clipboardArchive','clipboardManifest')),'Clipboard recovery requires a newer recovery capability')
     database_path=resource(root,descriptor['databaseManifest']);database=load(database_path);fail(database.get('format')==1,'Unsupported database recovery format')
@@ -141,7 +145,7 @@ def validate_bundle(root):
     public_archive=resource(root,descriptor['publicArchive']);public=load(resource(root,descriptor['publicManifest']));inventory(public['manifest'],True)
     fail(public.get('success') and public['archiveSha256']==descriptor['publicArchive']['sha256'],'Public output checkpoint mismatch')
     references=load(resource(root,descriptor['references']));index=references['index']
-    fail(references.get('format')==1 and references.get('kind')=='agentopia-restored-public-files' and references['inventory']==public['manifest'] and references['archiveSha256']==public['archiveSha256'],'Public attachment checkpoint mismatch')
+    fail(references.get('format')==1 and brand_kind(references.get('kind'))=='sylvana-restored-public-files' and references['inventory']==public['manifest'] and references['archiveSha256']==public['archiveSha256'],'Public attachment checkpoint mismatch')
     canonical=json.dumps(index,ensure_ascii=False,separators=(',',':')).encode('utf-8')
     fail(hashlib.sha256(canonical).hexdigest()==references['indexSha256'],'Public attachment index changed')
     fail(index.get('format')==1 and len(index['accounts'])==database['accounts'],'Recovered account scope differs from the database checkpoint')
@@ -169,7 +173,7 @@ def validate_bundle(root):
         settings=load(resource(root,descriptor['settingsManifest']),64*1024**2);validate_settings(settings,owners,descriptor['databaseManifest']['sha256'])
         fail(capability>=13 or not any('agent-editor-drafts' in account['settings'] for account in settings['accounts']),'Agent editor draft recovery requires a newer recovery capability')
         fail(capability>=15 or not any(len(account['settings'].get('agent-editor-drafts',{}))>100 for account in settings['accounts']),'Saved draft revision history requires a newer recovery capability')
-        fail(capability>=17 or not any(scope.startswith('preview:new:') for account in settings['accounts'] for scope in account['settings'].get('agent-editor-drafts',{})),'Creation-bound preview drafts require a newer recovery capability')
+        fail(capability>=17 or not any(scope.startswith(('preview:new:','builder:new:')) for account in settings['accounts'] for scope in account['settings'].get('agent-editor-drafts',{})),'Creation-bound preview drafts require a newer recovery capability')
         fail(capability>=10 or not any('composio-state' in account['settings'] for account in settings['accounts']),'Composio connections require a newer recovery capability')
         fail(capability>=11 or not any('google-documents' in account['settings'] for account in settings['accounts']),'Google document operations require a newer recovery capability')
         fail(capability>=7 or not any('notification-preferences' in account['settings'] for account in settings['accounts']),'Notification settings require a newer recovery capability')
@@ -186,9 +190,9 @@ def validate_bundle(root):
     if capability==12 or 'workspaceManifest' in descriptor or 'workspaceArchive' in descriptor:
         fail('workspaceManifest' in descriptor and 'workspaceArchive' in descriptor,'Scheduled workspace recovery resources are required')
         workspace_path=resource(root,descriptor['workspaceManifest']);workspace=load(workspace_path,64*1024**2);workspace_archive=resource(root,descriptor['workspaceArchive'])
-        fail(workspace.get('format')==1 and workspace.get('kind')=='agentopia-portable-workspaces' and re.fullmatch('[a-f0-9]{64}',workspace.get('indexSha256','')) and workspace.get('archiveSha256')==descriptor['workspaceArchive']['sha256'],'Invalid scheduled workspace checkpoint')
+        fail(workspace.get('format')==1 and brand_kind(workspace.get('kind'))=='sylvana-portable-workspaces' and re.fullmatch('[a-f0-9]{64}',workspace.get('indexSha256','')) and workspace.get('archiveSha256')==descriptor['workspaceArchive']['sha256'],'Invalid scheduled workspace checkpoint')
         records=workspace.get('records',{});accounts=records.get('accounts',[])
-        fail(records.get('format')==1 and records.get('kind')=='agentopia-workspace-owner-records' and records.get('databaseManifestSha256')==descriptor['databaseManifest']['sha256'] and isinstance(accounts,list) and len(accounts)==len(owners) and {account.get('owner') for account in accounts}==owners and set(database.get('accountIds',[]))==owners,'Scheduled workspace owners differ from the database snapshot')
+        fail(records.get('format')==1 and brand_kind(records.get('kind'))=='sylvana-workspace-owner-records' and records.get('databaseManifestSha256')==descriptor['databaseManifest']['sha256'] and isinstance(accounts,list) and len(accounts)==len(owners) and {account.get('owner') for account in accounts}==owners and set(database.get('accountIds',[]))==owners,'Scheduled workspace owners differ from the database snapshot')
         fail(isinstance(workspace.get('references'),list),'Scheduled workspace current attachment index is required');ids=set();counts={owner:0 for owner in owners}
         for ref in workspace['references']:
             fail(ref.get('owner') in owners and UUID.fullmatch(ref.get('id','')) and ref.get('kind') in ('file','folder') and (ref['owner'],ref['id']) not in ids,'Invalid scheduled workspace attachment identity');ids.add((ref['owner'],ref['id']));counts[ref['owner']]+=1
@@ -205,7 +209,7 @@ def validate_bundle(root):
     if capability>=18:
         fail('windowsProfileManifest' in descriptor,'The encrypted Windows credential checkpoint is required')
         windows=load(resource(root,descriptor['windowsProfileManifest']),1024*1024)
-        fail(isinstance(windows,dict) and set(windows)=={'format','kind','databaseManifestSha256','accountIds','windowsSid','encryptionKeySha256','requiresOriginalWindowsAccount','files'} and windows['format']==1 and windows['kind']=='agentopia-same-windows-profile' and windows['databaseManifestSha256']==descriptor['databaseManifest']['sha256'] and windows['requiresOriginalWindowsAccount'] is True,'Invalid Windows credential checkpoint binding')
+        fail(isinstance(windows,dict) and set(windows)=={'format','kind','databaseManifestSha256','accountIds','windowsSid','encryptionKeySha256','requiresOriginalWindowsAccount','files'} and windows['format']==1 and windows['kind']=='sylvana-same-windows-profile' and windows['databaseManifestSha256']==descriptor['databaseManifest']['sha256'] and windows['requiresOriginalWindowsAccount'] is True,'Invalid Windows credential checkpoint binding')
         fail(isinstance(windows['accountIds'],list) and len(windows['accountIds'])==len(owners) and set(windows['accountIds'])==owners and set(database.get('accountIds',[]))==owners,'Windows credential owners differ from the database snapshot')
         fail(isinstance(windows['windowsSid'],str) and re.fullmatch(r'S-1-\d+(?:-\d+){1,15}',windows['windowsSid']) and re.fullmatch(r'[a-f0-9]{64}',windows['encryptionKeySha256']),'Invalid Windows credential account or encryption binding')
         fail(isinstance(windows['files'],dict) and set(windows['files'])=={'credentials.bin','Local State'},'Invalid Windows credential checkpoint files')
@@ -225,7 +229,7 @@ def current_windows_sid():
     sid=result.stdout.strip();fail(result.returncode==0 and re.fullmatch(r'S-1-\d+(?:-\d+){1,15}',sid),'The current Windows recovery account could not be identified');return sid
 
 def validate_layouts(record,owners,database_sha,index,external,workspace=None):
-    fail(record.get('format')==1 and record.get('kind')=='agentopia-portable-layouts' and record.get('databaseManifestSha256')==database_sha and isinstance(record.get('accounts'),list),'Invalid portable layout record')
+    fail(record.get('format')==1 and brand_kind(record.get('kind'))=='sylvana-portable-layouts' and record.get('databaseManifestSha256')==database_sha and isinstance(record.get('accounts'),list),'Invalid portable layout record')
     base={key:record[key] for key in ('format','kind','databaseManifestSha256','window','accounts')};fail(hashlib.sha256(json.dumps(base,ensure_ascii=False,separators=(',',':')).encode()).hexdigest()==record.get('indexSha256'),'Portable layout record changed')
     window=record['window']
     if window is not None:
@@ -258,7 +262,7 @@ def validate_layouts(record,owners,database_sha,index,external,workspace=None):
     fail(found==owners,'Portable layout owners differ from the database snapshot')
 
 def validate_external(record,owners,database_sha):
-    fail(record.get('format')==1 and record.get('kind')=='agentopia-portable-external' and record.get('databaseManifestSha256')==database_sha and isinstance(record.get('accounts'),list),'Invalid external recovery record')
+    fail(record.get('format')==1 and brand_kind(record.get('kind'))=='sylvana-portable-external' and record.get('databaseManifestSha256')==database_sha and isinstance(record.get('accounts'),list),'Invalid external recovery record')
     base={key:record[key] for key in ('format','kind','sourceRoot','sourceProfile','databaseManifestSha256','accounts','manifest','archiveSha256')}
     fail(hashlib.sha256(json.dumps(base,ensure_ascii=False,separators=(',',':')).encode()).hexdigest()==record.get('indexSha256'),'External recovery index changed');inventory(record['manifest'],True)
     found=set();references=[]
@@ -278,7 +282,7 @@ def validate_selected_sources(sources,owner):
         fail(source['kind'] in ('browser','chat') and isinstance(source['id'],str) and re.fullmatch(r'[a-f0-9-]{36}',source['id'],re.I) and source['owner']==owner,'Invalid selected source owner or identity')
         for key,limit in (('title',240),('url',4096),('text',16000),('notice',1000),('capturedAt',40)):fail(isinstance(source[key],str) and len(source[key].encode('utf-16-le'))//2<=limit,'Invalid selected source text')
         fail(source['title'].strip() and source['capturedAt'],'Invalid selected source label or timestamp')
-        if source['kind']=='chat':fail(source['url']=='agentopia-chat://'+source['id'],'Invalid selected chat URL')
+        if source['kind']=='chat':fail(source['url']=='sylvana-chat://'+source['id'],'Invalid selected chat URL')
         else:
             from urllib.parse import urlsplit
             url=urlsplit(source['url']);fail(url.scheme in ('http','https') and url.hostname and not url.username and not url.password,'Invalid selected browser URL')
@@ -324,7 +328,7 @@ def validate_google_documents(journal):
         key=(row['binding'],row['referenceId'],row['relative'],row['sha256']);fail(key not in keys,'Duplicate saved Google document operation');keys.add(key);ids.add(row['id'])
 
 def validate_settings(record,owners,database_sha):
-    fail(isinstance(record,dict) and set(record)=={'format','kind','databaseManifestSha256','accounts','indexSha256'} and record['format']==1 and record['kind']=='agentopia-portable-settings' and record['databaseManifestSha256']==database_sha and isinstance(record['accounts'],list),'Invalid portable settings record')
+    fail(isinstance(record,dict) and set(record)=={'format','kind','databaseManifestSha256','accounts','indexSha256'} and record['format']==1 and record['kind']=='sylvana-portable-settings' and record['databaseManifestSha256']==database_sha and isinstance(record['accounts'],list),'Invalid portable settings record')
     base={key:record[key] for key in ('format','kind','databaseManifestSha256','accounts')}
     fail(hashlib.sha256(json_with_js_strings(base).encode()).hexdigest()==record['indexSha256'] and len(json_with_js_strings(record).encode())<=64*1024**2,'Portable settings record changed')
     found=set();allowed={'preferences','model-choices','prefer-chatgpt','composer','chat-drafts','desktop-location','voice-preferences','notification-preferences','composio-state','google-documents','agent-editor-drafts'}
@@ -344,8 +348,8 @@ def validate_editor_drafts(rows,owner):
     editor_uuid=r'[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}'
     fail(isinstance(owner,str) and re.fullmatch(editor_uuid,owner),'Invalid saved-draft owner')
     for scope,row in rows.items():
-        match=re.fullmatch(r'(preview|editor):(new|'+editor_uuid+r')(?::('+editor_uuid+r'))?',scope)
-        fail(match and (match[3] is None or match[1]=='preview' and match[2]=='new'),'Invalid saved creation preview location')
+        match=re.fullmatch(r'(preview|builder|editor):(new|'+editor_uuid+r')(?::('+editor_uuid+r'))?',scope)
+        fail(match and (match[3] is None or match[1] in ('preview','builder') and match[2]=='new'),'Invalid saved creation preview location')
         fail(match and isinstance(row,dict) and set(row)=={'version','owner','scope','revision','writeId','payload','updatedAt'} and type(row['version']) is int and row['version']==1 and row['owner']==owner and row['scope']==scope and type(row['revision']) is int and 1<=row['revision']<=9007199254740991 and isinstance(row['writeId'],str) and re.fullmatch(editor_uuid,row['writeId'],re.I) and editor_timestamp(row['updatedAt']),'Invalid or foreign saved agent draft')
         payload=row['payload']
         if payload is None:continue
@@ -355,14 +359,19 @@ def validate_editor_drafts(rows,owner):
         fail(isinstance(value,dict) and type(value.get('version')) is int and value.get('version')==(2 if creation else 1) and value.get('creationId')==creation and value.get('owner')==owner and value.get('source')==source,'Saved agent draft changed account or source')
         if match[1]=='editor':fail(set(value)=={'version','owner','source','form'} and isinstance(value['form'],dict),'Invalid saved editor form')
         else:
-            fail(set(value)==({'version','owner','source','sessionId','prompt','thinking','execution','pending'}|({'creationId'} if creation else set())) and isinstance(value['sessionId'],str) and re.fullmatch(editor_uuid,value['sessionId'],re.I) and isinstance(value['prompt'],str) and utf16_length(value['prompt'])<=100000 and value['thinking'] in ('default','none','minimal','low','medium','high','xhigh','max','ultra') and isinstance(value['execution'],dict),'Invalid saved preview composer')
+            fields={'version','owner','source','sessionId','prompt','thinking','execution','pending'}|({'creationId'} if creation else set())
+            fail(set(value) in (fields,fields|{'builderAppliedIds'}) if match[1]=='builder' else set(value)==fields,'Invalid saved preview composer fields')
+            fail(isinstance(value['sessionId'],str) and re.fullmatch(editor_uuid,value['sessionId'],re.I) and isinstance(value['prompt'],str) and utf16_length(value['prompt'])<=100000 and value['thinking'] in ('default','none','minimal','low','medium','high','xhigh','max','ultra') and isinstance(value['execution'],dict),'Invalid saved preview composer')
+            if 'builderAppliedIds' in value:
+                receipts=value['builderAppliedIds']
+                fail(isinstance(receipts,list) and len(receipts)<=1000 and all(isinstance(receipt,str) and re.fullmatch(editor_uuid,receipt) for receipt in receipts) and len(set(receipts))==len(receipts),'Invalid saved builder application receipts')
             if value['execution'].get('sources'):validate_selected_sources(value['execution']['sources'],owner)
             pending=value['pending']
             if pending is not None:fail(isinstance(pending,dict) and pending.get('sessionId')==value['sessionId'] and pending.get('sourceAgentId')==source and ((isinstance(pending.get('creationId'),str) and pending['creationId'].lower()==creation) if creation else 'creationId' not in pending) and isinstance(pending.get('requestId'),str) and UUID.fullmatch(pending['requestId']),'Saved preview request changed scope')
 
 
 def validate_clipboard(record,owners,database):
-    fail(record.get('format')==1 and record.get('kind')=='agentopia-portable-clipboard' and isinstance(record.get('accounts'),list),'Invalid portable clipboard record')
+    fail(record.get('format')==1 and brand_kind(record.get('kind'))=='sylvana-portable-clipboard' and isinstance(record.get('accounts'),list),'Invalid portable clipboard record')
     inventory(record['manifest']);base={name:record[name] for name in ('format','kind','accounts','manifest','archiveSha256')}
     fail(hashlib.sha256(json.dumps(base,ensure_ascii=False,separators=(',',':')).encode()).hexdigest()==record.get('indexSha256'),'Portable clipboard record changed')
     fail(set(database.get('accountIds',[]))==owners and len(database['accountIds'])==len(owners),'Portable clipboard owners must match the database snapshot')
@@ -391,7 +400,7 @@ def reserve(directory,headroom):fail(shutil.disk_usage(directory).free>headroom+
 
 @contextmanager
 def recovery_lock(home):
-    folder=home/'.agentopia';folder.mkdir(exist_ok=True);no_links(folder,True);lock=folder/'recovery.lock';no_links(lock)
+    folder=home/'.sylvana';folder.mkdir(exist_ok=True);no_links(folder,True);lock=folder/'recovery.lock';no_links(lock)
     with lock.open('a+b') as stream:
         if stream.tell()==0:stream.write(b'0');stream.flush()
         stream.seek(0)
@@ -410,7 +419,7 @@ def recovery_lock(home):
 def copy_verified(source,target,row,container,headroom):
     no_links(target)
     if target.exists():fail(target.is_file() and target.stat().st_size==row['bytes'] and digest(target)==row['sha256'],'Interrupted recovery contains a changed file');return
-    parts=container/'.agentopia-recovery-parts';parts.mkdir(exist_ok=True);no_links(parts,True)
+    parts=container/'.sylvana-recovery-parts';parts.mkdir(exist_ok=True);no_links(parts,True)
     pending=parts/(hashlib.sha256(str(target.relative_to(container)).encode()).hexdigest()+'.part');no_links(pending)
     offset=0
     if pending.exists():
@@ -434,11 +443,11 @@ def copy_archive(archive,manifest,destination,headroom,select=lambda _:True):
             if not member.isfile() or not select(name):continue
             row=manifest['files'][name];target=destination.joinpath(*safe_name(name))
             with tar.extractfile(member) as source:copy_verified(source,target,row,destination,headroom)
-    parts=destination/'.agentopia-recovery-parts'
+    parts=destination/'.sylvana-recovery-parts'
     if parts.exists():parts.rmdir() # Only an empty directory owned by this operation.
 
 def native_fingerprints(profile,source_profile):
-    spec=importlib.util.spec_from_file_location('agentopia_native_relocation',Path(__file__).with_name('relocate-native-profile.py'));module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+    spec=importlib.util.spec_from_file_location('sylvana_native_relocation',Path(__file__).with_name('relocate-native-profile.py'));module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
     records={}
     for database in sorted([*(profile/'codex').glob('*/*/*/state_5.sqlite'),*(profile/'draft-previews/codex').glob('*/*/*/state_5.sqlite')]):
         no_links(database,True);connection=sqlite3.connect('file:'+str(database)+'?mode=ro',uri=True)
@@ -461,10 +470,10 @@ def native_fingerprints(profile,source_profile):
 def inspect_environment(home,appdata,registered,app_running=False):
     home=no_links(home,True);appdata=no_links(appdata)
     fail(home.is_dir() and appdata.is_relative_to(home),'Recovery must target a fresh home and its own application data')
-    fail(not app_running,'Close Agentopia before preparing recovery')
-    fail(not any(re.match(r'^AgentopiaRuntime(?:-|$)',name.strip(),re.I) for name in registered),'An existing Agentopia runtime was found; preserve it and use a fresh Windows account')
-    private=home/'.agentopia/desktop';fail(not any((private/name).exists() for name in ('profile','profile-location.json','migration.lock')),'An existing private profile or migration was found')
-    if not (home/'.agentopia/recovery-state.json').exists():fail(not (appdata/'Agentopia').exists() and not (home/'Agentopia Files').exists(),'Existing profile or public outputs must be preserved before recovery')
+    fail(not app_running,'Close Sylvana before preparing recovery')
+    fail(not any(re.match(r'^SylvanaRuntime(?:-|$)',name.strip(),re.I) for name in registered),'An existing Sylvana runtime was found; preserve it and use a fresh Windows account')
+    private=home/'.sylvana/desktop';fail(not any((private/name).exists() for name in ('profile','profile-location.json','migration.lock')),'An existing private profile or migration was found')
+    if not (home/'.sylvana/recovery-state.json').exists():fail(not (appdata/'Sylvana').exists() and not (home/'Sylvana Files').exists(),'Existing profile or public outputs must be preserved before recovery')
     return home,appdata
 
 def prepare(root,home,appdata,registered,app_running=False,headroom=512*1024**2,compress=False,phase_hook=lambda _:None,windows_sid=None):
@@ -474,20 +483,20 @@ def prepare(root,home,appdata,registered,app_running=False,headroom=512*1024**2,
     with recovery_lock(home):return prepare_locked(bundle,home,appdata,headroom,compress,phase_hook,identity)
 
 def prepare_locked(bundle,home,appdata,headroom,compress,phase_hook,windows_sid=None):
-    profile=appdata/'Agentopia';public=home/'Agentopia Files';private=home/'.agentopia/desktop'
+    profile=appdata/'Sylvana';public=home/'Sylvana Files';private=home/'.sylvana/desktop'
     workspace=bundle.get('workspace');workspace_required=None
     if workspace:workspace_required={'format':1,'indexSha256':workspace['indexSha256'],'descriptorSha256':bundle['descriptor']['workspaceManifest']['sha256'],'archiveSha256':bundle['descriptor']['workspaceArchive']['sha256'],'databaseManifestSha256':bundle['descriptor']['databaseManifest']['sha256'],'owners':bundle['database']['accountIds']}
     def verify_workspace(destination):
         if not workspace:return
-        fail(load(destination/'.agentopia-workspaces-required.json')==workspace_required,'Required workspace recovery binding changed')
+        fail(load(destination/'.sylvana-workspaces-required.json')==workspace_required,'Required workspace recovery binding changed')
         for name,key in [('workspace-data.json','descriptorSha256'),('workspace-data.tar.gz','archiveSha256')]:fail(digest(no_links(destination/'restored-workspaces'/name,True))==workspace_required[key],'Staged workspace recovery bytes changed')
     fail(not any((private/name).exists() for name in ('profile','profile-location.json','migration.lock')),'An existing private profile or migration was found')
-    journal=home/'.agentopia/recovery-state.json';state=load(journal) if journal.exists() else None
+    journal=home/'.sylvana/recovery-state.json';state=load(journal) if journal.exists() else None
     windows=bundle.get('windows');import_windows=bool(windows and windows['windowsSid']==windows_sid)
     def verify_windows(destination):
         if not windows:return
-        fail(digest(no_links(destination/'.agentopia-windows-profile.json',True))==bundle['descriptor']['windowsProfileManifest']['sha256'],'The restored Windows credential manifest changed')
-        fail(load(destination/'.agentopia-windows-credentials.json')=={'format':1,'manifest':windows,'imported':import_windows},'Windows credential recovery choice changed')
+        fail(digest(no_links(destination/'.sylvana-windows-profile.json',True))==bundle['descriptor']['windowsProfileManifest']['sha256'],'The restored Windows credential manifest changed')
+        fail(load(destination/'.sylvana-windows-credentials.json')=={'format':1,'manifest':windows,'imported':import_windows},'Windows credential recovery choice changed')
         if import_windows:
             fail(digest(no_links(destination/'credentials.bin',True))==windows['files']['credentials.bin']['sha256'] and windows_encryption_key(load(destination/'Local State',32*1024**2))==windows['encryptionKeySha256'],'Recovered Windows credentials or their key changed')
         else:fail(not (destination/'credentials.bin').exists() and not (destination/'Local State').exists(),'Credentials cannot be imported under another Windows account')
@@ -497,12 +506,12 @@ def prepare_locked(bundle,home,appdata,headroom,compress,phase_hook,windows_sid=
         if windows:fail(state.get('windowsCredentialsImported')==import_windows,'The Windows account changed during recovery')
         if state['status']=='prepared':
             marker={'format':2,'operationId':state['operationId'],'descriptorSha256':bundle['descriptorSha256']}
-            fail(load(profile/'.agentopia-recovery-operation.json')==marker and load(home/'.agentopia/public-output-recovery-operation.json')==marker,'Prepared recovery ownership changed')
-            if bundle['clipboard']:fail(load(profile/'restored-clipboard-images.json')==bundle['clipboard'] and load(profile/'.agentopia-clipboard-required.json')=={'format':1,'indexSha256':bundle['clipboard']['indexSha256']},'Prepared clipboard recovery changed')
-            if bundle['settings']:fail(load(profile/'restored-settings.json')==bundle['settings'] and load(profile/'.agentopia-settings-required.json')=={'format':1,'indexSha256':bundle['settings']['indexSha256']},'Prepared settings recovery changed')
-            if bundle['external']:fail(load(profile/'restored-external.json')==bundle['external'] and load(profile/'.agentopia-external-required.json')=={'format':1,'indexSha256':bundle['external']['indexSha256']},'Prepared external recovery changed')
+            fail(load(profile/'.sylvana-recovery-operation.json')==marker and load(home/'.sylvana/public-output-recovery-operation.json')==marker,'Prepared recovery ownership changed')
+            if bundle['clipboard']:fail(load(profile/'restored-clipboard-images.json')==bundle['clipboard'] and load(profile/'.sylvana-clipboard-required.json')=={'format':1,'indexSha256':bundle['clipboard']['indexSha256']},'Prepared clipboard recovery changed')
+            if bundle['settings']:fail(load(profile/'restored-settings.json')==bundle['settings'] and load(profile/'.sylvana-settings-required.json')=={'format':1,'indexSha256':bundle['settings']['indexSha256']},'Prepared settings recovery changed')
+            if bundle['external']:fail(load(profile/'restored-external.json')==bundle['external'] and load(profile/'.sylvana-external-required.json')=={'format':1,'indexSha256':bundle['external']['indexSha256']},'Prepared external recovery changed')
             if bundle['layouts']:
-                fail(load(profile/'restored-layouts.json')==bundle['layouts'] and load(profile/'.agentopia-layouts-required.json')=={'format':1,'indexSha256':bundle['layouts']['indexSha256']},'Prepared workspace layout recovery changed')
+                fail(load(profile/'restored-layouts.json')==bundle['layouts'] and load(profile/'.sylvana-layouts-required.json')=={'format':1,'indexSha256':bundle['layouts']['indexSha256']},'Prepared workspace layout recovery changed')
                 if bundle['layouts']['window'] is not None:fail(load(profile/'window.json')==bundle['layouts']['window'],'Prepared window geometry changed')
             verify_workspace(profile)
             verify_windows(profile)
@@ -512,17 +521,17 @@ def prepare_locked(bundle,home,appdata,headroom,compress,phase_hook,windows_sid=
         state={'format':2,'operationId':str(uuid.uuid4()),'descriptorSha256':bundle['descriptorSha256'],'profile':str(profile),'publicRoot':str(public),'status':'preparing','phase':'validating'}
         if windows:state.update(windowsCredentialsImported=import_windows,windowsCredentialsManifestSha256=bundle['descriptor']['windowsProfileManifest']['sha256'])
         journal.parent.mkdir(parents=True,exist_ok=True);save(journal,state)
-    stage=home/'.agentopia/recovery-staging'/state['operationId'];state['stage']=str(stage)
+    stage=home/'.sylvana/recovery-staging'/state['operationId'];state['stage']=str(stage)
     def phase(name):state.update(status='preparing',phase=name);save(journal,state);phase_hook(name)
     try:
         stage.mkdir(parents=True,exist_ok=True);no_links(stage,True);reserve(home,headroom)
         if compress:
             fail(os.name=='nt','NTFS-compressed recovery requires Windows');result=subprocess.run(['compact.exe','/C','/I','/Q',str(stage)],capture_output=True);fail(result.returncode==0,'Recovery staging compression failed')
-        staged_profile=stage/'profile';staged_public=stage/'Agentopia Files';owner_record={'format':2,'operationId':state['operationId'],'descriptorSha256':bundle['descriptorSha256']}
+        staged_profile=stage/'profile';staged_public=stage/'Sylvana Files';owner_record={'format':2,'operationId':state['operationId'],'descriptorSha256':bundle['descriptorSha256']}
         def owned(destination):
-            return destination.exists() and load(destination/'.agentopia-recovery-operation.json')==owner_record
+            return destination.exists() and load(destination/'.sylvana-recovery-operation.json')==owner_record
         if profile.exists():fail(owned(profile),'An unrelated profile appeared during recovery')
-        public_owner=home/'.agentopia/public-output-recovery-operation.json'
+        public_owner=home/'.sylvana/public-output-recovery-operation.json'
         if public.exists():fail(public_owner.exists() and load(public_owner)==owner_record,'Unrelated public outputs appeared during recovery')
         if not profile.exists():
             phase('staging-profile');copy_archive(bundle['profileArchive'],bundle['profile']['manifest'],staged_profile,headroom,selected_profile_entry)
@@ -533,32 +542,32 @@ def prepare_locked(bundle,home,appdata,headroom,compress,phase_hook,windows_sid=
             target=migration/'manifest.json'
             if target.exists():fail(digest(target)==digest(bundle['databasePath']),'Staged database manifest changed')
             else:shutil.copyfile(bundle['databasePath'],target)
-            parts=staged_profile/'.agentopia-recovery-parts'
+            parts=staged_profile/'.sylvana-recovery-parts'
             if parts.exists():parts.rmdir()
             if bundle['clipboard']:
                 phase('staging-clipboard');copy_archive(bundle['clipboardArchive'],bundle['clipboard']['manifest'],staged_profile/'restored-clipboard',headroom)
-                save(staged_profile/'restored-clipboard-images.json',bundle['clipboard']);save(staged_profile/'.agentopia-clipboard-required.json',{'format':1,'indexSha256':bundle['clipboard']['indexSha256']});state['clipboardIndexSha256']=bundle['clipboard']['indexSha256']
+                save(staged_profile/'restored-clipboard-images.json',bundle['clipboard']);save(staged_profile/'.sylvana-clipboard-required.json',{'format':1,'indexSha256':bundle['clipboard']['indexSha256']});state['clipboardIndexSha256']=bundle['clipboard']['indexSha256']
             if bundle['settings']:
-                phase('staging-settings');save_compact_settings(staged_profile/'restored-settings.json',bundle['settings']);save(staged_profile/'.agentopia-settings-required.json',{'format':1,'indexSha256':bundle['settings']['indexSha256']});state['settingsIndexSha256']=bundle['settings']['indexSha256']
+                phase('staging-settings');save_compact_settings(staged_profile/'restored-settings.json',bundle['settings']);save(staged_profile/'.sylvana-settings-required.json',{'format':1,'indexSha256':bundle['settings']['indexSha256']});state['settingsIndexSha256']=bundle['settings']['indexSha256']
             if windows:
                 phase('staging-windows-credentials')
                 source=resource(bundle['root'],bundle['descriptor']['windowsProfileManifest'])
-                with source.open('rb') as stream:copy_verified(stream,staged_profile/'.agentopia-windows-profile.json',{'bytes':source.stat().st_size,'sha256':bundle['descriptor']['windowsProfileManifest']['sha256']},staged_profile,headroom)
+                with source.open('rb') as stream:copy_verified(stream,staged_profile/'.sylvana-windows-profile.json',{'bytes':source.stat().st_size,'sha256':bundle['descriptor']['windowsProfileManifest']['sha256']},staged_profile,headroom)
                 if import_windows:
                     for name,row in windows['files'].items():
                         with (bundle['root']/'windows-profile'/name).open('rb') as stream:copy_verified(stream,staged_profile/name,row,staged_profile,headroom)
-                save(staged_profile/'.agentopia-windows-credentials.json',{'format':1,'manifest':windows,'imported':import_windows})
+                save(staged_profile/'.sylvana-windows-credentials.json',{'format':1,'manifest':windows,'imported':import_windows})
             if bundle['external']:
-                save(staged_profile/'restored-external.json',bundle['external']);save(staged_profile/'.agentopia-external-required.json',{'format':1,'indexSha256':bundle['external']['indexSha256']});state['externalIndexSha256']=bundle['external']['indexSha256']
+                save(staged_profile/'restored-external.json',bundle['external']);save(staged_profile/'.sylvana-external-required.json',{'format':1,'indexSha256':bundle['external']['indexSha256']});state['externalIndexSha256']=bundle['external']['indexSha256']
             if bundle['layouts']:
-                phase('staging-layouts');save(staged_profile/'restored-layouts.json',bundle['layouts']);save(staged_profile/'.agentopia-layouts-required.json',{'format':1,'indexSha256':bundle['layouts']['indexSha256']});state['layoutsIndexSha256']=bundle['layouts']['indexSha256']
+                phase('staging-layouts');save(staged_profile/'restored-layouts.json',bundle['layouts']);save(staged_profile/'.sylvana-layouts-required.json',{'format':1,'indexSha256':bundle['layouts']['indexSha256']});state['layoutsIndexSha256']=bundle['layouts']['indexSha256']
                 if bundle['layouts']['window'] is not None:save(staged_profile/'window.json',bundle['layouts']['window'])
             if workspace:
                 phase('staging-workspaces');workspace_stage=staged_profile/'restored-workspaces';workspace_stage.mkdir(exist_ok=True)
                 for source,name in [(bundle['workspacePath'],'workspace-data.json'),(bundle['workspaceArchive'],'workspace-data.tar.gz')]:
                     with source.open('rb') as stream:copy_verified(stream,workspace_stage/name,{'bytes':source.stat().st_size,'sha256':digest(source)},staged_profile,headroom)
-                save(staged_profile/'.agentopia-workspaces-required.json',workspace_required);state['workspaceIndexSha256']=workspace['indexSha256']
-            save(staged_profile/'restored-public-files.json',bundle['references']);save(staged_profile/'.agentopia-recovery-operation.json',owner_record)
+                save(staged_profile/'.sylvana-workspaces-required.json',workspace_required);state['workspaceIndexSha256']=workspace['indexSha256']
+            save(staged_profile/'restored-public-files.json',bundle['references']);save(staged_profile/'.sylvana-recovery-operation.json',owner_record)
         if not public.exists():
             phase('staging-public');copy_archive(bundle['publicArchive'],bundle['public']['manifest'],staged_public,headroom)
             if bundle['external']:
@@ -571,9 +580,9 @@ def prepare_locked(bundle,home,appdata,headroom,compress,phase_hook,windows_sid=
         before_file=stage/'native-record-fingerprints.json'
         if before_file.exists():before=load(before_file)
         else:before=native_fingerprints(profile,bundle['references']['index']['sourceProfile']);save(before_file,before)
-        marker=profile/'.agentopia-native-relocation.json'
+        marker=profile/'.sylvana-native-relocation.json'
         if not marker.exists():save(marker,{'format':1,'codex':'0.163.0','sourceProfile':bundle['references']['index']['sourceProfile'],'destinationProfile':str(profile),'state':'copied'})
-        spec=importlib.util.spec_from_file_location('agentopia_native_relocation',Path(__file__).with_name('relocate-native-profile.py'));module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);native=module.repair(profile)
+        spec=importlib.util.spec_from_file_location('sylvana_native_relocation',Path(__file__).with_name('relocate-native-profile.py'));module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);native=module.repair(profile)
         fail(native_fingerprints(profile,bundle['references']['index']['sourceProfile'])==before,'Native history records changed beyond the verified path translation')
         phase('verifying-published-files')
         for name,row in bundle['profile']['manifest']['files'].items():
@@ -582,14 +591,14 @@ def prepare_locked(bundle,home,appdata,headroom,compress,phase_hook,windows_sid=
         for name,row in bundle['public']['manifest']['files'].items():fail(digest(public.joinpath(*safe_name(name)))==row['sha256'],'Published public output changed')
         if bundle['clipboard']:
             for name,row in bundle['clipboard']['manifest']['files'].items():fail(digest(profile/'restored-clipboard'/name)==row['sha256'],'Published portable clipboard image changed')
-            fail(load(profile/'restored-clipboard-images.json')==bundle['clipboard'] and load(profile/'.agentopia-clipboard-required.json')=={'format':1,'indexSha256':bundle['clipboard']['indexSha256']},'Published clipboard recovery metadata changed');state['clipboardIndexSha256']=bundle['clipboard']['indexSha256']
+            fail(load(profile/'restored-clipboard-images.json')==bundle['clipboard'] and load(profile/'.sylvana-clipboard-required.json')=={'format':1,'indexSha256':bundle['clipboard']['indexSha256']},'Published clipboard recovery metadata changed');state['clipboardIndexSha256']=bundle['clipboard']['indexSha256']
         if bundle['settings']:
-            fail(load(profile/'restored-settings.json')==bundle['settings'] and load(profile/'.agentopia-settings-required.json')=={'format':1,'indexSha256':bundle['settings']['indexSha256']},'Published settings recovery metadata changed');state['settingsIndexSha256']=bundle['settings']['indexSha256']
+            fail(load(profile/'restored-settings.json')==bundle['settings'] and load(profile/'.sylvana-settings-required.json')=={'format':1,'indexSha256':bundle['settings']['indexSha256']},'Published settings recovery metadata changed');state['settingsIndexSha256']=bundle['settings']['indexSha256']
         if bundle['external']:
             for name,row in bundle['external']['manifest']['files'].items():fail(digest(public.joinpath(*safe_name(name)))==row['sha256'],'Published external bytes changed')
-            fail(load(profile/'restored-external.json')==bundle['external'] and load(profile/'.agentopia-external-required.json')=={'format':1,'indexSha256':bundle['external']['indexSha256']},'Published external recovery metadata changed');state['externalIndexSha256']=bundle['external']['indexSha256']
+            fail(load(profile/'restored-external.json')==bundle['external'] and load(profile/'.sylvana-external-required.json')=={'format':1,'indexSha256':bundle['external']['indexSha256']},'Published external recovery metadata changed');state['externalIndexSha256']=bundle['external']['indexSha256']
         if bundle['layouts']:
-            fail(load(profile/'restored-layouts.json')==bundle['layouts'] and load(profile/'.agentopia-layouts-required.json')=={'format':1,'indexSha256':bundle['layouts']['indexSha256']},'Published layout recovery metadata changed');state['layoutsIndexSha256']=bundle['layouts']['indexSha256']
+            fail(load(profile/'restored-layouts.json')==bundle['layouts'] and load(profile/'.sylvana-layouts-required.json')=={'format':1,'indexSha256':bundle['layouts']['indexSha256']},'Published layout recovery metadata changed');state['layoutsIndexSha256']=bundle['layouts']['indexSha256']
             if bundle['layouts']['window'] is not None:fail(load(profile/'window.json')==bundle['layouts']['window'],'Published window geometry changed')
         verify_workspace(profile)
         verify_windows(profile)
@@ -603,10 +612,10 @@ def bootstrap_family(processes,bootstrap_pid,parent_pid,expected_executable):
     if bootstrap_pid is None:return set()
     fail(bootstrap_pid==parent_pid,'The recovery bootstrap must be this helper\'s actual parent')
     parent=next((p for p in processes if p['ProcessId']==bootstrap_pid),None)
-    fail(parent and parent['Name'].casefold()=='agentopia.exe' and parent.get('ExecutablePath') and ntpath.normcase(ntpath.normpath(parent['ExecutablePath']))==ntpath.normcase(ntpath.normpath(str(expected_executable))),'The recovery bootstrap executable could not be verified')
+    fail(parent and parent['Name'].casefold()=='sylvana.exe' and parent.get('ExecutablePath') and ntpath.normcase(ntpath.normpath(parent['ExecutablePath']))==ntpath.normcase(ntpath.normpath(str(expected_executable))),'The recovery bootstrap executable could not be verified')
     allowed={bootstrap_pid}
     while True:
-        added={p['ProcessId'] for p in processes if p['ParentProcessId'] in allowed and p['Name'].casefold()=='agentopia.exe'}-allowed
+        added={p['ProcessId'] for p in processes if p['ParentProcessId'] in allowed and p['Name'].casefold()=='sylvana.exe'}-allowed
         if not added:return allowed
         allowed.update(added)
 
@@ -614,13 +623,13 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('bundle',type=Path);parser.add_argument('--check-only',action='store_true');parser.add_argument('--compress-staging',action='store_true');parser.add_argument('--bootstrap-pid',type=int);args=parser.parse_args()
     fail(os.name=='nt','This desktop recovery command requires Windows');home=Path.home();appdata=Path(os.environ['APPDATA'])
     names=subprocess.check_output(['wsl.exe','--list','--quiet']);registered=(names.decode('utf-16le') if b'\x00' in names else names.decode('utf-8')).lstrip('\ufeff').splitlines()
-    query="$OutputEncoding=[Console]::OutputEncoding=[Text.UTF8Encoding]::new();ConvertTo-Json -Compress -InputObject @(Get-CimInstance Win32_Process|Where-Object {$_.Name -in @('Agentopia.exe','AgentopiaSetup.exe')}|Select-Object ProcessId,ParentProcessId,Name,ExecutablePath)"
+    query="$OutputEncoding=[Console]::OutputEncoding=[Text.UTF8Encoding]::new();ConvertTo-Json -Compress -InputObject @(Get-CimInstance Win32_Process|Where-Object {$_.Name -in @('Sylvana.exe','SylvanaSetup.exe')}|Select-Object ProcessId,ParentProcessId,Name,ExecutablePath)"
     processes=json.loads(subprocess.check_output(['powershell.exe','-NoProfile','-NonInteractive','-Command',query],encoding='utf-8-sig'))
-    allowed=bootstrap_family(processes,args.bootstrap_pid,os.getppid(),Path(__file__).resolve().parents[3]/'Agentopia.exe')
+    allowed=bootstrap_family(processes,args.bootstrap_pid,os.getppid(),Path(__file__).resolve().parents[3]/'Sylvana.exe')
     running=any(p['ProcessId'] not in allowed for p in processes)
     if args.check_only:
         inspect_environment(home,appdata,registered,running);validate_bundle(args.bundle)
-        print(json.dumps({'success':True,'checkOnly':True,'destinationEligible':True,'resumeRequiresContentVerification':(home/'.agentopia/recovery-state.json').exists(),'productionWrites':0}));return
+        print(json.dumps({'success':True,'checkOnly':True,'destinationEligible':True,'resumeRequiresContentVerification':(home/'.sylvana/recovery-state.json').exists(),'productionWrites':0}));return
     result=prepare(args.bundle,home,appdata,registered,running,compress=args.compress_staging);print(json.dumps({'success':True,'status':result['status'],'native':result['native'],'providerRequests':0,'databaseImported':False}))
 
 if __name__=='__main__':main()

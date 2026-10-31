@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),{randomUUID}=require('node:crypto');
-const build=process.env.AGENTOPIA_INSPECTION_BUILD??path.resolve(__dirname,'../build');
+const build=process.env.SYLVANA_INSPECTION_BUILD??path.resolve(__dirname,'../build');
 const {ChatInspection}=require(path.join(build,'chat-inspection.js')),{allowsAgentTool}=require(path.join(build,'agent-policy.js')),{defaultAgentPolicy}=require(path.join(build,'agent-contracts.js'));
 const {ProjectMemory}=require(path.join(build,'project-memory.js'));
 const user=randomUUID(),request={id:randomUUID(),conversation_id:randomUUID(),project:{id:randomUUID(),memory_enabled:false}},chat=randomUUID(),message=randomUUID();
@@ -36,7 +36,7 @@ test('read applies a total Unicode character budget and resumes inside the exact
   return {chat:summary,total_messages:2,offset:args.p_offset,activities:[],messages:texts.slice(args.p_offset,args.p_offset+args.p_limit).map((text,i)=>({id:ids[args.p_offset+i],role:'assistant',text:Array.from(text).slice(i===0?args.p_message_offset:0,(i===0?args.p_message_offset:0)+args.p_characters).join(''),text_length:Array.from(text).length,character_offset:i===0?Math.min(args.p_message_offset,Array.from(text).length):0}))};
  });
  let cursor={offset:0,message_offset:0},reconstructed=['',''],pages=0;
- do{const page=await f.service.execute(user,request,'read_chat',{conversation_id:chat,...cursor,limit:2,characters:3},options,async()=>{});assert(page.messages.reduce((n,m)=>n+Array.from(m.text).length,0)<=3);for(const m of page.messages){reconstructed[ids.indexOf(m.id)]+=m.text;assert.equal(m.citation,'agentopia-chat://'+chat+'/message/'+m.id);assert(!/[\uD800-\uDBFF]$/.test(m.text));}cursor=page.next;pages++;assert(pages<20);}while(cursor);
+ do{const page=await f.service.execute(user,request,'read_chat',{conversation_id:chat,...cursor,limit:2,characters:3},options,async()=>{});assert(page.messages.reduce((n,m)=>n+Array.from(m.text).length,0)<=3);for(const m of page.messages){reconstructed[ids.indexOf(m.id)]+=m.text;assert.equal(m.citation,'sylvana-chat://'+chat+'/message/'+m.id);assert(!/[\uD800-\uDBFF]$/.test(m.text));}cursor=page.next;pages++;assert(pages<20);}while(cursor);
  assert.deepEqual(reconstructed,texts);assert.equal(pages,7);
 });
 

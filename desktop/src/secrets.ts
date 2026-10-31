@@ -1,4 +1,6 @@
 import {safeStorage} from 'electron';
+import {migrateSecretMetadata} from './legacy-brand';
+import {loadBrandPaths} from './brand-path-migration';
 import {readFile,writeFile,rename,mkdir} from 'node:fs/promises';
 import path from 'node:path';
 const persisted=(value:unknown):string|undefined=>JSON.stringify(value,(_,item)=>item&&typeof item==='object'&&!Array.isArray(item)?Object.fromEntries(Object.keys(item).sort().map(key=>[key,item[key]])):item);
@@ -7,11 +9,23 @@ export class Secrets {
  private writing:Promise<void>=Promise.resolve();
  constructor(private directory:string){}
  async load(){
+  loadBrandPaths(this.directory);
   if(!safeStorage.isEncryptionAvailable())throw new Error('Windows credential encryption is unavailable. Sign in to Windows and retry.');
-  try{this.values=JSON.parse(safeStorage.decryptString(await readFile(path.join(this.directory,'credentials.bin'))));}
-  catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw new Error('Saved credentials could not be decrypted for this Windows account. Restore the original Windows account or remove the credential file to reconnect.');}
+  try{this.values=migrateSecretMetadata(JSON.parse(safeStorage.decryptString(await readFile(path.join(this.directory,'credentials.bin'))))).value;}
+  catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw new Error('Saved credentials could not be decrypted for this Windows account. Restore the original Windows account and its verified credential backup before continuing.');}
  }
  get<T>(key:string):T|undefined{return this.values[key] as T|undefined;}
+ credentialMetadata(owner:string){
+  if(!/^[a-f0-9-]{36}$/.test(owner))throw Error('Choose a canonical credential owner.');
+  const rows:{kind:'mcp-oauth'|'creation-oauth'|'composio-oauth';reference:string;connected:boolean;expiresAt?:number}[]=[];
+  for(const [key,value]of Object.entries(this.values)){
+   const saved=value as {tokens?:unknown;expiresAt?:number};const expiry=typeof saved?.expiresAt==='number'?{expiresAt:saved.expiresAt}:{};
+   if(key.startsWith('mcp-oauth:'+owner+':')){const reference=key.slice(('mcp-oauth:'+owner+':').length);if(/^[a-f0-9-]{36}:[a-f0-9-]{36}$/.test(reference))rows.push({kind:'mcp-oauth',reference,connected:!!saved?.tokens,...expiry});}
+   if(key.startsWith('mcp-oauth-creation:'+owner+':')){const reference=key.slice(('mcp-oauth-creation:'+owner+':').length);if(/^[a-f0-9-]{36}:[a-f0-9-]{36}$/.test(reference))rows.push({kind:'creation-oauth',reference,connected:!!saved?.tokens,...expiry});}
+   if(key==='mcp-oauth-account:'+owner+':composio')rows.push({kind:'composio-oauth',reference:'composio',connected:!!saved?.tokens,...expiry});
+  }
+  return rows;
+ }
  creationCredentialJournalIds(owner:string){
   if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(owner))throw Error('Choose a canonical connection owner.');const prefix='mcp-creation-handoff:'+owner+':';return Object.keys(this.values).filter(key=>key.startsWith(prefix)).map(key=>{const id=key.slice(prefix.length);if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(id))throw Error('A retained connection handoff identity is invalid.');return id;});
  }

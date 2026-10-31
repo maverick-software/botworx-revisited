@@ -4,7 +4,7 @@ import type {ChatOptions} from './contracts';
 import type {Secrets} from './secrets';
 export type ChatDraft={text:string;options:ChatOptions;updatedAt:string};
 export function draftScope(value:unknown):string{
- if(typeof value!=='string'||!/^conversation:[a-f0-9-]{36}$|^child:[a-f0-9-]{36}:[a-f0-9-]{36}$|^new:[a-f0-9-]{36}:(?:[a-f0-9-]{36}|home)$/i.test(value))throw new Error('Invalid chat draft location.');return value;
+ if(typeof value!=='string'||!/^conversation:[a-f0-9-]{36}$|^child:[a-f0-9-]{36}:[a-f0-9-]{36}$|^new:(?:[a-f0-9-]{36}|unassigned):(?:[a-f0-9-]{36}|home)$/i.test(value))throw new Error('Invalid chat draft location.');return value;
 }
 export class ChatDrafts{
  private writes:Promise<unknown>=Promise.resolve();

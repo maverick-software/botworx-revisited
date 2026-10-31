@@ -15,9 +15,9 @@ class ComposioPreparation(unittest.TestCase):
     def refused(self,pattern='Composio'):
         self.save_settings()
         with self.assertRaisesRegex(ValueError,pattern):self.case.prepare()
-        self.assertFalse((self.case.home/'.agentopia').exists())
+        self.assertFalse((self.case.home/'.sylvana').exists())
     def test_identity_grants_and_disabled_bindings_are_staged_intact_and_resume_same_operation(self):
-        c=self.case;original=(c.bundle/'settings.json').read_bytes();result=c.prepare();self.assertFalse(result['databaseImported']);saved=recovery.load(c.appdata/'Agentopia/restored-settings.json');self.assertEqual(saved['accounts'][0]['settings']['composio-state'],self.state);self.assertNotIn('composio-state',saved['accounts'][1]['settings']);self.assertEqual(c.prepare()['operationId'],result['operationId']);self.assertEqual((c.bundle/'settings.json').read_bytes(),original)
+        c=self.case;original=(c.bundle/'settings.json').read_bytes();result=c.prepare();self.assertFalse(result['databaseImported']);saved=recovery.load(c.appdata/'Sylvana/restored-settings.json');self.assertEqual(saved['accounts'][0]['settings']['composio-state'],self.state);self.assertNotIn('composio-state',saved['accounts'][1]['settings']);self.assertEqual(c.prepare()['operationId'],result['operationId']);self.assertEqual((c.bundle/'settings.json').read_bytes(),original)
     def test_capability_nine_cannot_silently_discard_composio(self):
         self.case.descriptor['requiresDesktopRecoveryFormat']=9;self.refused('Composio connections require')
     def test_credentials_cannot_enter_nested_metadata_even_with_recomputed_seals(self):

@@ -1,10 +1,13 @@
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Windows.Automation;
+using System.Security.Cryptography;
+using Microsoft.Win32.SafeHandles;
 
-namespace Agentopia.Computer;
+namespace Sylvana.Computer;
 
 internal static class Win
 {
@@ -45,6 +48,9 @@ internal static class Win
     [DllImport("advapi32.dll")] public static extern nint GetSidSubAuthorityCount(nint sid);
     [DllImport("advapi32.dll")] public static extern nint GetSidSubAuthority(nint sid,uint index);
     [DllImport("kernel32.dll")] public static extern bool CloseHandle(nint handle);
+    [StructLayout(LayoutKind.Sequential)] public struct FileIdentity { public uint Attributes;public System.Runtime.InteropServices.ComTypes.FILETIME Creation,Access,Write;public uint Volume,SizeHigh,SizeLow,Links,IndexHigh,IndexLow; }
+    [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] public static extern uint GetFinalPathNameByHandle(SafeFileHandle file,StringBuilder path,uint length,uint flags);
+    [DllImport("kernel32.dll",SetLastError=true)] public static extern bool GetFileInformationByHandle(SafeFileHandle file,out FileIdentity identity);
     [StructLayout(LayoutKind.Sequential)] public struct Input { public uint Type;public InputUnion Data; }
     [StructLayout(LayoutKind.Explicit)] public struct InputUnion { [FieldOffset(0)]public MouseInput Mouse;[FieldOffset(0)]public KeyInput Key; }
     [StructLayout(LayoutKind.Sequential)] public struct MouseInput { public int X,Y;public uint Data,Flags,Time;public nuint Extra; }
@@ -60,7 +66,7 @@ internal sealed record Box(int Left,int Top,int Width,int Height)
     public static Box From(Win.Rect r)=>new(r.Left,r.Top,r.Width,r.Height);
     public bool Contains(int x,int y)=>x>=Left&&y>=Top&&x<Left+Width&&y<Top+Height;
 }
-internal sealed record WindowInfo(string Handle,int Pid,string Started,string App,string Title,string ClassName,Box Client,Box Frame,Box Outer,Box[] Captures,string RootOwner,string Owner,string Popup,bool Enabled,bool Minimized,bool Foreground,string? Blocked);
+internal sealed record WindowInfo(string Handle,int Pid,string Started,string App,string ExecutablePath,string Sha256,string Title,string ClassName,Box Client,Box Frame,Box Outer,Box[] Captures,string RootOwner,string Owner,string Popup,bool Enabled,bool Minimized,bool Foreground,string? Blocked);
 internal sealed record NodeInfo(string Ref,string Role,string Name,string AutomationId,Box Bounds,bool Enabled,bool Focused);
 internal sealed record SnapshotInfo(string Id,WindowInfo Window,NodeInfo[] Nodes,string? Focused,bool Truncated);
 internal sealed record ElementInfo(AutomationElement Element,int[] Runtime,NodeInfo Node);
@@ -68,10 +74,30 @@ internal sealed record Snapshot(SnapshotInfo View,Dictionary<string,ElementInfo>
 
 internal static class Desktop
 {
+    // Retained read handles deny in-place writes; replacement remains allowed. A cache entry is
+    // reused only for the same opened Windows file identity and canonical path.
+    // PID names, filenames and timestamps alone never authorize an application.
+    private static readonly Dictionary<string,(FileStream File,string Digest)> Binaries=[];
+    private static (string Path,string Digest) Binary(Process process)
+    {
+        string filename=process.MainModule?.FileName??throw new InvalidOperationException("The application executable identity is unavailable.");
+        var file=new FileStream(filename,FileMode.Open,FileAccess.Read,FileShare.Read|FileShare.Delete);bool retained=false;
+        try{
+            var final=new StringBuilder(32768);uint size=Win.GetFinalPathNameByHandle(file.SafeFileHandle,final,(uint)final.Capacity,0);
+            if(size==0||size>=final.Capacity||!Win.GetFileInformationByHandle(file.SafeFileHandle,out var identity))throw new InvalidOperationException("The application executable identity could not be verified.");
+            string canonical=final.ToString();if(canonical.StartsWith(@"\\?\UNC\",StringComparison.OrdinalIgnoreCase))canonical=@"\\"+canonical[8..];else if(canonical.StartsWith(@"\\?\",StringComparison.Ordinal))canonical=canonical[4..];
+            string key=canonical.ToUpperInvariant()+":"+identity.Volume+":"+identity.IndexHigh+":"+identity.IndexLow;
+            if(Binaries.TryGetValue(key,out var cached))return(canonical,cached.Digest);
+            string digest=Convert.ToHexString(SHA256.HashData(file)).ToLowerInvariant();
+            if(Binaries.Count>=128){string oldest=Binaries.Keys.First();Binaries[oldest].File.Dispose();Binaries.Remove(oldest);}
+            Binaries.Add(key,(file,digest));retained=true;return(canonical,digest);
+        }finally{if(!retained)file.Dispose();}
+    }
     public static readonly HashSet<int> ProtectedPids=[];
     private static volatile bool stopped;
-    public static void InputCheckpoint(){if(stopped||((Win.GetAsyncKeyState(17)&0x8000)!=0&&(Win.GetAsyncKeyState(18)&0x8000)!=0&&(Win.GetAsyncKeyState(8)&0x8000)!=0)){stopped=true;throw new OperationCanceledException("Computer use stopped.");}}
-    private static readonly HashSet<string> DeniedApps=new(StringComparer.OrdinalIgnoreCase){"Agentopia","Codex","ChatGPT","cmd","powershell","pwsh","WindowsTerminal","wt","conhost","OpenConsole","Taskmgr","SystemSettings","SecHealthUI","SecurityHealthSystray","UserAccountControlSettings","consent","CredentialUIBroker","LogonUI","LockApp","CredentialManager","keepass","keepassxc","1password","bitwarden","dashlane","lastpass"};
+    public static void StopInput()=>stopped=true;
+    public static void InputCheckpoint(){if(stopped)throw new OperationCanceledException("Computer use stopped.");}
+    private static readonly HashSet<string> DeniedApps=new(StringComparer.OrdinalIgnoreCase){"Sylvana","Codex","ChatGPT","cmd","powershell","pwsh","WindowsTerminal","wt","conhost","OpenConsole","Taskmgr","SystemSettings","SecHealthUI","SecurityHealthSystray","UserAccountControlSettings","consent","CredentialUIBroker","LogonUI","LockApp","CredentialManager","keepass","keepassxc","1password","bitwarden","dashlane","lastpass"};
     private static readonly System.Text.RegularExpressions.Regex ProtectedTitle=new(@"\b(?:Windows Security|User Account Control|Credential Manager|Password Manager|sign[ -]?in|log[ -]?in|authentication|verify your identity)(?=$|\s|:)",System.Text.RegularExpressions.RegexOptions.IgnoreCase|System.Text.RegularExpressions.RegexOptions.CultureInvariant);
     public static void Interactive()
     {
@@ -97,7 +123,8 @@ internal static class Desktop
         // Chromium/WebRTC crops transparent resize borders using Win32 metrics:
         // https://chromium.googlesource.com/external/webrtc/+/HEAD/modules/desktop_capture/win/window_capture_utils.cc
         var captureBoxes=new List<Box>();if((Win.GetWindowStyle(handle,-16)&0x40080)!=0){int side=Win.GetSystemMetrics(32),bottom=Win.GetSystemMetrics(33),edge=Win.GetSystemMetrics(6),xedge=Win.GetSystemMetrics(5);captureBoxes.Add(new(outer.Left+side,outer.Top+edge,outer.Width-2*side,outer.Height-edge-bottom));int popupSide=Math.Max(0,side-xedge),popupBottom=Math.Max(0,bottom-edge);captureBoxes.Add(new(outer.Left+popupSide,outer.Top,outer.Width-2*popupSide,outer.Height-popupBottom));}
-        var info=new WindowInfo(handle.ToInt64().ToString(),(int)pid,process.StartTime.ToUniversalTime().Ticks.ToString(),app,title,className,clientBox,Box.From(frame),Box.From(outer),captureBoxes.ToArray(),Win.GetAncestor(handle,3).ToInt64().ToString(),Win.GetWindow(handle,4).ToInt64().ToString(),Win.GetLastActivePopup(handle).ToInt64().ToString(),Win.IsWindowEnabled(handle),Win.IsIconic(handle),Win.GetAncestor(Win.GetForegroundWindow(),2)==handle,blocked);
+        var binary=Binary(process);
+        var info=new WindowInfo(handle.ToInt64().ToString(),(int)pid,process.StartTime.ToUniversalTime().Ticks.ToString(),app,binary.Path,binary.Digest,title,className,clientBox,Box.From(frame),Box.From(outer),captureBoxes.ToArray(),Win.GetAncestor(handle,3).ToInt64().ToString(),Win.GetWindow(handle,4).ToInt64().ToString(),Win.GetLastActivePopup(handle).ToInt64().ToString(),Win.IsWindowEnabled(handle),Win.IsIconic(handle),Win.GetAncestor(Win.GetForegroundWindow(),2)==handle,blocked);
         if(requireAllowed&&blocked!=null)throw new InvalidOperationException(blocked);return info;
     }
     public static string Text(nint handle){var value=new StringBuilder(512);Win.GetWindowText(handle,value,value.Capacity);return value.ToString();}
@@ -108,7 +135,7 @@ internal static class Desktop
     }
     public static WindowInfo Bound(JsonElement args)
     {
-        nint handle=(nint)long.Parse(args.GetProperty("handle").GetString()!);var info=Inspect(handle);if(info.Pid!=args.GetProperty("pid").GetInt32()||info.Started!=args.GetProperty("started").GetString())throw new InvalidOperationException("The window identity changed. Select it again.");return info;
+        nint handle=(nint)long.Parse(args.GetProperty("handle").GetString()!);var info=Inspect(handle);if(info.Pid!=args.GetProperty("pid").GetInt32()||info.Started!=args.GetProperty("started").GetString()||!args.TryGetProperty("executablePath",out var expectedPath)||!string.Equals(info.ExecutablePath,expectedPath.GetString(),StringComparison.OrdinalIgnoreCase)||!args.TryGetProperty("sha256",out var expectedDigest)||info.Sha256!=expectedDigest.GetString())throw new InvalidOperationException("The window application identity changed. Discover it again.");return info;
     }
     public static nint Handle(WindowInfo info)=>(nint)long.Parse(info.Handle);
     public static void Foreground(WindowInfo info)
@@ -129,6 +156,7 @@ internal static class Desktop
 
 internal sealed class Engine
 {
+    internal static string Role(ControlType? type)=>type?.ProgrammaticName?.Replace("ControlType.","")??"Custom";
     private readonly Dictionary<string,Snapshot> snapshots=[];
     private static string Safe(string value)=>value.Length<=500?value:value[..500];
     private static Box Bounds(System.Windows.Rect r)=>new((int)Math.Round(r.X),(int)Math.Round(r.Y),(int)Math.Round(r.Width),(int)Math.Round(r.Height));
@@ -141,12 +169,12 @@ internal sealed class Engine
             cancellation.ThrowIfCancellationRequested();if(depth>16||nodes.Count>=250){truncated=true;return;}
             try{
                 var current=element.Current;if(current.IsPassword&&!current.IsOffscreen)throw new ProtectedInputException();if(current.IsOffscreen&&depth>0)return;
-                var rect=current.BoundingRectangle;if(!rect.IsEmpty&&double.IsFinite(rect.X)&&double.IsFinite(rect.Y)&&rect.Width>0&&rect.Height>0){string id="e"+nodes.Count;var node=new NodeInfo(id,current.ControlType.ProgrammaticName.Replace("ControlType.",""),Safe(current.Name??""),Safe(current.AutomationId??""),Bounds(rect),current.IsEnabled,current.HasKeyboardFocus);nodes.Add(node);elements[id]=new(element,element.GetRuntimeId(),node);if(node.Focused)focused=id;}
+                var rect=current.BoundingRectangle;if(!rect.IsEmpty&&double.IsFinite(rect.X)&&double.IsFinite(rect.Y)&&rect.Width>0&&rect.Height>0){string id="e"+nodes.Count;var node=new NodeInfo(id,Role(current.ControlType),Safe(current.Name??""),Safe(current.AutomationId??""),Bounds(rect),current.IsEnabled,current.HasKeyboardFocus);nodes.Add(node);elements[id]=new(element,element.GetRuntimeId(),node);if(node.Focused)focused=id;}
                 var child=TreeWalker.ControlViewWalker.GetFirstChild(element);while(child!=null){Visit(child,depth+1);if(nodes.Count>=250)break;child=TreeWalker.ControlViewWalker.GetNextSibling(child);}
             }catch(ProtectedInputException){throw;}catch(ElementNotAvailableException){}catch(InvalidOperationException){}
         }
         Visit(root,0);
-        try{var focus=AutomationElement.FocusedElement;if(focus!=null&&focus.Current.ProcessId==window.Pid){if(focus.Current.IsPassword)throw new ProtectedInputException();var current=focus.Current;var rect=current.BoundingRectangle;if(!rect.IsEmpty&&window.Frame.Contains((int)(rect.X+rect.Width/2),(int)(rect.Y+rect.Height/2))){var runtime=focus.GetRuntimeId();var existing=elements.FirstOrDefault(p=>p.Value.Runtime.SequenceEqual(runtime));if(existing.Key!=null)focused=existing.Key;else{focused="focused";var node=new NodeInfo(focused,current.ControlType.ProgrammaticName.Replace("ControlType.",""),Safe(current.Name??""),Safe(current.AutomationId??""),Bounds(rect),current.IsEnabled,true);nodes.Add(node);elements[focused]=new(focus,runtime,node);}}}}catch(ProtectedInputException){throw;}catch(ElementNotAvailableException){}
+        try{var focus=AutomationElement.FocusedElement;if(focus!=null&&focus.Current.ProcessId==window.Pid){if(focus.Current.IsPassword)throw new ProtectedInputException();var current=focus.Current;var rect=current.BoundingRectangle;if(!rect.IsEmpty&&window.Frame.Contains((int)(rect.X+rect.Width/2),(int)(rect.Y+rect.Height/2))){var runtime=focus.GetRuntimeId();var existing=elements.FirstOrDefault(p=>p.Value.Runtime.SequenceEqual(runtime));if(existing.Key!=null)focused=existing.Key;else{focused="focused";var node=new NodeInfo(focused,Role(current.ControlType),Safe(current.Name??""),Safe(current.AutomationId??""),Bounds(rect),current.IsEnabled,true);nodes.Add(node);elements[focused]=new(focus,runtime,node);}}}}catch(ProtectedInputException){throw;}catch(ElementNotAvailableException){}
         string token=Guid.NewGuid().ToString();var view=new SnapshotInfo(token,window,nodes.ToArray(),focused,truncated);foreach(string old in snapshots.Where(p=>p.Value.View.Window.Handle==window.Handle||DateTimeOffset.UtcNow-p.Value.At>TimeSpan.FromMinutes(2)).Select(p=>p.Key).ToArray())snapshots.Remove(old);while(snapshots.Count>=32)snapshots.Remove(snapshots.OrderBy(p=>p.Value.At).First().Key);snapshots[token]=new(view,elements,DateTimeOffset.UtcNow);return view;
     }
     public object Act(JsonElement args,CancellationToken cancellation)
@@ -205,10 +233,12 @@ internal static class Program
         // all processes, simulate last input, or change foreground-lock settings.
         if(args.Length==4&&args[0]=="--allow-foreground"&&int.TryParse(args[1],out int recipient)&&recipient>0&&args[2]=="--parent"&&int.TryParse(args[3],out int approvalHost)&&approvalHost>0){bool allowed=false;try{using var target=Process.GetProcessById(recipient);Win.GetWindowThreadProcessId(Win.GetForegroundWindow(),out uint foreground);if(foreground==(uint)approvalHost&&target.SessionId==Process.GetCurrentProcess().SessionId&&string.Equals(target.MainModule?.FileName,Environment.ProcessPath,StringComparison.OrdinalIgnoreCase)){for(int n=0;n<25&&(Win.GetAsyncKeyState(13)&0x8000)!=0;n++)Thread.Sleep(20);Win.GetWindowThreadProcessId(Win.GetForegroundWindow(),out foreground);if(foreground==(uint)approvalHost&&(Win.GetAsyncKeyState(13)&0x8000)==0)allowed=Win.AllowSetForegroundWindow((uint)recipient);}}catch{}Console.WriteLine(JsonSerializer.Serialize(new{allowed},Json));return;}
         if(args.Length!=2||args[0]!="--parent"||!int.TryParse(args[1],out int parent)||parent<=0)return;Desktop.ProtectedPids.Add(parent);Desktop.ProtectedPids.Add(Environment.ProcessId);
+        using var emergency=new EmergencyStop(()=>{Desktop.StopInput();lock(Output)Console.WriteLine("{\"event\":\"escape\"}");});
         var engine=new Engine();CancellationTokenSource? cancellation=null;Task? active=null;string? activeId=null;int busy=0;
         try{
             string? line;while((line=Console.ReadLine())!=null){if(line.Length>256000)break;JsonDocument message;try{message=JsonDocument.Parse(line);}catch{break;}var root=message.RootElement.Clone();message.Dispose();string id=root.GetProperty("id").GetString()??"",method=root.GetProperty("method").GetString()??"";
                 if(method=="cancel"){if(root.TryGetProperty("operation",out var operation)&&operation.GetString()==activeId)cancellation?.Cancel();continue;}
+                if(method=="watch-escape"){try{emergency.Enable(root.GetProperty("args").GetProperty("enabled").GetBoolean());Reply(id,new{watching=true});}catch(Exception e){Reply(id,null,e.Message);}continue;}
                 if(Interlocked.CompareExchange(ref busy,1,0)!=0){Reply(id,null,"A Windows operation is already running.");continue;}cancellation?.Dispose();cancellation=new CancellationTokenSource();var token=cancellation.Token;activeId=id;
                 active=Task.Run(()=>{Win.SetThreadDpiAwarenessContext((nint)(-4));try{token.ThrowIfCancellationRequested();var data=root.TryGetProperty("args",out var value)?value:default;object result=method switch{"windows"=>Desktop.Windows(),"inspect"=>Desktop.Bound(data),"snapshot"=>engine.Capture(Desktop.Bound(data),token),"action"=>engine.Act(data,token),_=>throw new InvalidOperationException("Unsupported Windows operation.")};Interlocked.Exchange(ref busy,0);Reply(id,result);}catch(OperationCanceledException){Interlocked.Exchange(ref busy,0);Reply(id,null,"Windows operation cancelled. Inspect the window before continuing.");}catch(Exception e){Interlocked.Exchange(ref busy,0);Reply(id,null,e is InvalidOperationException or ProtectedInputException?e.Message:"The selected application could not be inspected. Capture or select it again.");}});
             }

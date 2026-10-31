@@ -5,7 +5,7 @@ import type {ToolActivity} from './tool-contracts';
  * Reused IDs across turns, conflicting identifiers and duplicate receipts are
  * intentionally left unresolved; transport history itself stays unchanged. */
 export function nativeActivityReceipt(entry:NativeItem,items:NativeItem[],tools:ToolActivity[],requestId:string){
- const item=entry.item;if(!requestId||item.type!=='mcpToolCall'||item.server!=='agentopia_host')return;
+ const item=entry.item;if(!requestId||item.type!=='mcpToolCall'||item.server!=='sylvana_host')return;
  const turns=new Set(items.filter(row=>row.threadId===entry.threadId&&row.item.id===item.id).map(row=>row.turnId));if(turns.size!==1)return;
  const key=entry.threadId+':'+item.id,matches=tools.filter(tool=>{
   if(tool.request_id!==requestId||tool.native_thread_id!==entry.threadId||tool.name!==item.tool)return false;

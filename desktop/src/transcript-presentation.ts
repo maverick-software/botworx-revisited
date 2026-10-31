@@ -16,7 +16,8 @@ export function needsTranscriptAttention(message:Message){
  const {native,tools,status}=message.metadata;
  // Background progress is available in the conversation's Subagents panel.
  // Reveal old turns only for a live main response or a decision the user must see.
- return status==='running'||!!tools?.some(t=>t.status==='awaiting_approval')||!!native?.approvals.some(a=>a.status==='pending')||!!native?.children?.some(c=>c.state.approvals.some(a=>a.status==='pending')||c.state.tools?.some(t=>t.status==='awaiting_approval'))||!!native?.reports?.some(r=>!!r.error||r.state.approvals.some(a=>a.status==='pending')||r.state.tools?.some(t=>t.status==='awaiting_approval'));
+ const questions=(state:NativeState):boolean=>!!state.items?.some(entry=>entry.item.type==='agentMessage'&&!!entry.item.questions?.length&&entry.questionAnswer?.status!=='sent')||!!state.children?.some(child=>questions(child.state))||!!state.reports?.some(report=>questions(report.state));
+ return status==='running'||!!native&&questions(native)||!!tools?.some(t=>t.status==='awaiting_approval')||!!native?.approvals.some(a=>a.status==='pending')||!!native?.children?.some(c=>c.state.approvals.some(a=>a.status==='pending')||c.state.tools?.some(t=>t.status==='awaiting_approval'))||!!native?.reports?.some(r=>!!r.error||r.state.approvals.some(a=>a.status==='pending')||r.state.tools?.some(t=>t.status==='awaiting_approval'));
 }
 
 export function responseText(message:Message){

@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),{randomUUID}=require('node:crypto');
-const build=process.env.AGENTOPIA_TEST_BUILD||path.resolve(__dirname,'../build');
+const build=process.env.SYLVANA_TEST_BUILD||path.resolve(__dirname,'../build');
 const {ChromeRuntime}=require(path.join(build,'chrome-runtime.js'));
 function fixture(){
  const owner=randomUUID(),other=randomUUID(),runtime=new ChromeRuntime('unused','unused'),calls=[];

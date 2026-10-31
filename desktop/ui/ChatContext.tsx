@@ -12,7 +12,7 @@ import {scheduleChatSelected,useScheduledWorkspace} from './ScheduledTasks';
 
 // Remember the roomy-layout preference; narrow layouts open details only on request.
 export function useChatContext(owner?:string){
- const key='agentopia.chat-context.'+(owner??'session');
+ const key='sylvana.chat-context.'+(owner??'session');
  const read=()=>{try{return localStorage.getItem(key);}catch{return null;}};
  const [choice,setChoice]=useState<{key:string;value:string|null}>(()=>({key,value:read()}));
  const roomy=()=>{const area=document.querySelector('.workspace-columns');return (area?.getBoundingClientRect().width??window.innerWidth-296)>=1120;};

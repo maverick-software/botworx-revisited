@@ -6,10 +6,10 @@ export function instructionAppLabel(value:string){return value.replace(/[\u0000-
 export function instructionAppMarkdown(id:string,label:string){
  if(!instructionAppId(id))throw Error('Choose an assigned app.');
  const name=instructionAppLabel(label);if(!name)throw Error('The app needs a display name.');
- return '[@'+name.replace(/[\\`*_[\]{}()<>!#|&]/g,'\\$&')+'](agentopia-app:'+encodeURIComponent(id)+')';
+ return '[@'+name.replace(/[\\`*_[\]{}()<>!#|&]/g,'\\$&')+'](sylvana-app:'+encodeURIComponent(id)+')';
 }
 export function instructionAppAt(text:string):InstructionAppReference|undefined{
- const match=/^\[((?:\\.|[^\]\\\r\n]){1,640})\]\(agentopia-app:([A-Za-z0-9%:_-]{1,240})\)/.exec(text);if(!match)return;
+ const match=/^\[((?:\\.|[^\]\\\r\n]){1,640})\]\(sylvana-app:([A-Za-z0-9%:_-]{1,240})\)/.exec(text);if(!match)return;
  let id:string;try{id=decodeURIComponent(match[2]);}catch{return;}
  const label=match[1].replace(/\\([\\`*_[\]{}()<>!#|&])/g,'$1');
  if(!label.startsWith('@')||!instructionAppId(id)||!instructionAppLabel(label.slice(1)))return;

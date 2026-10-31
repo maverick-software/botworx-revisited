@@ -1,9 +1,11 @@
+import {hostPluginFamilies} from './host-plugin-contracts';
 import {createHash} from 'node:crypto';
 import {AjvJsonSchemaValidator} from '@modelcontextprotocol/client/validators/ajv';
 import manifestSchema from './plugin-schemas/plugin.schema.json';
 import mcpSchema from './plugin-schemas/mcp.schema.json';
 import {mcpAddress} from './mcp-client';
 import {composioMcpAuth,composioMcpPluginName,composioMcpUrl} from './composio-mcp-contracts';
+import {composioServicePackageSlug} from './composio-service-plugins';
 import {chromePluginName} from './chrome-contracts';
 import {imageGenerationPluginName} from './image-generation-contracts';
 import {pluginSchemaUrl,mcpSchemaUrl,type PluginPackage} from './plugin-contracts';
@@ -28,12 +30,12 @@ export function validatePluginPackage(value:unknown,bundled=false):PluginPackage
  // with a content-derived local revision and a neutral identity fallback.
  if(manifest.version===undefined)manifest.version='0.0.0-local.'+createHash('sha256').update(JSON.stringify(canonical(normalized))).digest('hex').slice(0,16);
  if(manifest.description===undefined)manifest.description=manifest.name;
- if(!name.test(manifest.name)||manifest.name.includes('..')||manifest.name.includes('--')||!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(manifest.version??'')||typeof manifest.description!=='string'||!manifest.description.trim()||manifest.description.length>4000)throw new Error('Agentopia requires a stable plugin name, semantic version, and description.');
+ if(!name.test(manifest.name)||manifest.name.includes('..')||manifest.name.includes('--')||!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(manifest.version??'')||typeof manifest.description!=='string'||!manifest.description.trim()||manifest.description.length>4000)throw new Error('Sylvana requires a stable plugin name, semantic version, and description.');
  for(const key of ['homepage','repository'])if(manifest[key]){const u=mcpAddress(manifest[key]);if(u.search)throw new Error('Plugin metadata URLs cannot contain query parameters.');}
  const extensions=manifest.extensions??{};
- if(Object.keys(extensions).some(key=>!['com.agentopia','com.openai'].includes(key)))throw new Error('This host supports packaged skills, remote MCP packages and descriptive OpenAI presentation metadata. Other extensions are not supported.');
+ if(Object.keys(extensions).some(key=>!['com.sylvana','com.openai'].includes(key)))throw new Error('This host supports packaged skills, remote MCP packages and descriptive OpenAI presentation metadata. Other extensions are not supported.');
  if(extensions['com.openai']!==undefined)validateOpenAIPresentation(extensions['com.openai']);
- if(extensions['com.agentopia']){const extension=extensions['com.agentopia'];if(!bundled||!(Object.keys(extension).length===1&&(['serper','tavily'].includes(extension.adapter)||extension.managedMcp===chromePluginName||extension.imageGeneration==='v1'&&manifest.name===imageGenerationPluginName)))throw new Error('Only pinned bundled plugins may select a managed runtime or search adapter.');}
+ if(extensions['com.sylvana']){const extension=extensions['com.sylvana'];if(!bundled||!(Object.keys(extension).length===1&&(['serper','tavily'].includes(extension.adapter)||extension.managedMcp===chromePluginName||extension.imageGeneration==='v1'&&manifest.name===imageGenerationPluginName||Object.entries(hostPluginFamilies).some(([family,row])=>extension.hostFamily===family&&manifest.name===row.name)||composioServicePackageSlug(normalized))))throw new Error('Only pinned bundled plugins may select a managed runtime or search adapter.');}
  if(value.mcp!==undefined){
   const portable=structuredClone(value.mcp);
   if(record(portable)&&record(portable.mcpServers))for(const server of Object.values(portable.mcpServers))if(record(server)){mcpOAuthDeclaration(server.extensions);delete server.extensions;}
@@ -45,17 +47,18 @@ export function validatePluginPackage(value:unknown,bundled=false):PluginPackage
    const u=mcpAddress(s.url);if(u.search||/\$\{|%24%7b/i.test(s.url))throw new Error('Plugin server URLs must be literal addresses without query parameters or credentials.');
   }
  }else if(!bundled&&!files)throw new Error('An imported plugin requires mcp.json or packaged skills.');
- if(bundled&&!extensions['com.agentopia']&&!value.mcp)throw new Error('A plugin must declare a supported connection.');
+ if(bundled&&!extensions['com.sylvana']&&!value.mcp)throw new Error('A plugin must declare a supported connection.');
  if(JSON.stringify(normalized).length>pluginSkillLimits.packageBytes)throw new Error('The normalized plugin exceeds 4 MB.');return normalized;
 }
 const canonical=(v:any):any=>Array.isArray(v)?v.map(canonical):record(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;
 export const pluginDigest=(pkg:PluginPackage)=>createHash('sha256').update(JSON.stringify(canonical(pkg))).digest('hex');
 export function validateLegacyPlugin(pkg:PluginPackage){if(!validator.getValidator(manifestSchema)(pkg.manifest).valid||Object.keys(pkg).length!==1||!/^mcp-[0-9a-f-]{36}$/.test(pkg.manifest.name))throw new Error('Invalid protected connection wrapper.');}
-export const searchPlugins=['serper','tavily'].map(adapter=>validatePluginPackage({manifest:{$schema:pluginSchemaUrl,name:adapter+'-search',version:'1.0.0',description:adapter==='serper'?'Search the web using your administrator’s Serper connection.':'Search the web using your administrator’s Tavily connection. A free monthly tier is available.',author:{name:'Agentopia'},extensions:{'com.agentopia':{adapter}}}},true));
-export const chromePlugin=validatePluginPackage({manifest:{$schema:pluginSchemaUrl,name:chromePluginName,version:'1.11.0',description:'Google Chrome DevTools: connect your Chrome session, inspect pages, capture screenshots, and use browser, network and performance tools.',author:{name:'Chrome DevTools'},license:'Apache-2.0',extensions:{'com.agentopia':{managedMcp:chromePluginName}}}},true);
-export const imagePlugin=validatePluginPackage({manifest:{$schema:pluginSchemaUrl,name:imageGenerationPluginName,version:'1.0.0',description:'Create and edit images through an explicitly configured image connection. Ordinary chats keep their selected AI connection. Every image request shows its provider, model and reference sharing for review.',author:{name:'Agentopia'},extensions:{'com.agentopia':{imageGeneration:'v1'}}}},true);
-export const composioMcpPlugin=validatePluginPackage({manifest:{$schema:pluginSchemaUrl,name:composioMcpPluginName,version:'1.0.0',description:'Connect your Composio account through browser sign-in and give selected agents access to its connected apps.',author:{name:'Agentopia'}},mcp:{$schema:mcpSchemaUrl,mcpServers:{composio:{type:'streamable-http',url:composioMcpUrl,extensions:{'com.openai':{auth:composioMcpAuth}}}}}},true);
-export const bundledPlugins=[...searchPlugins,chromePlugin,imagePlugin,composioMcpPlugin];
+export const searchPlugins=['serper','tavily'].map(adapter=>validatePluginPackage({manifest:{$schema:pluginSchemaUrl,name:adapter+'-search',version:'1.0.0',description:adapter==='serper'?'Search the web using your administrator’s Serper connection.':'Search the web using your administrator’s Tavily connection. A free monthly tier is available.',author:{name:'Sylvana'},extensions:{'com.sylvana':{adapter}}}},true));
+export const chromePlugin=validatePluginPackage({manifest:{$schema:pluginSchemaUrl,name:chromePluginName,version:'1.11.0',description:'Google Chrome DevTools: connect your Chrome session, inspect pages, capture screenshots, and use browser, network and performance tools.',author:{name:'Chrome DevTools'},license:'Apache-2.0',extensions:{'com.sylvana':{managedMcp:chromePluginName}}}},true);
+export const imagePlugin=validatePluginPackage({manifest:{$schema:pluginSchemaUrl,name:imageGenerationPluginName,version:'1.0.0',description:'Create and edit images through an explicitly configured image connection. Ordinary chats keep their selected AI connection. Every image request shows its provider, model and reference sharing for review.',author:{name:'Sylvana'},extensions:{'com.sylvana':{imageGeneration:'v1'}}}},true);
+export const composioMcpPlugin=validatePluginPackage({manifest:{$schema:pluginSchemaUrl,name:composioMcpPluginName,version:'1.0.0',description:'Connect your Composio account through browser sign-in and give selected agents access to its connected apps.',author:{name:'Sylvana'}},mcp:{$schema:mcpSchemaUrl,mcpServers:{composio:{type:'streamable-http',url:composioMcpUrl,extensions:{'com.openai':{auth:composioMcpAuth}}}}}},true);
+export const hostPlugins=Object.entries(hostPluginFamilies).map(([hostFamily,row])=>validatePluginPackage({manifest:{$schema:pluginSchemaUrl,name:row.name,version:'1.0.0',description:row.description,author:{name:'Sylvana'},extensions:{'com.sylvana':{hostFamily}}}},true));
+export const bundledPlugins=[...searchPlugins,chromePlugin,imagePlugin,composioMcpPlugin,...hostPlugins];
 export const examplePluginPackage:PluginPackage={manifest:{$schema:pluginSchemaUrl,name:'microsoft-learn',version:'1.0.0',description:'Search Microsoft Learn documentation.'},mcp:{$schema:mcpSchemaUrl,mcpServers:{docs:{type:'streamable-http',url:'https://learn.microsoft.com/api/mcp'}}}};
 
 // Compile a bounded, local-only JSON Schema before advertising or invoking a tool.

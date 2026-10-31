@@ -3,7 +3,7 @@ import {createServer,type Server} from 'node:http';
 import {randomBytes,timingSafeEqual,randomUUID} from 'node:crypto';
 import type {ToolDefinition} from './tool-contracts';
 
-/** Private native MCP transport for the existing Agentopia executor. Native V1
+/** Private native MCP transport for the existing Sylvana executor. Native V1
  * children inherit MCP configuration, but not app-server dynamic client tools. */
 export class CodexMcp {
  readonly bearer=randomBytes(32).toString('base64url');url='';
@@ -20,7 +20,7 @@ export class CodexMcp {
    let rpc:any;try{rpc=JSON.parse(Buffer.concat(chunks).toString('utf8'));if(!rpc||Array.isArray(rpc)||typeof rpc.method!=='string')throw new Error();}catch{res.writeHead(400).end();return;}
    const reply=(result:unknown,extra:Record<string,string>={})=>{if(!res.destroyed)res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store',...extra}).end(JSON.stringify({jsonrpc:'2.0',id:rpc.id,result}));};
    const error=(message:string)=>{if(!res.destroyed)res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'}).end(JSON.stringify({jsonrpc:'2.0',id:rpc.id,error:{code:-32602,message}}));};
-   if(rpc.method==='initialize'){if(this.sessions.size>=16){error('The private MCP connection limit was reached.');return;}const id=randomUUID();this.sessions.add(id);reply({protocolVersion:rpc.params?.protocolVersion??'2025-06-18',capabilities:{tools:{}},serverInfo:{name:'agentopia-host',version:'0.31.0'}},{'Mcp-Session-Id':id});return;}
+   if(rpc.method==='initialize'){if(this.sessions.size>=16){error('The private MCP connection limit was reached.');return;}const id=randomUUID();this.sessions.add(id);reply({protocolVersion:rpc.params?.protocolVersion??'2025-06-18',capabilities:{tools:{}},serverInfo:{name:'sylvana-host',version:'0.31.0'}},{'Mcp-Session-Id':id});return;}
    if(!this.sessions.has(session)){res.writeHead(404).end();return;}
    if(rpc.method==='notifications/cancelled'){this.calls.get(session+':'+String(rpc.params?.requestId))?.abort();res.writeHead(202).end();return;}
    if(rpc.id===undefined){res.writeHead(202).end();return;}
@@ -32,7 +32,7 @@ export class CodexMcp {
    const key=session+':'+String(rpc.id);if(this.calls.has(key)){error('This MCP request is already executing.');return;}
    const controller=new AbortController();this.calls.set(key,controller);res.once('close',()=>{if(!res.writableFinished)controller.abort();});
    try{const result=await this.execute(threadId,p.name,p.arguments,callId,controller.signal);reply(nativeMcpResult(result));}
-   catch{error(controller.signal.aborted?'This tool call was cancelled.':'Agentopia could not authorize or execute this native tool call.');}
+   catch{error(controller.signal.aborted?'This tool call was cancelled.':'Sylvana could not authorize or execute this native tool call.');}
    finally{this.calls.delete(key);}
   })().catch(()=>{if(!res.headersSent)res.writeHead(400);res.end();});});
  }

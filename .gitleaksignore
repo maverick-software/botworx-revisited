@@ -303,3 +303,6 @@ scripts/desktop/test-creation-transport116-postgres.mjs:generic-api-key:62
 
 # Generated dummy bearer prefix for a controlled local MCP server.
 scripts/desktop/test-normal-remote110-broker.mjs:generic-api-key:41
+
+# Reviewed SHA-256 for pinned Microsoft.Win32.Registry.AccessControl.dll; matched bundled DLL bytes.
+desktop/src/computer-runtime-manifest.json:generic-api-key:25

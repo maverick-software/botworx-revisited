@@ -10,7 +10,8 @@ export function startupLocation(path:string,remembered:DesktopLocation|null):Des
  if(parent)return {view:'chat',conversationId:parent[1]};
  const agent=/^\/agents\/([a-f0-9-]{36})$/i.exec(path);
  if(agent)return {view:'agents',agentId:agent[1]};
+ if(path==='/tools')return {view:'plugins'};
  if(['/agents','/plugins','/skills','/tools','/scheduled'].includes(path))return {view:path.slice(1) as DesktopLocation['view']};
  if(path==='/chats')return {view:'chat',...(remembered?.agentId?{agentId:remembered.agentId}:{}),...(!remembered?.conversationId&&remembered?.projectId?{projectId:remembered.projectId}:{})};
- return remembered;
+ return remembered?.view==='tools'?{...remembered,view:'plugins'}:remembered;
 }

@@ -4,7 +4,7 @@ import type {ToolActivity} from './tool-contracts';
 import type {FileOperationView,WorkspaceFileChange} from './file-operation-contracts';
 import type {DocumentInfo} from './document-contracts';
 import type {WorkspacePlan} from './plan-contracts';
-export type Provider = 'openrouter' | 'openai-oauth';
+export type Provider = 'openrouter' | 'openai-oauth' | 'openai-api' | 'sylvana';
 export type DesktopLocation={view:'chat'|'agents'|'plugins'|'skills'|'tools'|'scheduled';conversationId?:string;agentId?:string;projectId?:string;child?:import('./native-contracts').NativeChildLocation};
 export type DesktopPreferences={theme:'system'|'light'|'dark';textSize:'standard'|'large';sendWith:'enter'|'ctrl-enter';sidebarCollapsed:boolean;sidebarWidth?:number};
 export const defaultDesktopPreferences:DesktopPreferences={theme:'system',textSize:'standard',sendWith:'enter',sidebarCollapsed:false,sidebarWidth:244};
@@ -12,7 +12,7 @@ export type Thinking='default'|'none'|'minimal'|'low'|'medium'|'high'|'xhigh'|'m
 export type Model = {id:string;name:string;thinking?:Thinking[];inputModalities?:string[];supportsTools?:boolean};
 export type ModelChoice={model:string;thinking:Thinking};
 export type ModelChoices=Partial<Record<Provider,ModelChoice>>;
-export type ProviderStatus={openrouter:boolean;defaultModel:string;selections?:ModelChoices;preferChatGPT?:boolean;chatgpt:null|{email:string;workspace:string;authorized:boolean;welcome?:boolean;connectionIssue?:import('./oauth-recovery').ChatGPTConnectionIssue}};
+export type ProviderStatus={workspaceAI?:import('./workspace-ai').WorkspaceAI;canManageAI?:boolean;connections?:import('./sylvana-account').FirmConnections;openaiApi?:boolean;preferredProvider?:Provider;legalMode?:boolean;sylvana?:{linked:boolean;legalMode:boolean;email?:string;displayName?:string;firmId?:string;firmName?:string;role?:'owner'|'member';simulated:boolean;policyVersion?:number;allowance?:{unlimited_llm?:boolean;status:string;remaining_units:number;limit_units:number;reserved_units:number;resets_at?:string}};openrouter:boolean;defaultModel:string;selections?:ModelChoices;preferChatGPT?:boolean;chatgpt:null|{email:string;workspace:string;authorized:boolean;welcome?:boolean;connectionIssue?:import('./oauth-recovery').ChatGPTConnectionIssue}};
 export type ChatOptions={harness?:'codex'|'legacy';skills?:string[];windows?:string[];provider?:Provider;model?:string;thinking:Thinking;permission:'chat'|'ask'|'files'|'full';mode:'chat'|'plan';files:string[];goalId?:string;tools?:string[];sources?:import('./selected-context').SelectedContext[]};
 export const defaultChatOptions:ChatOptions={thinking:'default',permission:'ask',mode:'chat',files:[]};
 export type FileReference={id:string;name:string;kind:'file'|'folder';path:string;source?:'clipboard';bytes?:number;recoveryPaths?:string[]};
@@ -27,7 +27,7 @@ export type ProjectMemorySource={message_id:string;conversation_id:string;title:
 export type ProjectsState={projects:Project[];memberships:{conversation_id:string;project_id:string}[]};
 export type FileContext={name:string;text?:string;image?:string;pageImages?:(import('./pdf-page-contracts').PdfPageImage&{source?:string})[];fileCount?:number;notice?:string;document?:DocumentInfo;source?:Pick<import('./selected-context').SelectedContext,'kind'|'id'|'url'|'capturedAt'>};
 export type Goal={id:string;agent_id:string;conversation_id:string|null;project_id?:string|null;plan_id?:string|null;plan_snapshot?:WorkspacePlan|null;objective:string;status:'ready'|'running'|'paused'|'completed';max_turns:number|null;token_budget?:number|null;turns_used:number;note:string|null};
-export type Agent = {presentation?:import('./agent-presentation-contracts').AgentPresentation;id:string;name:string;description:string;system_instructions:string;provider:Provider;model:string;active?:boolean;handle?:string;role?:string};
+export type Agent = {builtin?:boolean;presentation?:import('./agent-presentation-contracts').AgentPresentation;id:string;name:string;description:string;system_instructions:string;provider:Provider;model:string;active?:boolean;handle?:string;role?:string};
 export type Conversation = {conversation_id:string;title:string;agent_id:string;last_active?:string;started_at?:string;pinned:boolean;archived:boolean;options?:ChatOptions};
 export type Message = {id:string;role:string;sender_agent_id?:string|null;content:{text:string;files?:FileContext[]};metadata:{scheduled_task?:{task_id:string;run_id:string;name:string;scheduled_for:string};chat_delivery?:import('./chat-origin').ChatDeliveryProvenance;agent?:import('./agent-contracts').AgentAttribution;native?:import('./native-contracts').NativeState;timing?:TurnTiming;status?:string;error?:string;options?:ChatOptions;goal_id?:string;tools?:ToolActivity[];project?:ProjectContext|null;project_memory?:ProjectMemorySource[];plan?:WorkspacePlan|null}};
 export type Identity = {id:string;email:string;admin:boolean};
@@ -41,8 +41,8 @@ export const capabilityOptions=[
  {key:'temporary_chat_links',name:'Temporary chat links',description:'Share a time-limited conversation link.',providers:[]},
 ] as const;
 export type Profile={username:string|null;first_name:string|null;last_name:string|null;company_name:string|null;title:string|null;mobile_number:string|null};
-export type ChatEvent = {scope?:'agent-draft-preview';preview?:{sessionId:string;status?:string;event?:Omit<ChatEvent,'preview'>};requestId:string;conversationId?:string;delta?:string;status?:string;error?:string;kind?:'agent-draft-preview'|'schedule'|'queue'|'agent'|'native'|'native-background'|'native-changes'|'started'|'goal'|'tool'|'plan'|'terminal'|'terminal-session'|'command-permissions'|'workspace'|'workspace-operation';native?:import('./native-contracts').NativeState;fileOperation?:FileOperationView;workspaceChange?:WorkspaceFileChange;workspace?:{id:string;referenceId:string;path:string;error?:string};commandPermissions?:CommandPermissions;ownerId?:string;terminal?:TerminalRun;terminalSession?:TerminalSession;goal?:Goal;goalId?:string;text?:string;tool?:ToolActivity;plan?:WorkspacePlan};
-export type RuntimeStatus = {phase:string;message:string;ready:boolean;recoveryOnly?:boolean};
+export type ChatEvent = {scope?:'agent-draft-preview';preview?:{sessionId:string;status?:string;event?:Omit<ChatEvent,'preview'>};requestId:string;conversationId?:string;delta?:string;status?:string;error?:string;kind?:'session-ended'|'agent-draft-preview'|'schedule'|'queue'|'agent'|'native'|'native-background'|'native-changes'|'started'|'goal'|'tool'|'plan'|'terminal'|'terminal-session'|'command-permissions'|'workspace'|'workspace-operation';native?:import('./native-contracts').NativeState;fileOperation?:FileOperationView;workspaceChange?:WorkspaceFileChange;workspace?:{id:string;referenceId:string;path:string;error?:string};commandPermissions?:CommandPermissions;ownerId?:string;terminal?:TerminalRun;terminalSession?:TerminalSession;goal?:Goal;goalId?:string;text?:string;tool?:ToolActivity;plan?:WorkspacePlan};
+export type RuntimeStatus = {phase:string;message:string;ready:boolean;recoveryOnly?:boolean;available?:boolean};
 export type PortableBackupStatus={phase:'idle'|'choosing'|'running';message:string};
 export type PortableBackupResult={destination:string;accounts:number;privateFiles:number;publicFiles:number;publicReferences:number;clipboardImages:number};
 export interface DesktopBridge {

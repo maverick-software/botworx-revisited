@@ -1,7 +1,8 @@
 import type {ThreadItem} from './codex-protocol/v2/ThreadItem';
 import type {ToolRequestUserInputQuestion} from './codex-protocol/v2/ToolRequestUserInputQuestion';
 import type {ThreadGoal} from './codex-protocol/v2/ThreadGoal';
-export type NativeItem={threadId:string;turnId:string;item:ThreadItem;completed:boolean;background?:'running'|'exited'|'stopped'|'interrupted';backgroundNote?:string};
+import type {ThreadTokenUsage} from './codex-protocol/v2/ThreadTokenUsage';
+export type NativeItem={threadId:string;turnId:string;item:ThreadItem;completed:boolean;background?:'running'|'exited'|'stopped'|'interrupted';backgroundNote?:string;questionAnswer?:{id:string;answers:Array<string|null>;status:'submitting'|'sent'|'uncertain';error?:string}};
 export type NativeBackgroundCommand={requestId:string;threadId:string;itemId:string;processId:string;command:string;cwd:string};
 export type NativeTurnDiff={threadId:string;turnId:string;diff:string;truncated:boolean};
 export type NativeApproval={id:string;threadId:string;turnId:string;itemId:string;kind:'command'|'file'|'input';command?:string;cwd?:string;reason?:string;questions?:ToolRequestUserInputQuestion[];status:'pending'|'answered'|'interrupted'};
@@ -11,7 +12,7 @@ export type NamedAgentResult={invocationId:string;instanceId:string;conversation
 export type NativeReport={id:string;status:NativeStatus;children:{threadId:string;turnId:string}[];assignments?:NamedAgentResult[];state:NativeState;error?:string};
 export type NativeNamedAssignment={childRequestId:string;childInstanceId:string;createdAt:string};
 export type NativePreviewContinuation={id:string;threadId:string;turnId:string;action:'send'|'retry-report';text:string;status:'pending'|'completed'|'failed'|'cancelled'|'interrupted';createdAt:string;error?:string|null};
-export type NativeState={previewContinuations?:NativePreviewContinuation[];namedAssignments?:NativeNamedAssignment[];composerGoalId?:string;goal?:ThreadGoal|null;goalTurns?:number;goalNote?:string;goalYielded?:boolean;diffs?:NativeTurnDiff[];consumedReports?:string[];tools?:import('./tool-contracts').ToolActivity[];version:string;threadId:string;turnId:string;items:NativeItem[];approvals:NativeApproval[];steering:{id:string;text:string;turnId?:string;source?:import('./chat-delivery').ChatDeliveryProvenance}[];children?:NativeChild[];reports?:NativeReport[];importedHistory?:boolean;branch?:boolean};
+export type NativeState={tokenUsage?:{turnId:string;value:ThreadTokenUsage};workspaceChanges?:import('./response-file-contracts').ResponseFileChange[];workspaceChangesNote?:string;previewContinuations?:NativePreviewContinuation[];namedAssignments?:NativeNamedAssignment[];composerGoalId?:string;goal?:ThreadGoal|null;goalTurns?:number;goalNote?:string;goalYielded?:boolean;diffs?:NativeTurnDiff[];consumedReports?:string[];tools?:import('./tool-contracts').ToolActivity[];version:string;threadId:string;turnId:string;items:NativeItem[];approvals:NativeApproval[];steering:{id:string;text:string;turnId?:string;source?:import('./chat-delivery').ChatDeliveryProvenance}[];children?:NativeChild[];reports?:NativeReport[];importedHistory?:boolean;branch?:boolean};
 export type NativeChildView={requestId:string;conversationId:string;provider:string;model:string;child:NativeChild};
 export type NativeChildLocation={requestId:string;threadId:string};
-export type NativeSkill={name:string;description:string;path:string;enabled:boolean;scope:string;plugin?:string};
+export type NativeSkill={name:string;description:string;path:string;enabled:boolean;scope:string;plugin?:string;aliases?:string[];skillId?:string};

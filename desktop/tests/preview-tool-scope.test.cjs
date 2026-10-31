@@ -1,6 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),os=require('node:os');
 const {mkdtemp,mkdir,writeFile,readFile,rm}=require('node:fs/promises');
-const build=process.env.AGENTOPIA_PREVIEW_BUILD||path.resolve(__dirname,'../build');
+const build=process.env.SYLVANA_PREVIEW_BUILD||path.resolve(__dirname,'../build');
 const {previewToolScope,resolvePreviewToolScope,toolActivityTable,previewScopedToolNames}=require(path.join(build,'tool-execution-scope.js'));
 const {ToolService}=require(path.join(build,'tool-service.js'));
 const {WorkspaceFiles}=require(path.join(build,'workspace.js'));

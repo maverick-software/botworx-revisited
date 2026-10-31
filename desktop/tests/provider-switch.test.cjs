@@ -6,9 +6,9 @@ const {createClient}=require('@supabase/supabase-js'),{Broker}=require('./legacy
 class Secrets{data=new Map();get(key){return this.data.get(key);}async set(key,value){if(value===undefined)this.data.delete(key);else this.data.set(key,value);}}
 const check=result=>{if(result.error)throw new Error(result.error.message);return result.data;};
 test('one conversation switches ChatGPT → OpenRouter → ChatGPT with history, images, reasoning, and credential isolation',async()=>{
- const state=JSON.parse(execFileSync('wsl.exe',['-d',testDistribution(),'-u','agentopia','--cd','/home/agentopia/app','--exec','supabase','stack','status','--output-format','json'],{encoding:'utf8',windowsHide:true}));
+ const state=JSON.parse(execFileSync('wsl.exe',['-d',testDistribution(),'-u','sylvana','--cd','/home/sylvana/app','--exec','supabase','stack','status','--output-format','json'],{encoding:'utf8',windowsHide:true}));
  const db=createClient(state.env.API_URL,state.env.SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}}),secrets=new Secrets(),events=[],providers=new Providers(secrets,'urn:uuid:'+randomUUID());
- const broker=new Broker(state.env,secrets,providers,event=>events.push(event)),accounts=[],originalFetch=global.fetch,root=await mkdtemp(path.join(os.tmpdir(),'agentopia-provider-switch-'));
+ const broker=new Broker(state.env,secrets,providers,event=>events.push(event)),accounts=[],originalFetch=global.fetch,root=await mkdtemp(path.join(os.tmpdir(),'sylvana-provider-switch-'));
  const password=randomBytes(24).toString('base64url')+'Aa1!';let agent,openaiBody,routerBody,routerMode='success',oauthCalls=0,routerCalls=0;
  const wait=async id=>{for(let n=0;n<160;n++){const result=events.find(e=>e.requestId===id&&e.status);if(result)return result;await new Promise(r=>setTimeout(r,50));}throw new Error('Provider fixture timed out.');};
  try{

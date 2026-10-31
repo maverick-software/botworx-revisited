@@ -3,7 +3,7 @@ const {mkdtemp,writeFile,readFile,mkdir,readdir,realpath,rm}=require('node:fs/pr
 const {prepareFileMove}=require('../build/file-move.js');
 const script=path.resolve(__dirname,'../runtime/file-actions.ps1');
 test('Windows moves preserve files and directory contents, refuse occupied destinations and support case-only names',async()=>{
- const root=await mkdtemp(path.join(os.tmpdir(),'agentopia-file-move-')),signal=new AbortController().signal;
+ const root=await mkdtemp(path.join(os.tmpdir(),'sylvana-file-move-')),signal=new AbortController().signal;
  const move=async(from,to)=>{const helper=await prepareFileMove(script,signal);try{await helper.commit(path.join(root,from),path.join(root,to));}finally{await helper.close();}};
  try{
   await writeFile(path.join(root,'original.md'),'KEEP-ORIGINAL');await writeFile(path.join(root,'occupied.md'),'KEEP-DESTINATION');
@@ -12,10 +12,10 @@ test('Windows moves preserve files and directory contents, refuse occupied desti
   await move('renamed.md','Renamed.md');assert.equal(path.basename(await realpath(path.join(root,'Renamed.md'))),'Renamed.md');
   await mkdir(path.join(root,'folder'));await writeFile(path.join(root,'folder','nested.md'),'NESTED');await move('folder','moved-folder');assert.equal(await readFile(path.join(root,'moved-folder','nested.md'),'utf8'),'NESTED');
   await move('moved-folder','moved-folder');assert.equal(await readFile(path.join(root,'moved-folder','nested.md'),'utf8'),'NESTED');
- }finally{assert(path.resolve(root).startsWith(path.join(os.tmpdir(),'agentopia-file-move-')));await rm(root,{recursive:true,force:true});}
+ }finally{assert(path.resolve(root).startsWith(path.join(os.tmpdir(),'sylvana-file-move-')));await rm(root,{recursive:true,force:true});}
 });
 test('closing a prepared Windows helper without committing leaves its source untouched',async()=>{
- const root=await mkdtemp(path.join(os.tmpdir(),'agentopia-file-move-'));
+ const root=await mkdtemp(path.join(os.tmpdir(),'sylvana-file-move-'));
  try{await writeFile(path.join(root,'notes.md'),'UNCHANGED');const helper=await prepareFileMove(script,new AbortController().signal);await helper.close();assert.deepEqual(await readdir(root),['notes.md']);assert.equal(await readFile(path.join(root,'notes.md'),'utf8'),'UNCHANGED');}
- finally{assert(path.resolve(root).startsWith(path.join(os.tmpdir(),'agentopia-file-move-')));await rm(root,{recursive:true,force:true});}
+ finally{assert(path.resolve(root).startsWith(path.join(os.tmpdir(),'sylvana-file-move-')));await rm(root,{recursive:true,force:true});}
 });

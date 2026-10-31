@@ -1,10 +1,11 @@
+import {currentBrandKind} from './legacy-brand';
 import {recoveryAccount} from './recovery-owner';
 import path from 'node:path';
 import {lstat,realpath,readFile} from 'node:fs/promises';
 import type {Secrets} from './secrets';
 import type {WorkspaceFiles} from './workspace';
 import {validatePublicReferenceIndex,publicReferenceIndexId,verifyRecoveredPublicReferences,translateRecoveredPath,type PublicOutputInventory,type PublicReferenceIndex} from './public-file-recovery';
-export type RestoredPublicFileRecord={format:1;kind:'agentopia-restored-public-files';index:PublicReferenceIndex;inventory:PublicOutputInventory;indexSha256:string;archiveSha256:string};
+export type RestoredPublicFileRecord={format:1;kind:'sylvana-restored-public-files';index:PublicReferenceIndex;inventory:PublicOutputInventory;indexSha256:string;archiveSha256:string};
 export class RestoredPublicFiles{
  private loading?:Promise<RestoredPublicFileRecord|undefined>;private record?:RestoredPublicFileRecord;
  private restoring=new Map<string,Promise<void>>();
@@ -14,7 +15,7 @@ export class RestoredPublicFiles{
   const same=(a:string,b:string)=>process.platform==='win32'?a.toLowerCase()===b.toLowerCase():a===b;
   if(!info.isFile()||info.isSymbolicLink()||info.nlink!==1||info.size>4*1024**2||!same(await realpath(file),file))throw Error('The public-file recovery record is linked or invalid.');
   const record=JSON.parse(await readFile(file,'utf8')) as RestoredPublicFileRecord;
-  if(record?.format!==1||record.kind!=='agentopia-restored-public-files'||!/^[a-f0-9]{64}$/.test(record.archiveSha256))throw Error('Invalid public-file recovery record.');
+  if(record?.format!==1||currentBrandKind(record.kind)!=='sylvana-restored-public-files'||!/^[a-f0-9]{64}$/.test(record.archiveSha256))throw Error('Invalid public-file recovery record.');
   validatePublicReferenceIndex(record.index,record.inventory);if(publicReferenceIndexId(record.index)!==record.indexSha256)throw Error('The recovered attachment index changed.');
   return this.record=record;
  })();}

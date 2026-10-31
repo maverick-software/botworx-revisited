@@ -16,10 +16,10 @@ export async function storageInventory(root:string,contents=false):Promise<Stora
  await walk('',0);return {files,folders,bytes,sample,fingerprint:createHash('sha256').update(JSON.stringify(rows)).digest('hex')};
 }
 export async function removeStorageCopy(parent:string,name:string,plan:string,expected:StorageInventory,guard:()=>Promise<void>){
- if(!storageCopyName(name)||!storageUuid(plan))throw Error('Invalid working-copy cleanup identity.');await storageDirectory(parent);const target=path.join(parent,name),staged=path.join(parent,'.agentopia-cleanup-'+plan);if(!storageWithin(parent,target)||path.dirname(target)!==parent)throw Error('This working copy left its account storage.');
+ if(!storageCopyName(name)||!storageUuid(plan))throw Error('Invalid working-copy cleanup identity.');await storageDirectory(parent);const target=path.join(parent,name),staged=path.join(parent,'.sylvana-cleanup-'+plan);if(!storageWithin(parent,target)||path.dirname(target)!==parent)throw Error('This working copy left its account storage.');
  await guard();const current=await storageInventory(target,true);if(current.fingerprint!==expected.fingerprint)throw Error('The working copy changed after review. Review it again before deleting it.');await guard();
  try{await lstat(staged);throw Error('A previous cleanup needs inspection before continuing.');}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;}
  await rename(target,staged);
  try{await guard();const checked=await storageInventory(staged,true);if(checked.fingerprint!==expected.fingerprint)throw Error('The working copy changed before cleanup.');await guard();await storageDirectory(staged);await rm(staged,{recursive:true,force:false});}
- catch(error){let restored=false;try{await lstat(target);}catch(missing){if((missing as NodeJS.ErrnoException).code==='ENOENT'){try{await rename(staged,target);restored=true;}catch{}}}throw Error((error as Error).message+(restored?' The remaining folder is back in its original location.':' Inspect the remaining .agentopia-cleanup folder in Windows before trying again.'));}
+ catch(error){let restored=false;try{await lstat(target);}catch(missing){if((missing as NodeJS.ErrnoException).code==='ENOENT'){try{await rename(staged,target);restored=true;}catch{}}}throw Error((error as Error).message+(restored?' The remaining folder is back in its original location.':' Inspect the remaining .sylvana-cleanup folder in Windows before trying again.'));}
 }

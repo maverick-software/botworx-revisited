@@ -30,7 +30,7 @@ test('provider selection preserves compatible thinking and restores remembered m
  assert.equal(selectModel([]),undefined);
 });
 test('submitted attachments authorize context while ownership, sensitivity, and traversal limits remain enforced',async()=>{
- const root=await mkdtemp(path.join(os.tmpdir(),'agentopia-context-'));const secrets=new Secrets();let approvals=0;
+ const root=await mkdtemp(path.join(os.tmpdir(),'sylvana-context-'));const secrets=new Secrets();let approvals=0;
  const files=new WorkspaceFiles(secrets,{showMessageBox:async()=>{approvals++;return {response:0};}});
  try{
   await writeFile(path.join(root,'notes.md'),'Public project notes');await writeFile(path.join(root,'.env'),'SECRET_DO_NOT_SHARE');await mkdir(path.join(root,'.codex'));await writeFile(path.join(root,'.codex','auth.json'),'PRIVATE_AUTH');await mkdir(path.join(root,'sub'));await writeFile(path.join(root,'sub','data.csv'),'a,b\n1,2');
@@ -49,7 +49,7 @@ test('microphone WAV encoding downsamples correctly and rejects malformed record
  assert.throws(()=>validateRecording(Buffer.from('not audio').toString('base64')),/Record mono/);const malformed=Buffer.from(bytes);malformed.writeUInt16LE(2,22);assert.throws(()=>validateRecording(malformed.toString('base64')),/Record mono/);
 });
 test('picking a registered file again returns its selected ID, and cancelling selects nothing',async()=>{
- const root=await mkdtemp(path.join(os.tmpdir(),'agentopia-pick-')),file=path.join(root,'notes.md');
+ const root=await mkdtemp(path.join(os.tmpdir(),'sylvana-pick-')),file=path.join(root,'notes.md');
  let canceled=false;const files=new WorkspaceFiles(new Secrets(),{showOpenDialog:async()=>({canceled,filePaths:canceled?[]:[file]})});
  try{
   await writeFile(file,'Selected twice');const original=await files.add('owner',[file]);

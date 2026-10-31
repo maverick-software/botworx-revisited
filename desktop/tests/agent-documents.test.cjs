@@ -1,6 +1,6 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),os=require('node:os');
 const fs=require('node:fs/promises'),{randomUUID,createHash}=require('node:crypto');
-const build=process.env.AGENTOPIA_AGENT_DOCUMENT_BUILD||path.join(__dirname,'../build');
+const build=process.env.SYLVANA_AGENT_DOCUMENT_BUILD||path.join(__dirname,'../build');
 const {AgentDocuments}=require(path.join(build,'agent-documents.js'));
 const {DocumentReader}=require(path.join(build,'documents.js'));
 const hash=value=>createHash('sha256').update(value).digest('hex');

@@ -3,7 +3,7 @@ import {draftPreviewId} from "./agent-draft-preview-contracts";
 import {editorDraftScope} from "./agent-editor-draft-contracts";
 import {decodeEditorJournal,editorJournalIdentity} from "./editor-journal-codec";
 import {recoverEditorPayload} from "./editor-draft-recovery";
-export const journalRecoveryPrefixes=(owner:string)=>['agentopia.editor-draft.'+owner+':','agentopia.preview.'+owner+':'];
+export const journalRecoveryPrefixes=(owner:string)=>['sylvana.editor-draft.'+owner+':','sylvana.preview.'+owner+':'];
 export type JournalRecoverySummary={id:number;key:string;scope:string|null;kind:'journal'|'legacy';characters:number;retired?:boolean};
 export type JournalRecoveryPage={rows:JournalRecoverySummary[];total:number;nextBefore:number|null};
 export type JournalRecoveryCopy=JournalRecoverySummary&{raw:string};

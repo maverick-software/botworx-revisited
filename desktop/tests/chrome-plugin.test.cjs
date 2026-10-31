@@ -3,7 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),{randomUUID
 const {createClient}=require('@supabase/supabase-js'),{Plugins}=require('../build/plugins.js'),{RemoteTools}=require('../build/remote-tools.js'),{chromeConnectionId,chromePluginName}=require('../build/chrome-contracts.js');
 const check=r=>{if(r.error)throw new Error(r.error.message);return r.data;};
 test('managed Chrome grants, selected connections, plan restrictions, images, revocation and reviewed file hashes',async()=>{
- const state=JSON.parse(execFileSync('wsl.exe',['-d',testDistribution(),'-u','agentopia','--cd','/home/agentopia/app','--exec','supabase','stack','status','--output-format','json'],{encoding:'utf8',windowsHide:true,stdio:['ignore','pipe','pipe']})),db=createClient(state.env.API_URL,state.env.SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}}),registry=new Plugins(db),remote=new RemoteTools(db),accounts=[];
+ const state=JSON.parse(execFileSync('wsl.exe',['-d',testDistribution(),'-u','sylvana','--cd','/home/sylvana/app','--exec','supabase','stack','status','--output-format','json'],{encoding:'utf8',windowsHide:true,stdio:['ignore','pipe','pipe']})),db=createClient(state.env.API_URL,state.env.SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}}),registry=new Plugins(db),remote=new RemoteTools(db),accounts=[];
  let connected=true,epoch=1,calls=0;
  const schema=(properties={})=>({type:'object',properties,additionalProperties:false});
  const tools=[{name:'take_screenshot',inputSchema:schema({filePath:{type:'string'}})},{name:'click',inputSchema:schema()},{name:'upload_file',inputSchema:schema({filePaths:{type:'array',items:{type:'string'}}})}];

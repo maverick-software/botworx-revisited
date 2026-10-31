@@ -8,6 +8,6 @@ END $$;
 DROP SCHEMA public CASCADE;
 CREATE SCHEMA public;
 GRANT USAGE ON SCHEMA public TO anon,authenticated,service_role;
-DROP SCHEMA agentopia_desktop CASCADE;
+DROP SCHEMA sylvana_desktop CASCADE;
 DELETE FROM auth.users WHERE email='fresh-admin-proof@example.com';
 COMMIT;

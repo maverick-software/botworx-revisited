@@ -195,7 +195,7 @@
     "PIL/features.py": "377f0ed5a0d19df432fc38dc04160c8565863c48dfef72f676b269d44563d454",
     "PIL/py.typed": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "PIL/report.py": "ea6ecd3afd5adb8e7bed9889a315fcf62a7925e3a07f63b517de5febed4ae5a3",
-    "bootstrap/sitecustomize.py": "7b3d19f588e13b4d298a43be4500b56adc067816aff475dd52e54d151be0d012",
+    "bootstrap/sitecustomize.py": "f5c19ee2dddfbb8dc8e645d9d4f2369583a6e217eaacc512fd7aef9771d5844c",
     "charset_normalizer-3.5.2.dist-info/METADATA": "49e955a09e1a159e0846872798006e8db7d518d8d70c637066fefdb08d3d9f7b",
     "charset_normalizer-3.5.2.dist-info/RECORD": "d99fd97467d5016419d0b6bee634efc254ac2bb354948f4929b893ee8d61fb60",
     "charset_normalizer-3.5.2.dist-info/WHEEL": "f8868e546779e082b2f4ef1acdce705bd9cc24829ee8add213946b7906f8242d",

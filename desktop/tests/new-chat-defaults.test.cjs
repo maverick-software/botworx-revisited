@@ -26,18 +26,17 @@ test('empty new drafts receive current defaults while existing conversations, te
  assert(!needsNewChatDefaults('conversation:saved',empty));assert(!needsNewChatDefaults('child:request:thread',empty));assert(!needsNewChatDefaults('new:agent:home',{...empty,text:'Unsent work'}));
  for(const field of ['files','windows','skills'])assert(!needsNewChatDefaults('new:agent:home',{...empty,options:{...empty.options,[field]:['selected']}}));
 });
-test('default model resolution uses only the selected connection and never spends through OpenRouter after a ChatGPT catalog failure',async()=>{
- const options={...defaultChatOptions,provider:'openrouter',model:'openai/gpt-6.1-sol',thinking:'high',harness:'codex'},calls=[],fixture={providers:{status:()=>both},catalog:async provider=>{calls.push(provider);return [{id:'gpt-6.1-sol',thinking:['low','high']}];},effectiveOptions:(_user,value)=>value};
- const resolved=await Broker.prototype.newOptions.call(fixture,{id:'owner'},options);assert.equal(resolved.provider,'openai-oauth');assert.equal(resolved.model,'gpt-6.1-sol');assert.equal(resolved.thinking,'high');assert.deepEqual(calls,['openai-oauth']);assert.equal(options.provider,'openrouter');
- fixture.catalog=async provider=>{calls.push(provider);throw Error('Offline');};const offline=await Broker.prototype.newOptions.call(fixture,{id:'owner'},options);assert.equal(offline.provider,'openai-oauth');assert.equal(offline.model,undefined);assert.equal(offline.thinking,'default');assert(calls.every(provider=>provider==='openai-oauth'));
- fixture.catalog=async()=>[];assert.equal((await Broker.prototype.newOptions.call(fixture,{id:'owner'},options)).model,undefined);
- fixture.providers.status=()=>({...both,preferChatGPT:false});fixture.catalog=async provider=>{assert.equal(provider,'openrouter');return [{id:'openai/gpt-6.1-sol',thinking:['high']}];};assert.equal((await Broker.prototype.newOptions.call(fixture,{id:'owner'},options)).provider,'openrouter');
+test('new defaults select a backend service level without loading or exposing a model catalog',async()=>{
+ const options={...defaultChatOptions,provider:'openrouter',model:'old/vendor-model',thinking:'high',harness:'codex'},fixture={providers:{account:{status:()=>({linked:false})},status:()=>both},catalog:async()=>{throw Error('The composer must not load an underlying model catalog');},effectiveOptions:(_user,value)=>value};
+ const resolved=await Broker.prototype.newOptions.call(fixture,{id:'owner'},options);assert.equal(resolved.provider,'openai-oauth');assert.equal(resolved.model,'standard');assert.equal(resolved.thinking,'default');assert.equal(options.model,'old/vendor-model');
+ assert.equal((await Broker.prototype.newOptions.call(fixture,{id:'owner'},{...options,model:'advanced'})).model,'advanced');
+ fixture.providers.status=()=>({...both,preferChatGPT:false});assert.equal((await Broker.prototype.newOptions.call(fixture,{id:'owner'},options)).provider,'openrouter');
 });
-
-test('a recorded ChatGPT authorization failure retains its preferred selection without loading either provider catalog',async()=>{
- const issue={kind:'reauthorize',code:'invalid_grant',message:'Continue with ChatGPT',at:new Date().toISOString()},status={...both,chatgpt:{authorized:false,connectionIssue:issue},selections:{'openai-oauth':{model:'gpt-6.1-sol',thinking:'high'}}};
- assert.equal(newChatProvider(status,'openrouter'),'openai-oauth');assert.equal(newChatProvider({...status,preferChatGPT:false},'openrouter'),'openrouter');
- const fixture={providers:{status:()=>status},catalog:async()=>{throw Error('No catalog request should be made before reconnection.');},effectiveOptions:(_user,value)=>value};
- const options={...defaultChatOptions,provider:'openrouter',model:'openai/gpt-6.1-sol'};
- const resolved=await Broker.prototype.newOptions.call(fixture,{id:'owner'},options);assert.equal(resolved.provider,'openai-oauth');assert.equal(resolved.model,'gpt-6.1-sol');assert.equal(resolved.thinking,'high');assert.equal(options.provider,'openrouter');
+test('Legal Compliance always chooses Sylvana even when a direct connection is preferred',()=>{
+ assert.equal(newChatProvider({...both,legalMode:true,preferredProvider:'openai-oauth'},'openrouter'),'sylvana');
+ assert.equal(newChatProvider({...both,sylvana:{linked:true},preferredProvider:'sylvana'}),'sylvana');
+});
+test('a recorded ChatGPT authorization failure retains its connection and service level for reconnection',async()=>{
+ const status={...both,chatgpt:{authorized:false,connectionIssue:{kind:'reauthorize'}}},fixture={providers:{account:{status:()=>({linked:false})},status:()=>status},effectiveOptions:(_user,value)=>value};
+ const resolved=await Broker.prototype.newOptions.call(fixture,{id:'owner'},{...defaultChatOptions,provider:'openrouter',model:'advanced'});assert.equal(resolved.provider,'openai-oauth');assert.equal(resolved.model,'advanced');
 });

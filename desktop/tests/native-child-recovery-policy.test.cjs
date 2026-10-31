@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),{randomUUID}=require('node:crypto');
-const root=process.env.AGENTOPIA_TEST_ROOT??path.resolve(__dirname,'../..'),build=process.env.AGENTOPIA_AGENT_TEST_BUILD??path.resolve(__dirname,'../build'),{Broker}=require(path.join(build,'broker.js')),{agentPolicy,defaultAgentPolicy}=require(path.join(build,'agent-contracts.js')),{PGlite}=require(path.join(root,'.supabase/desktop-scheduler/pg-fixture/node_modules/@electric-sql/pglite'));
+const root=process.env.SYLVANA_TEST_ROOT??path.resolve(__dirname,'../..'),build=process.env.SYLVANA_AGENT_TEST_BUILD??path.resolve(__dirname,'../build'),{Broker}=require(path.join(build,'broker.js')),{agentPolicy,defaultAgentPolicy}=require(path.join(build,'agent-contracts.js')),{PGlite}=require(path.join(root,'.supabase/desktop-scheduler/pg-fixture/node_modules/@electric-sql/pglite'));
 
 test('native child recovery normalizes PostgreSQL JSON policy order while retaining every authority check',async t=>{
  const db=new PGlite();t.after(()=>db.close());const canonical=agentPolicy({...defaultAgentPolicy,tools:null,delegation:true,memory:false,memoryWrite:false}),stored=(await db.query('SELECT $1::jsonb AS policy',[JSON.stringify(canonical)])).rows[0].policy;

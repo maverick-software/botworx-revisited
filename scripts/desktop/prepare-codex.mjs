@@ -28,7 +28,7 @@ if(process.argv.includes('--verify')){
   if(model.slug.startsWith('gpt-')||/^o[134]/.test(model.slug))extra.push({...model,slug:'openai/'+model.slug});
  }
  catalog.models.push(...extra);await writeFile(path.join(dest,'models.json'),JSON.stringify(catalog));
- await writeFile(path.join(dest,'CATALOG-NOTICE.txt'),'Agentopia modifies the pinned Codex model catalog to select native V1 multi-agent coordination and HTTP Responses for both connections. It adds OpenRouter-qualified model slugs. The Codex executables and built-in agent loop are unchanged. Source: '+source+'codex-rs/models-manager/models.json\n');
+ await writeFile(path.join(dest,'CATALOG-NOTICE.txt'),'Sylvana modifies the pinned Codex model catalog to select native V1 multi-agent coordination and HTTP Responses for both connections. It adds OpenRouter-qualified model slugs. The Codex executables and built-in agent loop are unchanged. Source: '+source+'codex-rs/models-manager/models.json\n');
  const names=['x86_64-pc-windows-msvc/bin/codex.exe','x86_64-pc-windows-msvc/bin/codex-code-mode-host.exe','x86_64-pc-windows-msvc/codex-resources/codex-command-runner.exe','x86_64-pc-windows-msvc/codex-resources/codex-windows-sandbox-setup.exe','x86_64-pc-windows-msvc/codex-path/rg.exe','models.json','LICENSE','NOTICE'];
  const files={};for(const name of names)files[name]=sha(await readFile(path.join(dest,name)));
  await writeFile(path.join(dest,'manifest.json'),JSON.stringify({version,packageIntegrity:'sha512-'+integrity,files},null,2));console.log('Prepared Codex '+version+' with native V1 subagents.');

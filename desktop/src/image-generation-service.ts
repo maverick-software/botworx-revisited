@@ -49,6 +49,7 @@ export class ImageGenerationService{
   const connection=this.connections.connection(owner),fingerprint=this.connections.fingerprint(owner);
   const authorize=async()=>{signal.throwIfAborted();await execution.guard();await this.ownerGuard(owner);await this.registry.imageGeneration(owner,agent);if(!this.connections.configured(owner)||this.connections.fingerprint(owner)!==fingerprint)throw new Error('The image connection changed. Review a new request with its current settings.');};
   await authorize();
+  const dispatchConnection=await this.connections.resolve(owner);
   const references:ImageGenerationInput['references']=[],checks:Array<()=>Promise<void>>=[];
   for(const reference of args.references){
    const load=async()=>{
@@ -60,7 +61,7 @@ export class ImageGenerationService{
   }
   const input={prompt:args.prompt,transparentBackground:args.transparent_background,references};
   const guard=async()=>{await authorize();for(const check of checks)await check();await authorize();};
-  const route=await imageRoute(connection.provider,connection.model,input,AbortSignal.any([signal,AbortSignal.timeout(20000)]),this.fetcher);await guard();
+  const route=await imageRoute(dispatchConnection.provider,dispatchConnection.model,input,AbortSignal.any([signal,AbortSignal.timeout(20000)]),connection.provider==='sylvana'?this.connections.transport(owner):this.fetcher);await guard();
   const argumentsHash=hash(JSON.stringify([args.prompt,args.transparent_background,args.references,references.map(reference=>hash(reference.bytes))]));
   const claim=data(await this.db.rpc('desktop_claim_image_generation',{p_user:owner,p_request:request.id,p_agent:agent,p_thread:nativeThreadId??'',p_call:callId,p_hash:argumentsHash,p_arguments:args,p_connection:{provider:connection.provider,model:connection.model,...(route.providerTag?{endpoint:route.providerTag}:{})}}));
   if(!claim.created)return claim.activity?.result?{...claim.activity.result,duplicate:true}:{error:claim.activity?.error??'This image operation was already attempted. Inspect its saved activity; do not repeat it.',duplicate:true};
@@ -68,12 +69,12 @@ export class ImageGenerationService{
   const publish=(row:ToolActivity)=>this.emit(owner,{kind:'tool',requestId:request.id,conversationId:request.conversation_id,tool:{...row,...(options.permission==='full'&&row.status==='awaiting_approval'?{status:'running' as const}:{}),...(nativeThreadId?{native_call_id:callId}:{})}});publish(claim.activity);
   const transition=async(next:string,result:unknown=null,error:string|null=null,approval:ToolApproval|null=null)=>{const row=data(await this.db.rpc('desktop_transition_image_generation',{p_user:owner,p_id:operation.id,p_expected:status,p_status:next,p_result:result,p_error:error,p_approval:approval}));status=next;publish(row);return row;};
   try{
-   const approval:ToolApproval={source:connection.provider==='openrouter'?'OpenRouter image connection':'OpenAI API image connection',tool:'Create image',description:'This uses the image plugin’s paid connection. The prompt and listed image references are shared with that provider after approval. The chat keeps its selected model. One image request will be sent; interrupted or uncertain requests are never automatically repeated.',arguments:{model:connection.model,...(route.providerTag?{endpoint:route.providerTag}:{}),prompt:args.prompt,transparent_background:args.transparent_background,references:args.references,pricing:route.pricing,cost:route.pricing.length?'Usage-based pricing; final cost is reported when available.':'Final cost is unavailable in advance. Check the provider’s current pricing.'}};
+   const approval:ToolApproval={source:connection.provider==='sylvana'?'Sylvana managed image connection':connection.provider==='openrouter'?'OpenRouter image connection':'OpenAI API image connection',tool:'Create image',description:'This uses the image plugin’s paid connection. The prompt and listed image references are shared with that provider after approval. The chat keeps its selected model. One image request will be sent; interrupted or uncertain requests are never automatically repeated.',arguments:{model:connection.model,...(route.providerTag?{endpoint:route.providerTag}:{}),prompt:args.prompt,transparent_background:args.transparent_background,references:args.references,pricing:route.pricing,cost:route.pricing.length?'Usage-based pricing; final cost is reported when available.':'Final cost is unavailable in advance. Check the provider’s current pricing.'}};
    // Register the pending decision before publishing it to the renderer.
    const approved=execution.review(operation.id,approval);approved.catch(()=>{});await transition('prepared',null,null,approval);
    if(!await approved){const result={denied:true,message:'The image request was declined. No image request was sent. Do not retry it.'};await transition('declined',result);return result;}
    await guard();
-   const response=await generateImage(connection,input,{signal,route,fetch:this.fetcher,validate:guard,credential:async()=>this.connections.credential(owner,connection.provider)??'',dispatched:async()=>{await transition('dispatched');dispatched=true;}});
+   const response=await generateImage(dispatchConnection,input,{signal,route,fetch:connection.provider==='sylvana'?this.connections.transport(owner):this.fetcher,validate:guard,credential:async()=>await this.connections.credentialFor(owner,connection.provider),dispatched:async()=>{await transition('dispatched');dispatched=true;}});
    const asset=await this.images.write(this.scope(operation),response.bytes,guard);
    const receipt={image:{...asset,provider:response.provider,model:response.model,costUSD:response.costUSD,...(response.providerRequestId?{providerRequestId:response.providerRequestId}:{})},message:'Image saved in this chat. Reference this generated image by its ID for a later edit.'};
    await transition('completed',receipt);

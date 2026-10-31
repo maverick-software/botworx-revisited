@@ -23,7 +23,7 @@ function completion(child:ReturnType<typeof spawn>){
  });
 }
 export async function sendFiles(files:{name:string;file:string}[],destination:string,root=false,distribution=legacyDistribution){
- const child=spawn('wsl.exe',[...transferPrefix(distribution,root?'root':'agentopia'),'--exec','python3','-c',unpack,destination],{windowsHide:true,stdio:['pipe','ignore','ignore']});
+ const child=spawn('wsl.exe',[...transferPrefix(distribution,root?'root':'sylvana'),'--exec','python3','-c',unpack,destination],{windowsHide:true,stdio:['pipe','ignore','ignore']});
  const done=completion(child),archive=tar.pack();
  const transfer=pipeline(archive,child.stdin!);
  try{
@@ -38,7 +38,7 @@ export async function sendFiles(files:{name:string;file:string}[],destination:st
 export async function receiveBackup(source:string,destination:string,distribution=legacyDistribution){
  await mkdir(destination,{recursive:true});
  const names=['database.dump','auth.dump','application.dump','vault.dump','pgsodium_root.key','manifest.json'];
- const child=spawn('wsl.exe',[...transferPrefix(distribution,'agentopia'),'--exec','tar','-cf','-','-C',source,...names],{windowsHide:true,stdio:['ignore','pipe','ignore']});
+ const child=spawn('wsl.exe',[...transferPrefix(distribution,'sylvana'),'--exec','tar','-cf','-','-C',source,...names],{windowsHide:true,stdio:['ignore','pipe','ignore']});
  const archive=tar.extract(),done=completion(child);
  archive.on('entry',(header,stream,next)=>{
   if(!names.includes(header.name)||header.type!=='file'){stream.resume();archive.destroy(new Error('Invalid backup resource.'));return;}

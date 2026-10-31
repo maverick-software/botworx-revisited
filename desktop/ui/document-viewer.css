@@ -4,6 +4,10 @@
 
 :root[data-theme=light]{color-scheme:light;background:#fff;color:#222}
 
+/* Fit width must measure the same available width before and after a Word
+   page crosses the vertical scrolling threshold. Otherwise zoom oscillates. */
+:root:has(.docx-wrapper){scrollbar-gutter:stable}
+
 #pages[data-document-kind=presentation]{padding-top:8px;text-align:left}#pages[data-document-kind=presentation]>div{margin-left:auto;margin-right:auto}#pages[data-document-kind=presentation] a{pointer-events:none}
 .presentation-host{width:100%}#pages[data-document-kind=presentation] canvas{background:transparent;margin:0;box-shadow:none}
 

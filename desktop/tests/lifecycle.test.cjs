@@ -13,7 +13,7 @@ test('closing the desktop stops and terminates only its own WSL distribution',as
  runtime.command=async args=>{commands.push(['own-runtime',...args]);return '';};
  runtime.wsl=async args=>{commands.push(args);return '';};
  await runtime.stop();
- assert.deepEqual(commands,[['own-runtime','supabase','stop'],['--terminate','AgentopiaRuntime']]);
+ assert.deepEqual(commands,[['own-runtime','supabase','stop'],['--terminate','SylvanaRuntime']]);
  assert(!commands.flat().includes('--shutdown'));assert(!commands.flat().includes('--all'));
 });
 test('a failed WSL prerequisite produces an actionable setup message',async()=>{

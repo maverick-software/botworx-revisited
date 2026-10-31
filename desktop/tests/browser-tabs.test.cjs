@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),{randomUUID}=require('node:crypto');
-const {BrowserTabs}=require(require('node:path').join(process.env.AGENTOPIA_PREVIEW_BUILD||require('node:path').resolve(__dirname,'../build'),'browser-tabs.js'));
+const {BrowserTabs}=require(require('node:path').join(process.env.SYLVANA_PREVIEW_BUILD||require('node:path').resolve(__dirname,'../build'),'browser-tabs.js'));
 const row=(conversation=randomUUID())=>({id:randomUUID(),conversation,url:'https://example.test/start',title:'Owned page',updatedAt:new Date().toISOString()});
 function store(){const data=new Map();return {data,get:key=>structuredClone(data.get(key)),set:async(key,value)=>{await new Promise(r=>setTimeout(r,2));data.set(key,structuredClone(value));}};}
 test('saved agent tabs survive storage reload and keep account/conversation and close boundaries',async()=>{

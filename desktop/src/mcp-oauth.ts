@@ -15,7 +15,7 @@ export function mcpOAuthRecordGrant(scope:McpOAuthScope,record:McpOAuthRecord){
  if(record.grantId!==undefined&&!/^[a-f0-9]{64}$/.test(record.grantId))throw new McpSignInRequiredError();
  return createHash('sha256').update(JSON.stringify([key(scope),record.target.stamp,record.grantId??['legacy',record.redirect,record.client?.client_id??''],record.tokens?.scope===undefined?null:[...new Set(record.tokens.scope.split(/\s+/).filter(Boolean))].sort()])).digest('hex');
 }
-type Store={get<T>(key:string):T|undefined;set(key:string,value:unknown):Promise<void>};
+type Store={get<T>(key:string):T|undefined;set(key:string,value:unknown):Promise<void>;compareAndSetMany?:(entries:readonly (readonly [string,unknown,unknown])[])=>Promise<boolean>};
 const equal=(a:string,b:string)=>{const left=Buffer.from(a),right=Buffer.from(b);return left.length===right.length&&timingSafeEqual(left,right);};
 
 export class McpSignInRequiredError extends Error {constructor(){super('This MCP connection needs browser sign-in. Open its connection in Plugins or the agent’s MCP settings and choose Connect.');}}
@@ -25,19 +25,20 @@ export class McpOAuth {
  private pendingScopes=new Map<string,McpOAuthScope>();private connecting=new Map<string,{scope:McpOAuthScope;work:Promise<{connected:boolean}>}>();
  constructor(private store:Store,private target:(scope:McpOAuthScope)=>Promise<McpOAuthTarget>,private owner:()=>Promise<string>,private open:(url:string)=>Promise<void>){}
  protected async checked(scope:McpOAuthScope,expected?:McpOAuthTarget){
-  if(await this.owner()!==scope.owner)throw Error('Your Agentopia account changed.');
-  const target=await this.target(scope);if(await this.owner()!==scope.owner)throw Error('Your Agentopia account changed.');if(expected&&(target.address!==expected.address||target.stamp!==expected.stamp))throw Error('The MCP connection or plugin assignment changed. Connect it again.');return target;
+  if(await this.owner()!==scope.owner)throw Error('Your Sylvana account changed.');
+  const target=await this.target(scope);if(await this.owner()!==scope.owner)throw Error('Your Sylvana account changed.');if(expected&&(target.address!==expected.address||target.stamp!==expected.stamp))throw Error('The MCP connection or plugin assignment changed. Connect it again.');return target;
  }
  connected(scope:McpOAuthScope,target:McpOAuthTarget){const saved=this.store.get<Stored>(key(scope));return !!saved?.tokens&&saved.target.address===target.address&&saved.target.stamp===target.stamp;}
+ cancelPending(scope:McpOAuthScope){const saved=this.pendingScopes.get(key(scope));if(!saved||saved.owner!==scope.owner)throw Error('This sign-in is no longer pending in your account.');this.cancel(scope);}
  cancel(scope?:McpOAuthScope){for(const [id,controller]of this.pending)if(!scope||id===key(scope))controller.abort(Error('MCP sign-in cancelled.'));}
  async status(scope:McpOAuthScope){try{return this.connected(scope,await this.checked(scope));}catch{return false;}}
  cancelCreation(owner:string,creationId:string){for(const[id,scope]of this.pendingScopes)if(creationOAuthScope(scope)&&scope.owner===owner&&scope.creation.creationId===creationId)this.pending.get(id)?.abort(Error('MCP sign-in cancelled.'));}
  pendingCreations(owner:string){return [...this.pendingScopes.values()].filter(scope=>creationOAuthScope(scope)&&scope.owner===owner).map(scope=>structuredClone(scope));}
  async cancelAndWait(match:(scope:McpOAuthScope)=>boolean){const work:Promise<unknown>[]=[];for(const[id,scope]of this.pendingScopes)if(match(structuredClone(scope))){this.pending.get(id)?.abort(Error('MCP sign-in cancelled.'));const connecting=this.connecting.get(id)?.work,refreshing=this.refreshing.get(id);if(connecting)work.push(connecting);if(refreshing)work.push(refreshing);}await Promise.allSettled(work);}
- async disconnect(scope:McpOAuthScope){if(await this.owner()!==scope.owner)throw Error('Your Agentopia account changed.');const id=key(scope);await this.cancelAndWait(current=>key(current)===id);if(await this.owner()!==scope.owner)throw Error('Your Agentopia account changed.');await this.store.set(id,undefined);}
+ async disconnect(scope:McpOAuthScope){if(await this.owner()!==scope.owner)throw Error('Your Sylvana account changed.');const id=key(scope);await this.cancelAndWait(current=>key(current)===id);if(await this.owner()!==scope.owner)throw Error('Your Sylvana account changed.');await this.store.set(id,undefined);}
  private provider(record:Stored,state:string,interactive:boolean,redirect:(url:URL)=>Promise<void>):OAuthClientProvider{
   let verifier='';return {
-   redirectUrl:record.redirect,clientMetadata:{client_name:'Agentopia',redirect_uris:[record.redirect],grant_types:['authorization_code','refresh_token'],response_types:['code'],token_endpoint_auth_method:'none'},
+   redirectUrl:record.redirect,clientMetadata:{client_name:'Sylvana',redirect_uris:[record.redirect],grant_types:['authorization_code','refresh_token'],response_types:['code'],token_endpoint_auth_method:'none'},
    state:()=>state,clientInformation:()=>record.client,saveClientInformation:value=>{record.client=value;},tokens:()=>record.tokens,
    saveTokens:value=>{if(value.token_type.toLowerCase()!=='bearer')throw Error('This MCP connection requires an unsupported token presentation method.');record.tokens={...value,...(value.scope===undefined&&record.tokens?.scope!==undefined?{scope:record.tokens.scope}:{})};record.expiresAt=value.expires_in===undefined?undefined:Date.now()+value.expires_in*1000;},
    saveCodeVerifier:value=>{verifier=value;},codeVerifier:()=>verifier,
@@ -70,7 +71,7 @@ export class McpOAuth {
      const url=new URL(req.url??'/',redirect);
      if(req.method!=='GET'||req.headers.host!==`127.0.0.1:${address.port}`||url.pathname!=='/mcp/callback'){res.writeHead(404).end();return;}
      if(consumed||url.searchParams.getAll('state').length!==1||!equal(url.searchParams.get('state')??'',state)||['code','iss','error'].some(k=>url.searchParams.getAll(k).length>1)){res.writeHead(400).end('Invalid authorization callback.');return;}
-     consumed=true;res.end('Authorization received. Return to Agentopia.');resolve(url);
+     consumed=true;res.end('Authorization received. Return to Sylvana.');resolve(url);
     });
    });returned.catch(()=>{});
    // Read only the challenge headers: an unauthenticated SSE body can be unbounded.
@@ -102,10 +103,10 @@ export class McpOAuth {
    // Preserve the earlier record and never erase a newer independent write.
    try{await this.store.set(id,record);await this.checked(scope,target);signal.throwIfAborted();}catch(error){if(this.store.get(id)===record)await this.store.set(id,previous);throw error;}
    return {connected:true};
-  }catch(error){if(signal.aborted)throw Error(controller.signal.aborted?'MCP sign-in cancelled.':'MCP sign-in expired. Choose Connect to try again.');throw Error(error instanceof Error&&/^(This MCP|The MCP|Your Agentopia|MCP authorization|Client metadata|Enter a valid)/.test(error.message)?error.message:'MCP sign-in could not finish. Check the server’s OAuth setup and try again.');}
+  }catch(error){if(signal.aborted)throw Error(controller.signal.aborted?'MCP sign-in cancelled.':'MCP sign-in expired. Choose Connect to try again.');throw Error(error instanceof Error&&/^(This MCP|The MCP|Your Sylvana|MCP authorization|Client metadata|Enter a valid)/.test(error.message)?error.message:'MCP sign-in could not finish. Check the server’s OAuth setup and try again.');}
   finally{timerCleanup();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));if(this.pending.get(id)===controller){this.pending.delete(id);this.pendingScopes.delete(id);}}
  }
- protected async checkOwner(scope:McpOAuthScope){if(await this.owner()!==scope.owner)throw Error('Your Agentopia account changed.');}
+ protected async checkOwner(scope:McpOAuthScope){if(await this.owner()!==scope.owner)throw Error('Your Sylvana account changed.');}
  protected hasStoredCredential(scope:McpOAuthScope){return this.store.get(key(scope))!==undefined;}
  async grant(scope:McpOAuthScope){
   const snapshot=structuredClone(scope),target=await this.checked(snapshot),record=this.store.get<Stored>(key(snapshot));if(!record||!this.connected(snapshot,target))return undefined;
@@ -125,9 +126,14 @@ export class McpOAuth {
    if(!record.tokens?.refresh_token)throw reconnect();
    const copy:Stored=structuredClone(record),controller=new AbortController(),id=key(scope);if(this.pending.has(id))throw reconnect();this.pendingScopes.set(id,structuredClone(scope));this.pending.set(id,controller);
    const deadline=AbortSignal.any([signal,controller.signal]);
-   try{const provider=this.provider(copy,'',false,async()=>{throw reconnect();});if(!copy.discovery?.authorizationServerMetadata||!copy.client)throw reconnect();const tokens=await refreshAuthorization(copy.discovery.authorizationServerUrl,{metadata:copy.discovery.authorizationServerMetadata,clientInformation:copy.client,refreshToken:copy.tokens!.refresh_token!,resource:copy.discovery.resourceMetadata?.resource,fetchFn:oauthNetwork(target.address,deadline)});await provider.saveTokens({...tokens,issuer:copy.discovery.authorizationServerMetadata.issuer});await this.checked(scope,target);deadline.throwIfAborted();
-    if(this.store.get(id)!==record)throw reconnect();await this.store.set(id,copy);await this.checked(scope,target);deadline.throwIfAborted();return copy.tokens!.access_token;
-   }catch{if(this.store.get(id)===copy)await this.store.set(id,undefined);throw reconnect();}finally{if(this.pending.get(id)===controller){this.pending.delete(id);this.pendingScopes.delete(id);}}
+   try{const provider=this.provider(copy,'',false,async()=>{throw reconnect();});if(!copy.discovery?.authorizationServerMetadata||!copy.client)throw reconnect();const tokens=await refreshAuthorization(copy.discovery.authorizationServerUrl,{metadata:copy.discovery.authorizationServerMetadata,clientInformation:copy.client,refreshToken:copy.tokens!.refresh_token!,resource:copy.discovery.resourceMetadata?.resource,fetchFn:oauthNetwork(target.address,deadline)});await provider.saveTokens({...tokens,issuer:copy.discovery.authorizationServerMetadata.issuer});
+    // A completed refresh may rotate the remote refresh token. Preserve it for
+    // its original owner even if that caller cancels or switches accounts now.
+    // A newer local grant or explicit disconnect always wins the comparison.
+    if(this.store.compareAndSetMany){if(!await this.store.compareAndSetMany([[id,record,copy]]))throw reconnect();}
+    else{if(this.store.get(id)!==record)throw reconnect();await this.store.set(id,copy);}
+    await this.checked(scope,target);deadline.throwIfAborted();if(this.store.get<Stored>(id)?.tokens?.access_token!==copy.tokens!.access_token)throw reconnect();return copy.tokens!.access_token;
+   }catch(error){if(deadline.aborted)throw deadline.reason;throw reconnect();}finally{if(this.pending.get(id)===controller){this.pending.delete(id);this.pendingScopes.delete(id);}}
   })();this.refreshing.set(key(scope),refresh);try{return await refresh;}finally{if(this.refreshing.get(key(scope))===refresh)this.refreshing.delete(key(scope));}
  }
 }

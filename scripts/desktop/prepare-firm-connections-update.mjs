@@ -1,0 +1,16 @@
+import {extractAll,extractFile,createPackageWithOptions} from '@electron/asar';
+import {mkdir,cp,copyFile,readdir,writeFile,readFile} from 'node:fs/promises';
+import path from 'node:path';import assert from 'node:assert/strict';
+import {desktopOperation} from './operation-lock.mjs';import {hash} from './phased-backup-control.mjs';
+desktopOperation('prepare firm connection update');
+const root=path.resolve(import.meta.dirname,'../..'),records='F:/Sylvana/verification/firm-connections/desktop',job=records+'/candidate-'+Date.now(),program='C:/Users/charl/AppData/Local/SylvanaDesktop/app-0.46.3',image=program+'/resources/app.asar';
+let previous;try{previous=JSON.parse(await readFile(records+'/current-candidate.json','utf8'));}catch(error){if(error.code!=='ENOENT')throw error;previous=JSON.parse(await readFile('F:/Sylvana/verification/provider-goal/desktop-install/current-candidate.json','utf8'));}const base=JSON.parse(await readFile(previous.proof,'utf8'));
+assert.equal(await hash(image),base.imageSha256,'Installed package changed since the last verified update.');
+const allowed=['default-assistant.js','workspace-ai.js','voice-preferences.js','main.js','providers.js','sylvana-account.js','broker.js','image-connections.js','contracts.js','native-home.js','composer.js','new-chat-defaults.js','codex-harness.js','agent-browser.js','agent-creation-draft.js','agent-saved-editor-draft.js','agent-draft-preview-contracts.js'];
+const actual=[];for(const f of await readdir(root+'/desktop/build'))if(f.endsWith('.js')){let old;try{old=extractFile(image,'build/'+f);}catch{}if(!old||!old.equals(await readFile(root+'/desktop/build/'+f)))actual.push(f);}
+assert(actual.every(f=>allowed.includes(f)),'Review unexpected compiled module differences: '+actual.filter(f=>!allowed.includes(f)).join(', '));
+await mkdir(job,{recursive:true});const stage=job+'/package';extractAll(image,stage);for(const f of actual)await copyFile(root+'/desktop/build/'+f,stage+'/build/'+f);await createPackageWithOptions(stage,job+'/app.asar',{});await cp(root+'/desktop/resources/ui',job+'/ui',{recursive:true});
+const uiFiles={};async function walk(relative=''){for(const e of await readdir(path.join(job,'ui',relative),{withFileTypes:true})){const n=path.posix.join(relative,e.name);if(e.isDirectory())await walk(n);else uiFiles[n]=await hash(path.join(job,'ui',n));}}await walk();
+const migration='0093-firm-ai-connections.sql';await copyFile(root+'/desktop/database/'+migration,job+'/'+migration);await copyFile(root+'/desktop/resources/version.json',job+'/version.json');
+for(const f of actual)assert(extractFile(job+'/app.asar','build/'+f).equals(await readFile(root+'/desktop/build/'+f)));
+const proof={ready:true,version:'0.46.3',program,job,baseImageSha256:base.imageSha256,image:job+'/app.asar',imageSha256:await hash(job+'/app.asar'),changedCompiled:actual,ui:job+'/ui',uiFiles,migration,migrationSha256:await hash(job+'/'+migration),schemaChanged:(await hash(program+'/resources/resources/database/'+migration))!==await hash(job+'/'+migration),publicInstallerChanged:false,at:new Date().toISOString()};await writeFile(job+'/proof.json',JSON.stringify(proof,null,2));await writeFile(records+'/current-candidate.json',JSON.stringify({proof:job+'/proof.json'},null,2));console.log(JSON.stringify({ready:true,job,changedCompiled:actual,imageSha256:proof.imageSha256}));

@@ -1,7 +1,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {nativeActivityReceipt:receipt,nativeActivityStatus:status}=require(process.env.AGENTOPIA_NATIVE_ACTIVITY_HELPER??'../build/native-activity-presentation.js');
-const entry=(threadId='root',turnId='turn')=>({threadId,turnId,completed:false,item:{id:'call',type:'mcpToolCall',server:'agentopia_host',tool:'browser_open',status:'inProgress',result:null,error:null}});
+const {nativeActivityReceipt:receipt,nativeActivityStatus:status}=require(process.env.SYLVANA_NATIVE_ACTIVITY_HELPER??'../build/native-activity-presentation.js');
+const entry=(threadId='root',turnId='turn')=>({threadId,turnId,completed:false,item:{id:'call',type:'mcpToolCall',server:'sylvana_host',tool:'browser_open',status:'inProgress',result:null,error:null}});
 const tool=(patch={})=>({id:'receipt',request_id:'request',native_thread_id:'root',name:'browser_open',status:'interrupted',arguments:{provider_call_id:'root:call'},error:'Tool execution was cancelled.',...patch});
 
 test('saved cancellation supplies the exact host outcome without changing native history',()=>{

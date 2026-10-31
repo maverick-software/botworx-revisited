@@ -18,7 +18,7 @@ export class AgentAssignments{
  async recover(){
   const rows=data(await this.db.from('desktop_agent_invocations').select('request_id,child_instance_id').in('status',['queued','starting','running']));
   if(!rows.length)return;
-  data(await this.db.from('desktop_agent_invocations').update({status:'interrupted',error:'Agentopia restarted. Inspect the saved assignment and explicitly continue; no uncertain operation was replayed.',updated_at:new Date().toISOString()}).in('request_id',rows.map((row:any)=>row.request_id)).in('status',['queued','starting','running']));
+  data(await this.db.from('desktop_agent_invocations').update({status:'interrupted',error:'Sylvana restarted. Inspect the saved assignment and explicitly continue; no uncertain operation was replayed.',updated_at:new Date().toISOString()}).in('request_id',rows.map((row:any)=>row.request_id)).in('status',['queued','starting','running']));
   data(await this.db.from('desktop_agent_instances').update({status:'interrupted',updated_at:new Date().toISOString()}).in('id',rows.map((row:any)=>row.child_instance_id)).in('status',['queued','ready','running','awaiting_approval']));
  }
  private async interrupted(record:NamedInvocation,reason:string){

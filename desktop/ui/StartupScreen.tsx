@@ -1,8 +1,9 @@
 import React,{useEffect,useState} from 'react';
-import {Bot,ArrowRight} from 'lucide-react';
+import {ArrowRight} from 'lucide-react';
 import type {RuntimeStatus} from '../src/contracts';
 import {call} from './ui';
 import './startup.css';
+import {SylvanaBrand} from './SylvanaBrand';
 
 const welcomeMessages=[
  'Getting your workspace ready…',
@@ -32,11 +33,10 @@ export function StartupScreen({runtime}:{runtime:RuntimeStatus}){
   catch{setNotice('That didn’t go through. Please try again.');}
   finally{setBusy(false);}
  }
- return <main className="startup-screen" aria-label="Starting Agentopia">
+ return <main className="startup-screen" aria-label="Starting Sylvana">
   <div className="startup-welcome">
-   <div className="startup-mark" aria-hidden="true"><Bot size={30} strokeWidth={1.7}/></div>
-   <h1>Agentopia</h1>
-   <p className="startup-tagline">A little space for big ideas.</p>
+   <SylvanaBrand className="startup-brand"/>
+   <p className="startup-tagline">Legal Intelligence. Amplified.</p>
    {failed?<div className="startup-recovery">
     <div role="alert"><h2>Let’s try that again</h2><p>Your workspace couldn’t finish opening. Try again, or use setup help for the next steps.</p></div>
     <div className="startup-actions"><button disabled={busy} onClick={()=>void action('runtime.retry')}>Try again<ArrowRight size={15}/></button><button className="secondary" disabled={busy} onClick={()=>void action('runtime.prerequisites')}>Setup help</button></div>

@@ -1,4 +1,4 @@
-"""Copy a stopped Agentopia profile into a new location with byte verification.
+"""Copy a stopped Sylvana profile into a new location with byte verification.
 
 WSL disks are transferred separately. Nothing is deleted from the source.
 Copy state and manifests live outside both profiles. Interrupted copies can be
@@ -81,7 +81,7 @@ def save_state(file, state):
 
 def copy_one(original, target, relative, evidence_root, attempt):
     before = checked_entry(original, True)
-    if original.name.startswith('.agentopia-copy-') or not stat.S_ISREG(before.st_mode):
+    if original.name.startswith('.sylvana-copy-') or not stat.S_ISREG(before.st_mode):
         raise ValueError('An unexpected linked, temporary or nonregular source file was found.')
     existing = checked_entry(target)
     if existing:
@@ -89,7 +89,7 @@ def copy_one(original, target, relative, evidence_root, attempt):
         if not stat.S_ISREG(existing.st_mode) or existing.st_nlink != 1 or digest(target) != original_hash:
             raise ValueError('Existing destination bytes differ from the source. Preserve the copy for inspection.')
     else:
-        temporary = target.parent / ('.agentopia-copy-' + hashlib.sha256(str(relative).encode()).hexdigest() + '.tmp')
+        temporary = target.parent / ('.sylvana-copy-' + hashlib.sha256(str(relative).encode()).hexdigest() + '.tmp')
         if temporary.exists():
             checked_entry(temporary.parent, True)
             evidence = evidence_root / ('partial-' + attempt)

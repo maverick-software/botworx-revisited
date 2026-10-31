@@ -16,7 +16,7 @@ export function useAttachmentInput({owner,scope,enabled,imported,error}:{owner:s
   const start=latest.current;if(!start.owner||!start.enabled||working.current||!files.length)return;
   if(files.length>20){start.error('Attach up to 20 files or folders at a time.');return;}
   working.current=true;setBusy(true);
-  try{const selection=await window.agentopia.attach(files,start.owner);if(latest.current.owner===start.owner&&latest.current.scope===start.scope&&latest.current.enabled)latest.current.imported(selection);}
+  try{const selection=await window.sylvana.attach(files,start.owner);if(latest.current.owner===start.owner&&latest.current.scope===start.scope&&latest.current.enabled)latest.current.imported(selection);}
   catch(failure){if(latest.current.owner===start.owner&&latest.current.scope===start.scope)latest.current.error((failure as Error).message.replace(/^Error invoking remote method '[^']+': (?:Error: )?/,''));}
   finally{working.current=false;setBusy(false);}
  };

@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
-const build=process.env.AGENTOPIA_VISIBLE_BUILD??path.resolve(__dirname,'../build'),{CodexHarness}=require(path.join(build,'codex-harness.js'));
+const build=process.env.SYLVANA_VISIBLE_BUILD??path.resolve(__dirname,'../build'),{CodexHarness}=require(path.join(build,'codex-harness.js'));
 function fixture(permission='full'){
  const events=[],controller=new AbortController(),h=Object.create(CodexHarness.prototype),worker={children:new Map()},r={owner:'owner126',admin:true,options:{permission,mode:'chat'},request:{id:'request126'},state:{threadId:'thread126',approvals:[]},worker,waiting:new Map(),validate:async()=>{events.push('validate');}};
  h.guard=async()=>{};h.currentAdmin=async()=>true;h.publish=()=>{};h.contexts=new Map();h.commandIndicator={show:async(owner,key)=>events.push(['show',owner,key]),end:(owner,key)=>events.push(['end',owner,key])};

@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
-const build=process.env.AGENTOPIA_AGENT_TEST_BUILD??path.resolve(__dirname,'../build');
+const build=process.env.SYLVANA_AGENT_TEST_BUILD??path.resolve(__dirname,'../build');
 const {selectedContexts,selectedChatSnapshot,selectedBrowserSnapshot,selectedContextFiles,importedSelectedContext}=require(path.join(build,'selected-context.js'));
 const {chatOptions,providerHistory}=require(path.join(build,'composer.js')),{ChatDrafts}=require(path.join(build,'chat-drafts.js')),{capturePortableSettings,validatePortableSettings,portableSettingsId}=require(path.join(build,'portable-settings.js')),{ChatQueue}=require(path.join(build,'chat-queue.js'));
 const owner='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',other='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',id='cccccccc-cccc-4ccc-8ccc-cccccccccccc';
@@ -14,7 +14,7 @@ test('selected snapshots remain bounded reference data with explicit provenance 
 });
 test('selected chat snapshots exclude attachments, tools and older messages and enforce the text limit',()=>{
  const messages=Array.from({length:24},(_,i)=>({role:i%2?'assistant':'user',content:{text:'MESSAGE-'+String(i).padStart(2,'0'),files:[{text:'PRIVATE-ATTACHMENT'}]},metadata:{tools:[{result:'TOOL-RESULT'}]}}));const source=selectedChatSnapshot(owner,id,'Generated chat',messages);
- assert(!source.text.includes('MESSAGE-03'));assert(source.text.includes('MESSAGE-04'));assert(source.text.includes('MESSAGE-23'));assert(!source.text.includes('PRIVATE-ATTACHMENT'));assert(!source.text.includes('TOOL-RESULT'));assert.equal(source.url,'agentopia-chat://'+id);
+ assert(!source.text.includes('MESSAGE-03'));assert(source.text.includes('MESSAGE-04'));assert(source.text.includes('MESSAGE-23'));assert(!source.text.includes('PRIVATE-ATTACHMENT'));assert(!source.text.includes('TOOL-RESULT'));assert.equal(source.url,'sylvana-chat://'+id);
  assert.equal(selectedChatSnapshot(owner,id,'Huge chat',[{role:'user',content:{text:'x'.repeat(30000)}}]).text.length,16000);
 });
 test('foreign accounts, chat-only sends, duplicates, unsupported URLs and excessive snapshots are refused',()=>{
@@ -40,7 +40,7 @@ test('snapshot-bearing requests accept a full draft plus bounded escaped context
 });
 test('the actual broker reads a selected chat only through its signed-in account and rechecks identity after reading',async()=>{
  const Module=require('node:module'),original=Module._load;Module._load=function(name,...args){if(name==='electron')return {dialog:{},shell:{},nativeImage:{},safeStorage:{}};return original.call(this,name,...args);};let Broker;try{Broker=require(path.join(build,'broker.js')).Broker;}finally{Module._load=original;}
- let reads=0,changed=false;const host={workspaceMonitor:{generation:0},identity:async()=>({id:owner,admin:false}),attachmentOwner:async value=>{assert.equal(value,owner);if(changed)throw Error('Your Agentopia account changed.');},loadMessages:async value=>{assert.equal(value,id);reads++;return [{role:'user',content:{text:'OWNED SAVED MESSAGE'}}];},admin:{from:table=>{assert.equal(table,'conversation_sessions');const filters={};const query={select:fields=>{assert.equal(fields,'title');return query;},eq:(key,value)=>{filters[key]=value;return query;},single:async()=>{assert.equal(filters.user_id,owner);return filters.conversation_id===id?{data:{title:'Owned chat'}}:{error:{message:'Unavailable chat'}};}};return query;}}};
+ let reads=0,changed=false;const host={workspaceMonitor:{generation:0},identity:async()=>({id:owner,admin:false}),attachmentOwner:async value=>{assert.equal(value,owner);if(changed)throw Error('Your Sylvana account changed.');},loadMessages:async value=>{assert.equal(value,id);reads++;return [{role:'user',content:{text:'OWNED SAVED MESSAGE'}}];},admin:{from:table=>{assert.equal(table,'conversation_sessions');const filters={};const query={select:fields=>{assert.equal(fields,'title');return query;},eq:(key,value)=>{filters[key]=value;return query;},single:async()=>{assert.equal(filters.user_id,owner);return filters.conversation_id===id?{data:{title:'Owned chat'}}:{error:{message:'Unavailable chat'}};}};return query;}}};
  const call=conversationId=>Broker.prototype.call.call(host,'context.chat',{conversationId});const source=await call(id);assert.equal(source.owner,owner);assert.equal(source.text,'user: OWNED SAVED MESSAGE');assert.equal(reads,1);
  await assert.rejects(call(other),/Unavailable chat/);assert.equal(reads,1);changed=true;await assert.rejects(call(id),/account changed/);
 });

@@ -1,4 +1,5 @@
 import {dialog} from 'electron';
+import {currentBrandPath} from './brand-path-migration';
 import {randomUUID} from 'node:crypto';
 import path from 'node:path';
 import {lstat,realpath,readdir,readFile,open} from 'node:fs/promises';
@@ -16,7 +17,7 @@ import {privateRuntimePath} from './runtime-binding';
 import {privateProfilePath} from './desktop-profile';
 import {storageUuid} from './storage-files';
 export const textTypes=new Set(['.txt','.md','.markdown','.csv','.json','.jsonl','.xml','.html','.css','.js','.jsx','.ts','.tsx','.py','.sql','.yml','.yaml','.toml','.rs','.go','.java','.c','.cpp','.h','.sh','.ps1','.log']);
-const ignored=new Set(['.agentopia-recovery','.git','.ssh','.aws','.azure','.supabase','node_modules','.env','.venv','venv','credentials.bin','id_rsa','id_ed25519']);
+const ignored=new Set(['.sylvana-recovery','.git','.ssh','.aws','.azure','.supabase','node_modules','.env','.venv','venv','credentials.bin','id_rsa','id_ed25519']);
 const sameRecoveryPath=(a:string,b:string)=>process.platform==='win32'?a.toLowerCase()===b.toLowerCase():a===b;
 export function safeName(name:string){return !name.startsWith('.')&&!/[. ]$/.test(name)&&!/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(name)&&!ignored.has(name.toLowerCase())&&!['appdata','windows','programdata','backups','__pycache__','auth.json','credentials.json','token.json','tokens.json','secrets.json'].includes(name.toLowerCase())&&!/\.(pem|key|pfx|p12)$/i.test(name);}
 export class WorkspaceFiles {
@@ -27,12 +28,12 @@ export class WorkspaceFiles {
  checkPath(file:string){
   const resolved=path.resolve(file).replace(/^\\\\\?\\UNC\\/i,'\\\\').replace(/^\\\\\?\\(?=[a-z]:\\)/i,''),parts=resolved.split(/[\\/]/).map(part=>part.toLowerCase());
   if(privateRuntimePath(resolved)||parts.some(part=>ignored.has(part)))throw new Error('Credential, backend, and dependency paths cannot be attached.');
-  if(privateProfilePath(resolved)||this.protectedPaths.some(folder=>{const relative=path.relative(path.resolve(folder),resolved);return relative===''||relative!=='..'&&!relative.startsWith('..'+path.sep)&&!path.isAbsolute(relative);}))throw new Error('Agentopia application and credential storage cannot be attached.');
+  if(privateProfilePath(resolved)||this.protectedPaths.some(folder=>{const relative=path.relative(path.resolve(folder),resolved);return relative===''||relative!=='..'&&!relative.startsWith('..'+path.sep)&&!path.isAbsolute(relative);}))throw new Error('Sylvana application and credential storage cannot be attached.');
  }
  checkBackupPath(file:string){const resolved=path.resolve(file).replace(/^\\\\\?\\UNC\\/i,'\\\\').replace(/^\\\\\?\\(?=[a-z]:\\)/i,'');if(privateRuntimePath(resolved)||privateProfilePath(resolved)||this.protectedPaths.some(folder=>{const relative=path.relative(path.resolve(folder),resolved);return relative===''||relative!=='..'&&!relative.startsWith('..'+path.sep)&&!path.isAbsolute(relative);}))throw Error('Application and database storage cannot be captured as an external attachment.');}
- list(user:string):FileReference[]{return this.secrets.get<FileReference[]>('files:'+user)??[];}
+ list(user:string):FileReference[]{return (this.secrets.get<FileReference[]>('files:'+user)??[]).map(row=>({...row,path:currentBrandPath(row.path)}));}
  async pick(user:string,kind:'file'|'folder',guard:()=>Promise<void>=async()=>{}):Promise<FileSelection>{
-  const result=await this.dialogs.showOpenDialog({title:kind==='folder'?'Add a folder to Agentopia':'Add files to Agentopia',properties:kind==='folder'?['openDirectory']:['openFile','multiSelections']});
+  const result=await this.dialogs.showOpenDialog({title:kind==='folder'?'Add a folder to Sylvana':'Add files to Sylvana',properties:kind==='folder'?['openDirectory']:['openFile','multiSelections']});
   if(result.canceled)return {references:this.list(user),selected:[]};
   return this.attach(user,result.filePaths.map(file=>({path:file})),guard);
  }

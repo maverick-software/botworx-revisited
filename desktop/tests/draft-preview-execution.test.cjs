@@ -1,6 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),os=require('node:os');
 const {mkdtemp,mkdir,writeFile,rename,rm}=require('node:fs/promises');
-const build=process.env.AGENTOPIA_PREVIEW_BUILD||path.resolve(__dirname,'../build');
+const build=process.env.SYLVANA_PREVIEW_BUILD||path.resolve(__dirname,'../build');
 const {DraftPreviewExecution,previewDigest}=require(path.join(build,'draft-preview-execution.js')),{agentDraftPreviewInput,draftPreviewOptions}=require(path.join(build,'agent-draft-preview-contracts.js')),{WorkspaceFiles}=require(path.join(build,'workspace.js')),{WorkspaceTools}=require(path.join(build,'workspace-tools.js')),{ToolService}=require(path.join(build,'tool-service.js'));
 const {AttachmentImages,imageData}=require(path.join(build,'attachment-images.js'));
 const png=require('../../scripts/desktop/preview-clipboard104-png.cjs').png,secondPng=Buffer.concat([png,Buffer.from('second generated image')]),cipher={isEncryptionAvailable:()=>true,encryptString:value=>Buffer.from('TEST:'+value),decryptString:value=>{assert(value.toString().startsWith('TEST:'));return value.toString().slice(5);}};

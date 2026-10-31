@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
-const build=process.env.AGENTOPIA_ACCESS_BUILD??path.resolve(__dirname,'../build');
+const build=process.env.SYLVANA_ACCESS_BUILD??path.resolve(__dirname,'../build');
 const {WorkspaceTools,workspaceDefinitions}=require(path.join(build,'workspace-tools.js')),{WorkspaceFiles}=require(path.join(build,'workspace.js'));
 const result={status:'blocked',message:'Generated refusal',checkedAt:new Date().toISOString(),readOnly:true,provesWritable:false,evidence:[]};
 async function fixture(){const directory=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'wad-'))),data=new Map(),files=new WorkspaceFiles({get:key=>data.get(key),set:async(key,value)=>data.set(key,value)});await files.add('owner',[directory]);const ref=files.list('owner')[0],workspace=new WorkspaceTools(files),options={permission:'full',mode:'chat',thinking:'default',files:[ref.id]},args={reference_id:ref.id,path:''};return {directory,files,ref,workspace,options,args};}

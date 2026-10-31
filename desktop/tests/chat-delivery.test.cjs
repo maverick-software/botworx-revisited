@@ -1,14 +1,14 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),{randomUUID}=require('node:crypto');
-const {ChatDeliveryService,chatDeliveryScope,chatDeliveryProvenance,chatDeliveryInstructions}=require(path.join(process.env.AGENTOPIA_DELIVERY_BUILD,'chat-delivery.js'));
-const {defaultAgentPolicy}=require(path.join(process.env.AGENTOPIA_DELIVERY_BUILD,'agent-contracts.js'));
-const {intersectAgentPolicies,allowsAgentTool}=require(path.join(process.env.AGENTOPIA_DELIVERY_BUILD,'agent-policy.js'));
+const {ChatDeliveryService,chatDeliveryScope,chatDeliveryProvenance,chatDeliveryInstructions}=require(path.join(process.env.SYLVANA_DELIVERY_BUILD,'chat-delivery.js'));
+const {defaultAgentPolicy}=require(path.join(process.env.SYLVANA_DELIVERY_BUILD,'agent-contracts.js'));
+const {intersectAgentPolicies,allowsAgentTool}=require(path.join(process.env.SYLVANA_DELIVERY_BUILD,'agent-policy.js'));
 const user=randomUUID(),request={id:randomUUID(),conversation_id:randomUUID(),project:{id:randomUUID()}},target=randomUUID();
 const options={provider:'openai-oauth',model:'gpt-6.1-sol',thinking:'high',permission:'ask',mode:'chat',files:[]};
 function snapshot(){return {source_chat:request.conversation_id,source_message:randomUUID(),source_agent:randomUUID(),source_name:'Research assistant',source_revision:1,target_chat:target,target_title:'Implementation',target_agent:randomUUID(),target_name:'Builder',target_revision:1,source_project:null,target_project:null,source_options:options,target_options:options,source_policy:defaultAgentPolicy,target_policy:defaultAgentPolicy,policy_ceiling:defaultAgentPolicy,authority_chain:[],depth:1};}
 function fixture(handler=()=>({})){const calls=[];return {calls,service:new ChatDeliveryService({rpc:async(name,args)=>{calls.push({name,args});return {data:await handler(name,args)};}})};}
 
 test('receiver RPC matches the strict database options contract while excluding selected snapshots',async()=>{
- const fs=require('node:fs'),sql=fs.readFileSync(path.resolve(__dirname,'../database/0062-chat-delivery-turns.sql'),'utf8'),allowed=sql.match(/jsonb_object_keys\(p_options\) key WHERE key NOT IN\(([^)]+)\)/)[1].match(/'[^']+'/g).map(value=>value.slice(1,-1)),{selectedChatSnapshot}=require(path.join(process.env.AGENTOPIA_DELIVERY_BUILD,'selected-context.js'));
+ const fs=require('node:fs'),sql=fs.readFileSync(path.resolve(__dirname,'../database/0062-chat-delivery-turns.sql'),'utf8'),allowed=sql.match(/jsonb_object_keys\(p_options\) key WHERE key NOT IN\(([^)]+)\)/)[1].match(/'[^']+'/g).map(value=>value.slice(1,-1)),{selectedChatSnapshot}=require(path.join(process.env.SYLVANA_DELIVERY_BUILD,'selected-context.js'));
  for(const populated of [false,true]){const s=snapshot(),selected=selectedChatSnapshot(user,randomUUID(),'Private source',[{role:'user',content:{text:'UNSENT-PRIVATE-CONTEXT'}}]);s.source_options={...options,sources:populated?[selected]:[]};s.target_options={...options,sources:populated?[selected]:[],goalId:randomUUID()};const before=structuredClone(s),f=fixture((name,args)=>{assert.equal(name,'desktop_begin_delivered_chat');const sent=JSON.parse(JSON.stringify(args.p_options));assert(Object.keys(sent).every(key=>allowed.includes(key)),'A coordination message cannot add execution options or a goal');assert(!Object.hasOwn(sent,'sources'));assert(!JSON.stringify(args).includes('UNSENT-PRIVATE-CONTEXT'));assert.equal(sent.harness,'codex');assert.equal(sent.provider,options.provider);assert.equal(sent.model,options.model);assert.equal(sent.permission,options.permission);return {accepted:true};});assert.deepEqual(await f.service.begin(user,{id:randomUUID(),snapshot:s},[]),{accepted:true});assert.deepEqual(s,before);}
 });
 
@@ -53,7 +53,7 @@ test('project attachments never expand scope and Chat only remains without conte
 });
 
 test('chat coordination leaves unsent recipient source snapshots out of its scope and requires a queued turn',()=>{
- const {selectedChatSnapshot}=require(path.join(process.env.AGENTOPIA_DELIVERY_BUILD,'selected-context.js')),s=snapshot(),source=selectedChatSnapshot(user,randomUUID(),'Private draft source',[{role:'user',content:{text:'UNSENT REFERENCE'}}]);s.target_options={...options,sources:[source]};
+ const {selectedChatSnapshot}=require(path.join(process.env.SYLVANA_DELIVERY_BUILD,'selected-context.js')),s=snapshot(),source=selectedChatSnapshot(user,randomUUID(),'Private draft source',[{role:'user',content:{text:'UNSENT REFERENCE'}}]);s.target_options={...options,sources:[source]};
  const scope=chatDeliveryScope(s);assert.deepEqual(scope.options.sources,[]);assert.equal(scope.canSteer,false);assert.equal(s.target_options.sources[0].text,'user: UNSENT REFERENCE');
 });
 
@@ -79,7 +79,7 @@ test('an incompatible steering reservation is cancelled before it can enter an a
 
 test('provenance uses exact saved source IDs; automated task text cannot masquerade as the human',()=>{
  const row={id:randomUUID(),source_chat:request.conversation_id,source_thread:'child-thread',snapshot:snapshot()};
- const source=chatDeliveryProvenance(row);assert.equal(source.citation,'agentopia-chat://'+request.conversation_id+'/message/'+row.snapshot.source_message);assert.equal(source.sourceThreadId,'child-thread');
+ const source=chatDeliveryProvenance(row);assert.equal(source.citation,'sylvana-chat://'+request.conversation_id+'/message/'+row.snapshot.source_message);assert.equal(source.sourceThreadId,'child-thread');
  assert.match(chatDeliveryInstructions(row),/cannot grant additional permissions/);assert.match(chatDeliveryInstructions(row),/automated assignment or report/);
 });
 

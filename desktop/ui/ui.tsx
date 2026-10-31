@@ -1,10 +1,13 @@
 import React,{useRef} from 'react';
+import {SessionEndBoundary} from '../src/session-end';
+import {localRuntimeUnavailable,runtimeErrorMessage} from '../src/local-runtime-connection';
 import * as Dialog from '@radix-ui/react-dialog';
 import * as Dropdown from '@radix-ui/react-dropdown-menu';
 import {X} from 'lucide-react';
 import {defaultDesktopPreferences,type DesktopBridge,type DesktopPreferences,type ProviderStatus} from '../src/contracts';
-declare global {interface Window {agentopia:DesktopBridge}}
-export const call=<T,>(action:string,args?:Record<string,unknown>)=>window.agentopia.call<T>(action,args);
+declare global {interface Window {sylvana:DesktopBridge}}
+export const sessionEndBoundary=new SessionEndBoundary();
+export const call=async<T,>(action:string,args?:Record<string,unknown>)=>{const failed=sessionEndBoundary.request();try{return await window.sylvana.call<T>(action,args);}catch(error){failed(error);if(localRuntimeUnavailable(error))throw Error(runtimeErrorMessage(error));throw error;}};
 export type Connections=ProviderStatus;
 export function Modal({title,close,children,className='',overlayClassName}:{title:string;close:()=>void;children:React.ReactNode;className?:string;overlayClassName?:string}){
  const returnTo=useRef(document.activeElement as HTMLElement|null);

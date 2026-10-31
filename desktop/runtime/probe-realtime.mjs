@@ -8,7 +8,7 @@ socket.on('open', () => {
   console.log('WebSocket opened');
   socket.send(JSON.stringify({ topic: 'realtime:native-probe', event: 'phx_join', ref: '1', payload: {
     config: { broadcast: { self: false }, presence: { key: '' }, postgres_changes: [
-      { event: '*', schema: 'public', table: 'agentopia_runtime_probe' },
+      { event: '*', schema: 'public', table: 'sylvana_runtime_probe' },
     ] },
     access_token: env.SERVICE_ROLE_KEY,
   } }));

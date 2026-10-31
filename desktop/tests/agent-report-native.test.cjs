@@ -1,12 +1,12 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),{randomUUID}=require('node:crypto');
-const build=process.env.AGENTOPIA_AGENT_REPORT_BUILD??path.resolve(__dirname,'../build'),{CodexHarness}=require(path.join(build,'codex-harness.js')),{AgentReportDeferred}=require(path.join(build,'agent-report-queue.js'));
+const build=process.env.SYLVANA_AGENT_REPORT_BUILD??path.resolve(__dirname,'../build'),{CodexHarness}=require(path.join(build,'codex-harness.js')),{AgentReportDeferred}=require(path.join(build,'agent-report-queue.js'));
 function fixture(){
  const owner=randomUUID(),requestId=randomUUID(),conversation=randomUUID(),calls=[],saved=[];let active=false,revoked=false,checks=0,start;
  const db={from:()=>{const q={select:()=>q,eq:()=>q,limit:async()=>({data:active?[{id:'new-human-turn'}]:[]})};return q;}},h=new CodexHarness(db,{},'unused','unused',()=>{},async()=>{});
  h.persist=async r=>saved.push(structuredClone(r.state));h.publish=()=>{};h.settle=()=>{};
  const w={owner,children:new Map(),client:{request:async(method,args)=>{calls.push({method,args});if(method==='turn/start'){if(start)return start(args);setImmediate(()=>{h.event(w.report,'turn/started',{threadId:'parent-thread',turn:{id:'report-turn'}});h.event(w.report,'turn/completed',{threadId:'parent-thread',turn:{id:'report-turn',status:'completed'}});});return {turn:{id:'report-turn'}};}return {};}}};
  const r={owner,conversation,request:{id:requestId},options:{},worker:w,state:{version:'0.163.0',threadId:'parent-thread',turnId:'parent-turn',items:[],approvals:[],steering:[]},rootFinished:true,ended:false,controller:new AbortController(),save:Promise.resolve(),validate:async()=>{checks++;if(revoked)throw Error('Parent permissions revoked');}};h.contexts.set(requestId,r);h.workers.add(w);
- const result={invocationId:randomUUID(),instanceId:randomUUID(),conversationId:randomUUID(),messageId:randomUUID(),agentId:randomUUID(),name:'Generated specialist',status:'completed',text:'Generated saved result',citation:'agentopia-chat://generated/message/source'};
+ const result={invocationId:randomUUID(),instanceId:randomUUID(),conversationId:randomUUID(),messageId:randomUUID(),agentId:randomUUID(),name:'Generated specialist',status:'completed',text:'Generated saved result',citation:'sylvana-chat://generated/message/source'};
  return {h,w,r,result,owner,requestId,calls,saved,get checks(){return checks;},active(){active=true;},revoke(){revoked=true;},start(fn){start=fn;}};
 }
 test('a named specialist result continues the existing parent native thread with a durable report receipt',async()=>{

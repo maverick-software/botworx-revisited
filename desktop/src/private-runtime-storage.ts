@@ -5,7 +5,7 @@ import {promisify} from 'node:util';
 import {privateStorageDistribution} from './runtime-binding';
 
 const exec=promisify(execFile);
-const invalid=()=>new Error('Agentopia could not verify its registered private runtime storage. Existing data has been left untouched.');
+const invalid=()=>new Error('Sylvana could not verify its registered private runtime storage. Existing data has been left untouched.');
 export function localRuntimeStoragePath(value:unknown):string{
  if(typeof value!=='string'||!value||value.length>4000||/[\x00-\x1f\x7f]/.test(value))throw invalid();
  const raw=value.replaceAll('/','\\').replace(/^\\\\\?\\(?=[a-z]:\\)/i,'');

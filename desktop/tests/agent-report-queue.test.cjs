@@ -1,6 +1,6 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),{randomUUID}=require('node:crypto');
-const {AgentReportQueue}=require(path.join(process.env.AGENTOPIA_AGENT_REPORT_BUILD??path.resolve(__dirname,'../build'),'agent-report-queue.js'));
-const {AgentReportDeferred,AgentReportNotSubmitted}=require(path.join(process.env.AGENTOPIA_AGENT_REPORT_BUILD??path.resolve(__dirname,'../build'),'agent-report-queue.js'));
+const {AgentReportQueue}=require(path.join(process.env.SYLVANA_AGENT_REPORT_BUILD??path.resolve(__dirname,'../build'),'agent-report-queue.js'));
+const {AgentReportDeferred,AgentReportNotSubmitted}=require(path.join(process.env.SYLVANA_AGENT_REPORT_BUILD??path.resolve(__dirname,'../build'),'agent-report-queue.js'));
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 const source=(changes={})=>({childRequestId:randomUUID(),childInstanceId:randomUUID(),parentRequestId:randomUUID(),parentConversationId:randomUUID(),...changes});
 function fixture({available=false,launch,parallel=2}={}){

@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
-const build=process.env.AGENTOPIA_AGENT_TEST_BUILD??path.resolve(__dirname,'../build');
+const build=process.env.SYLVANA_AGENT_TEST_BUILD??path.resolve(__dirname,'../build');
 const {agentPolicy,profileInput,defaultAgentPolicy}=require(path.join(build,'agent-contracts.js'));
 const {allowsAgentTool,intersectAgentPolicies,agentInstructions}=require(path.join(build,'agent-policy.js'));
 

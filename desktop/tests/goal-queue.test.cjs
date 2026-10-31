@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),{randomUUID}=require('node:crypto');
-const build=process.env.AGENTOPIA_GOAL_BUILD,{GoalQueue}=require(path.join(build,'goal-queue.js')),{Broker}=require(path.join(build,'broker.js')),{ChatQueue}=require(path.join(build,'chat-queue.js'));
+const build=process.env.SYLVANA_GOAL_BUILD,{GoalQueue}=require(path.join(build,'goal-queue.js')),{Broker}=require(path.join(build,'broker.js')),{ChatQueue}=require(path.join(build,'chat-queue.js'));
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 test('a goal waits for queue removal and the receiving response to settle before resuming',async()=>{
  const queue=new GoalQueue();let idle=false,finished=false;const work=queue.drain('owner','chat','goal',()=>true,()=>idle,()=>{}).then(value=>{finished=true;return value;});queue.beginSettlement('owner','chat');idle=true;queue.changed('owner','chat');await tick();assert.equal(finished,false);queue.finishSettlement('owner','chat');assert.equal(await work,true);assert.equal(queue.isWaiting('goal'),false);

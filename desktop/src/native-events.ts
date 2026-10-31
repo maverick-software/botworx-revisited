@@ -1,9 +1,26 @@
 import type {NativeState} from './native-contracts';
+import type {ThreadTokenUsage} from './codex-protocol/v2/ThreadTokenUsage';
+
+function tokenUsage(value:any):ThreadTokenUsage|undefined{
+ const counter=(n:unknown)=>typeof n==='number'&&Number.isSafeInteger(n)&&n>=0;
+ const breakdown=(v:any)=>v&&['totalTokens','inputTokens','cachedInputTokens','outputTokens','reasoningOutputTokens'].every(k=>counter(v[k]))&&(v.cacheWriteInputTokens===undefined||counter(v.cacheWriteInputTokens))?{
+  totalTokens:v.totalTokens,inputTokens:v.inputTokens,cachedInputTokens:v.cachedInputTokens,cacheWriteInputTokens:v.cacheWriteInputTokens??0,outputTokens:v.outputTokens,reasoningOutputTokens:v.reasoningOutputTokens,
+ }:undefined;
+ const total=breakdown(value?.total),last=breakdown(value?.last),limit=value?.modelContextWindow;
+ if(!total||!last||limit!==null&&(!counter(limit)||limit===0))return;
+ return {total,last,modelContextWindow:limit};
+}
 
 // The app-server streams patch updates separately from item lifecycle events.
 // Identify items by their complete scope: children and later turns may reuse IDs.
 export function applyNativeEvent(state:NativeState,method:string,p:any){
  if(!p||typeof p.threadId!=='string'||typeof p.turnId!=='string')return;
+ if(method==='thread/tokenUsage/updated'){
+  // Root transcripts also contain child items. Their independent context must
+  // never replace the parent's, nor may a late previous-turn update replace it.
+  if(p.threadId!==state.threadId||state.turnId&&p.turnId!==state.turnId)return;
+  const value=tokenUsage(p.tokenUsage);if(value)state.tokenUsage={turnId:p.turnId,value};return;
+ }
  const entry=(id:string)=>state.items.find(row=>row.threadId===p.threadId&&row.turnId===p.turnId&&row.item.id===id);
  if((method==='item/started'||method==='item/completed')&&p.item){
   const item=structuredClone(p.item),found=entry(item.id);

@@ -1,3 +1,4 @@
+import {currentFileHref} from './legacy-brand';
 import path from 'node:path';
 import {randomUUID,createHash} from 'node:crypto';
 import {lstat,mkdir,rename,rm} from 'node:fs/promises';
@@ -33,10 +34,10 @@ export class ScheduledWorkspaceMaintenance{
  private async restoredIdentity(root:string){await storageDirectory(root);const stat=await lstat(root,{bigint:true});return digest([stat.dev.toString(),stat.ino.toString(),stat.birthtimeNs.toString()]);}
  async recoveredLink(owner:string,args:Record<string,unknown>,guard:()=>Promise<void>):Promise<RecoveredChatLink|undefined>{
   if(typeof args.href!=='string'||args.href.length>4000||/[\x00-\x1f\x7f]/.test(args.href))return;
-  const href=args.href.trim();if(!href||/^(?:https?:|sandbox:|#|\/\/)/i.test(href))return;
+  const href=currentFileHref(args.href.trim());if(!href||/^(?:https?:|sandbox:|#|\/\/)/i.test(href))return;
   let absolute:string|undefined,referenceId:string|undefined,relative='',fragment='';
-  if(/^agentopia-file:/i.test(href)){
-   const url=new URL(href);if(url.username||url.password||url.port||url.search)throw Error('Use a valid workspace file reference.');
+  if(/^sylvana-file:/i.test(currentFileHref(href))){
+   const url=new URL(currentFileHref(href));if(url.username||url.password||url.port||url.search)throw Error('Use a valid workspace file reference.');
    referenceId=url.hostname;relative=decodeURIComponent(url.pathname.replace(/^\//,''));fragment=url.hash;
   }else{
    const suffix=sourceLinkSuffix(href),hash=suffix.href.indexOf('#'),value=hash>=0?suffix.href.slice(0,hash):suffix.href;fragment=hash>=0?suffix.href.slice(hash):suffix.fragment?'#'+suffix.fragment:'';
@@ -159,7 +160,7 @@ export class ScheduledWorkspaceMaintenance{
     if(operation.git){if(!metadata||(await workspaceRecoveryInventory(metadata,guard,new AbortController().signal)).fingerprint!==operation.git.metadataFingerprint)throw unchanged();}
    };
    if(retained.git?.directory!==operation.gitDirectory||retained.git?.identity!==operation.gitIdentity)throw unchanged();await check(journal.path,retained.git?.directory);
-   const staged=path.join(path.dirname(journal.path),'.agentopia-archive-'+operation.id),stagedGit=retained.git?path.join(path.dirname(retained.git.directory),'.agentopia-archive-'+operation.id):undefined;
+   const staged=path.join(path.dirname(journal.path),'.sylvana-archive-'+operation.id),stagedGit=retained.git?path.join(path.dirname(retained.git.directory),'.sylvana-archive-'+operation.id):undefined;
    if(!await absent(staged)||stagedGit&&!await absent(stagedGit))throw Error('An earlier archive staging folder needs inspection.');
    // The managed root and metadata paths have been checked against the owned
    // journal and complete inventories before any rename or recursive removal.

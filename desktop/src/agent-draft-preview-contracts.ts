@@ -1,3 +1,4 @@
+import {agentInstructionsLimit} from './agent-unified-instructions';
 import type {CreationResourcePrincipal} from './creation-resource-principal';
 import type {PreviewRemoteTools} from './preview-remote-tools';
 import type {NativeState} from './native-contracts';
@@ -8,7 +9,7 @@ import {profileInput} from './agent-contracts';
 import {chatOptions} from './composer';
 import type {PluginFileBinding} from './plugin-files';
 import type {PreviewWorkspaceSkills} from './preview-workspace-skills';
-import {builderConfiguration,builderSnapshot,type BuilderConfiguration} from './agent-builder';
+import {builderConfiguration,builderSnapshot,legacyBuilderInstructions,legacyBuilderInstructions83,legacyBuilderInstructions85,type BuilderConfiguration} from './agent-builder';
 
 export type AgentDraftBehavior=Omit<ReturnType<typeof profileInput>,'revision'>;
 export type AgentDraftExecution=Omit<ChatOptions,'harness'|'provider'|'model'|'thinking'|'goalId'>;
@@ -39,12 +40,12 @@ export function agentDraftBehavior(value:unknown):AgentDraftBehavior{
  const {revision,...behavior}=profileInput({...v,revision:1});return behavior;
 }
 export function agentDraftSnapshot(value:unknown):AgentDraftSnapshot{
- const v=record(value),name=text(v.name,100,'an agent name'),description=text(v.description,4000,'a description'),instructions=text(v.instructions,100000,'instructions'),personality=text(v.personality??'',20000,'personality and tone'),model=text(v.model,200,'a model');
+ const v=record(value),name=text(v.name,100,'an agent name'),description=text(v.description,4000,'a description'),instructions=text(v.instructions,agentInstructionsLimit,'instructions'),personality=text(v.personality??'',20000,'personality and tone'),model=text(v.model,200,'a model');
  if(!name.trim()||!model.trim())throw Error('Choose an agent name and connected model before testing its instructions.');
- if(v.provider!=='openai-oauth'&&v.provider!=='openrouter')throw Error('Choose a supported AI provider.');
+ if(v.provider!=='openai-oauth'&&v.provider!=='openrouter'&&v.provider!=='openai-api'&&v.provider!=='sylvana')throw Error('Choose a supported AI provider.');
  const thinking=v.thinking??'default';if(!['default','none','minimal','low','medium','high','xhigh','max','ultra'].includes(thinking as string))throw Error('Choose a supported thinking level.');
  keys(v,['name','description','instructions','personality','provider','model','thinking','behavior','execution','builder']);
- if(v.builder!==undefined){const canonical=builderSnapshot(builderConfiguration(v.builder),v.provider,model,thinking as Thinking),execution=agentDraftExecution(v.execution??canonical.execution);if(name!==canonical.name||description!==canonical.description||instructions!==canonical.instructions||personality!==''||JSON.stringify(agentDraftBehavior(v.behavior))!==JSON.stringify(canonical.behavior)||execution.permission!=='chat'||execution.mode!=='chat'||execution.files.length||execution.windows?.length||execution.skills?.length||execution.tools?.length||execution.sources?.length)throw Error('The agent builder can only discuss configuration without action tools.');return canonical;}
+ if(v.builder!==undefined){const canonical=builderSnapshot(builderConfiguration(v.builder),v.provider,model,thinking as Thinking),execution=agentDraftExecution(v.execution??canonical.execution);if(name!==canonical.name||description!==canonical.description||instructions!==canonical.instructions&&instructions!==legacyBuilderInstructions&&instructions!==legacyBuilderInstructions83&&instructions!==legacyBuilderInstructions85||personality!==''||JSON.stringify(agentDraftBehavior(v.behavior))!==JSON.stringify(canonical.behavior)||execution.permission!=='chat'||execution.mode!=='chat'||execution.files.length||execution.windows?.length||execution.skills?.length||execution.tools?.length||execution.sources?.length)throw Error('The agent builder can only discuss configuration without action tools.');return {...canonical,instructions};}
  return {name,description,instructions,personality,provider:v.provider,model,thinking:thinking as Thinking,behavior:agentDraftBehavior(v.behavior),...(v.execution!==undefined?{execution:agentDraftExecution(v.execution)}:{})};
 }
 export function agentDraftPreviewInput(value:unknown):AgentDraftPreviewInput{

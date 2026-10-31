@@ -17,7 +17,7 @@ function relativeName(name:string){
  const parts=name.split('/');requireValue(parts.every(n=>n!=='.'&&n!=='..'&&!/[. ]$/.test(n)&&!/[<>"|?*]/.test(n)&&!/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(n))&&/^[a-f0-9]{12}$/i.test(parts[0])&&(parts.length===1||uuid.test(parts[1])),'Invalid recovered output ownership.');return parts;
 }
 export function validatePublicReferenceIndex(index:PublicReferenceIndex,inventory:PublicOutputInventory){
- requireValue(index?.format===1&&path.isAbsolute(index.sourceRoot)&&path.basename(index.sourceRoot)==='Agentopia Files'&&path.isAbsolute(index.sourceProfile)&&(inside(path.dirname(index.sourceRoot),index.sourceProfile)||relocatedProfileRoot(index.sourceProfile)),'Invalid public-file recovery origin.');
+ requireValue(index?.format===1&&path.isAbsolute(index.sourceRoot)&&path.basename(index.sourceRoot)==='Sylvana Files'&&path.isAbsolute(index.sourceProfile)&&(inside(path.dirname(index.sourceRoot),index.sourceProfile)||relocatedProfileRoot(index.sourceProfile)),'Invalid public-file recovery origin.');
  requireValue(Array.isArray(index.accounts)&&index.accounts.length<=10000&&inventory?.files&&Array.isArray(inventory.directories),'Invalid public-file recovery inventory.');
  const directories=new Set(inventory.directories),names=new Set<string>();
  for(const name of [...inventory.directories,...Object.keys(inventory.files)]){relativeName(name);requireValue(!names.has(name.toLowerCase()),'Duplicate recovered output path.');names.add(name.toLowerCase());const parts=name.split('/');for(let i=1;i<parts.length;i++)requireValue(directories.has(parts.slice(0,i).join('/')),'Missing recovered parent directory.');}
@@ -34,7 +34,7 @@ export function capturePublicReferenceIndex(sourceRoot:string,sourceProfile:stri
 }
 export function publicReferenceIndexId(index:PublicReferenceIndex){return createHash('sha256').update(JSON.stringify(index)).digest('hex');}
 export function planRecoveredPublicReferences(index:PublicReferenceIndex,inventory:PublicOutputInventory,destinationRoot:string,owner:string):RecoveredReference[]{
- validatePublicReferenceIndex(index,inventory);requireValue(uuid.test(owner)&&path.isAbsolute(destinationRoot)&&path.basename(destinationRoot)==='Agentopia Files','Invalid recovered output destination.');
+ validatePublicReferenceIndex(index,inventory);requireValue(uuid.test(owner)&&path.isAbsolute(destinationRoot)&&path.basename(destinationRoot)==='Sylvana Files','Invalid recovered output destination.');
  return (index.accounts.find(account=>same(account.owner,owner))?.references??[]).map(row=>({formerPath:path.join(index.sourceRoot,...row.relativePath.split('/')),reference:{id:row.id,name:row.name,kind:row.kind,path:path.join(destinationRoot,...row.relativePath.split('/')),recoveryPaths:[...new Set([...(row.formerPaths??[]),path.join(index.sourceRoot,...row.relativePath.split('/'))])]}}));
 }
 async function regular(root:string,target:string,kind:'file'|'folder'){
@@ -52,9 +52,9 @@ export async function verifyRecoveredPublicReferences(index:PublicReferenceIndex
 export function translateRecoveredPath(index:PublicReferenceIndex,owner:string,raw:string,destinationRoot:string,nativeDirectory:string){
  if(!path.isAbsolute(raw)||!uuid.test(owner))return raw;
  const aliases=(index.accounts.find(account=>same(account.owner,owner))?.references??[]).flatMap(reference=>(reference.formerPaths??[]).map(former=>({reference,former}))).filter(({reference,former})=>same(path.resolve(former),path.resolve(raw))||reference.kind==='folder'&&inside(former,path.resolve(raw))).sort((a,b)=>b.former.length-a.former.length);if(aliases[0])return path.join(destinationRoot,aliases[0].reference.relativePath,path.relative(aliases[0].former,raw));
- const source=path.resolve(raw),home=path.dirname(index.sourceRoot),roots=[index.sourceProfile,path.join(home,'.agentopia/desktop/profile'),path.join(home,'AppData/Roaming/Agentopia')];
+ const source=path.resolve(raw),home=path.dirname(index.sourceRoot),roots=[index.sourceProfile,path.join(home,'.sylvana/desktop/profile'),path.join(home,'AppData/Roaming/Sylvana')];
  for(const root of roots){const scratch=path.join(root,'workspaces',owner);if(inside(scratch,source))return path.join(nativeDirectory,'workspaces',owner,path.relative(scratch,source));}
- const cached=path.relative(home,source).split(path.sep);if(cached.length>=11&&cached[0].toLowerCase()==='appdata'&&cached[1].toLowerCase()==='local'&&cached[2].toLowerCase()==='packages'&&/^[a-z0-9_.-]+$/i.test(cached[3])&&cached[4].toLowerCase()==='localcache'&&cached[5].toLowerCase()==='roaming'&&cached[6].toLowerCase()==='agentopia'&&cached[7].toLowerCase()==='workspaces'&&same(cached[8],owner)&&!cached.includes('..'))return path.join(nativeDirectory,'workspaces',owner,...cached.slice(9));
+ const cached=path.relative(home,source).split(path.sep);if(cached.length>=11&&cached[0].toLowerCase()==='appdata'&&cached[1].toLowerCase()==='local'&&cached[2].toLowerCase()==='packages'&&/^[a-z0-9_.-]+$/i.test(cached[3])&&cached[4].toLowerCase()==='localcache'&&cached[5].toLowerCase()==='roaming'&&cached[6].toLowerCase()==='sylvana'&&cached[7].toLowerCase()==='workspaces'&&same(cached[8],owner)&&!cached.includes('..'))return path.join(nativeDirectory,'workspaces',owner,...cached.slice(9));
  const relative=path.relative(index.sourceRoot,source).split(path.sep);if(relative.length>=3&&/^[a-f0-9]{12}$/i.test(relative[0])&&same(relative[1],owner)&&!relative.includes('..'))return path.join(destinationRoot,...relative);
  return raw;
 }

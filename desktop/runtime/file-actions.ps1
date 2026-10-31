@@ -5,7 +5,7 @@ try {
     Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
-public static class AgentopiaFileMove {
+public static class SylvanaFileMove {
     [DllImport("kernel32.dll", EntryPoint="MoveFileW", CharSet=CharSet.Unicode, SetLastError=true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool MoveFile(string source, string destination);
@@ -23,7 +23,7 @@ public static class AgentopiaFileMove {
         -not [IO.Path]::IsPathRooted($request.source) -or -not [IO.Path]::IsPathRooted($request.destination)) {
         throw 'A move requires two absolute paths.'
     }
-    $result = [AgentopiaFileMove]::Move($request.source, $request.destination)
+    $result = [SylvanaFileMove]::Move($request.source, $request.destination)
     [Console]::WriteLine('RESULT:' + $result)
     if ($result -ne 0) { exit 1 }
 } catch {

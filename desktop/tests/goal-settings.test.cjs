@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
-const {goalLimits,goalHasTurns,goalTurnLabel}=require(path.join(process.env.AGENTOPIA_GOAL_BUILD,'goal-settings.js'));
+const {goalLimits,goalHasTurns,goalTurnLabel}=require(path.join(process.env.SYLVANA_GOAL_BUILD,'goal-settings.js'));
 test('new goals default to unlimited and existing explicit limits retain their value',()=>{
  assert.deepEqual(goalLimits({}),{maxTurns:null,tokenBudget:null});assert.deepEqual(goalLimits({maxTurns:3}),{maxTurns:3,tokenBudget:null});assert.deepEqual(goalLimits({maxTurns:null,tokenBudget:40000}),{maxTurns:null,tokenBudget:40000});
  for(const maxTurns of [0,-1,1.5,'10',1001,Infinity])assert.throws(()=>goalLimits({maxTurns}));

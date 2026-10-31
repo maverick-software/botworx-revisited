@@ -9,6 +9,8 @@ from urllib.parse import urlparse
 
 INSTANCE = 'a91a4800-e08f-4440-a4ec-588762d01bfd'
 REQUIRED = {'database', 'rest', 'auth', 'storage', 'realtime', 'functions'}
+LEGACY_HELPER = Path('1792560089336/source/desktop/runtime/database_state.py')
+LEGACY_HELPER_SHA256 = '8049f8a010589c0cbe3b49303cb123ee7541c74cfaf321b04044b6bd4649d9d1'
 
 
 def healthy(state):
@@ -50,8 +52,11 @@ def status():
     return state
 
 
-def validated_helper(helper, release_root=Path('/mnt/f/Agentopia/.supabase/desktop-composio-candidate52')):
+def validated_helper(helper, release_root=Path('/mnt/f/Agentopia/.supabase/desktop-composio-candidate52'), expected_sha256=LEGACY_HELPER_SHA256):
+    assert helper == release_root/LEGACY_HELPER
     assert helper.is_file() and helper.resolve() == helper and helper.is_relative_to(release_root)
+    with helper.open('rb') as stream:
+        assert hashlib.file_digest(stream, 'sha256').hexdigest() == expected_sha256
     return helper
 
 

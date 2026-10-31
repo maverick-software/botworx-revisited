@@ -9,7 +9,7 @@ export type {ComposioConnection} from './composio-contracts';
 export type {ComposioState} from './composio-contracts';
 /** The store must encrypt credentials. Connections must be captured by recovery before release. */
 export type ComposioStore={get<T>(key:string):T|undefined;setMany(entries:readonly (readonly [string,unknown])[]):Promise<unknown>};
-const uuid=(value:string)=>{if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value))throw Error('Choose a valid Agentopia account or agent.');return value;};
+const uuid=(value:string)=>{if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value))throw Error('Choose a valid Sylvana account or agent.');return value;};
 const digest=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const agentAuthority=(stamp:string,connection:ComposioConnection,agent:string)=>{const {agents,...binding}=connection;return digest([stamp,binding,agent,agents===null||agents.includes(agent)]);};
 /** null means all account workers; otherwise only agents affected by the change. */
@@ -31,9 +31,9 @@ export class ComposioConnections{
  private keyName(owner:string){return 'composio-key:'+uuid(owner);}
  private read(owner:string){const value=this.store.get<ComposioState>(this.stateKey(owner));return value?composioState(value):undefined;}
  private key(owner:string){const value=this.store.get<string>(this.keyName(owner));if(!value)throw Error('Connect a Composio project in Plugins first.');return value;}
- private async owner(owner:string){uuid(owner);if(await this.identity()!==owner)throw Error('Your Agentopia account changed.');}
+ private async owner(owner:string){uuid(owner);if(await this.identity()!==owner)throw Error('Your Sylvana account changed.');}
  private async exclusive<T>(owner:string,task:()=>Promise<T>):Promise<T>{const prior=this.writes.get(owner)??Promise.resolve(),running=prior.catch(()=>{}).then(async()=>{await this.owner(owner);return task();});this.writes.set(owner,running);try{return await running;}finally{if(this.writes.get(owner)===running)this.writes.delete(owner);}}
- private async context(owner:string){await this.owner(owner);const key=this.key(owner),state=this.read(owner);if(!state)throw Error('Configure this Composio project again.');const stamp=digest([key,state.namespace]);return {client:this.client(key),state,stamp,user:composioIdentifier('agentopia_'+digest([owner,state.namespace]),'user'),guard:async()=>{await this.owner(owner);if(digest([this.key(owner),this.read(owner)?.namespace])!==stamp)throw Error('The Composio project changed. Start a new operation.');}};}
+ private async context(owner:string){await this.owner(owner);const key=this.key(owner),state=this.read(owner);if(!state)throw Error('Configure this Composio project again.');const stamp=digest([key,state.namespace]);return {client:this.client(key),state,stamp,user:composioIdentifier('sylvana_'+digest([owner,state.namespace]),'user'),guard:async()=>{await this.owner(owner);if(digest([this.key(owner),this.read(owner)?.namespace])!==stamp)throw Error('The Composio project changed. Start a new operation.');}};}
  async status(owner:string){await this.owner(owner);return {configured:!!this.store.get<string>(this.keyName(owner)),connections:this.read(owner)?.connections??[]};}
  async ownsConnection(owner:string,id:string){await this.owner(owner);return this.read(owner)?.connections.some(row=>row.id===id)??false;}
  async sources(owner:string,agent:string):Promise<ToolSource[]>{

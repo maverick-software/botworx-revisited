@@ -33,7 +33,7 @@ export class CodexDraftPreview implements AgentDraftPreviewRunner{
   this.native=new CodexHarness(db,providers,directory,resources,emit,guard,undefined,undefined,pluginSkills,undefined,draftPreviewTables,request=>request.preview_resource_creation??request.preview_resource_agent_id,new NativePreviewWorkspaceSkills(path.join(directory,'preview-workspace-skills')),request=>request.preview_workspace_skills);
  }
  async prepare(user:Identity,input:AgentDraftPreviewInput,signal:AbortSignal,validate:()=>Promise<void>){
-  if(input.snapshot.execution?.skills?.some(skill=>skill.startsWith('agentopia-plugin:'))&&!this.pluginSkills)throw Error('Native preview skill execution is unavailable.');
+  if(input.snapshot.execution?.skills?.some(skill=>skill.startsWith('sylvana-plugin:'))&&!this.pluginSkills)throw Error('Native preview skill execution is unavailable.');
   if(this.execution)return this.execution.capture(user,input,signal,validate);
   const options=draftPreviewOptions(input.snapshot);if(options.permission!=='chat'||options.files.length||options.windows?.length||options.tools?.length||options.skills?.length||options.sources?.length)throw Error('Tool-capable preview execution is unavailable.');return null;
  }

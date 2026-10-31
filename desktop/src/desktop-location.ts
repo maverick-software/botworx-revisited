@@ -4,7 +4,7 @@ import type {DesktopLocation} from './contracts';
 const uuid=(value:unknown)=>typeof value==='string'&&/^[a-f0-9-]{36}$/i.test(value);
 export function desktopLocation(value:unknown):DesktopLocation{
  const input=value as DesktopLocation;if(!input||!['chat','agents','plugins','skills','tools','scheduled'].includes(input.view))throw new Error('Invalid desktop location.');
- const result:DesktopLocation={view:input.view};for(const key of ['conversationId','agentId','projectId'] as const)if(input[key]!==undefined&&input[key]!==null){if(!uuid(input[key]))throw new Error('Invalid desktop location identifier.');result[key]=input[key];}
+ const result:DesktopLocation={view:input.view==='tools'?'plugins':input.view};for(const key of ['conversationId','agentId','projectId'] as const)if(input[key]!==undefined&&input[key]!==null){if(!uuid(input[key]))throw new Error('Invalid desktop location identifier.');result[key]=input[key];}
  if(input.child!==undefined){if(input.view!=='chat'||!result.conversationId||!uuid(input.child?.requestId)||!uuid(input.child?.threadId))throw new Error('Invalid subagent chat location.');result.child={requestId:input.child.requestId,threadId:input.child.threadId};}return result;
 }
 export class DesktopLocations{
