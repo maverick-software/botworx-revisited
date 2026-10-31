@@ -38,7 +38,7 @@ test('copying a completed native reply excludes hidden commentary and child mess
 });
 const reply=(thread,text,phase='final_answer')=>({threadId:thread,turnId:'turn',completed:true,item:{id:text,type:'agentMessage',phase,text}});
 test('copying a completed answer includes each later parent report and its citation in displayed order',()=>{
- const citation='[Saved source](agentopia-chat://generated-chat/message/generated-message)';
+ const citation='[Saved source](sylvana-chat://generated-chat/message/generated-message)';
  const native={threadId:'parent',items:[reply('parent','Original answer.<!-- GOAL_COMPLETE -->'),reply('child','Private child text')],reports:[
   {id:'one',status:'completed',state:{threadId:'parent',items:[reply('parent','Hidden report work.','commentary'),reply('child','Child transport text'),reply('parent','First report.\n\n'+citation+'<!-- GOAL_COMPLETE -->'),{threadId:'parent',item:{type:'commandExecution',aggregatedOutput:'Tool output'}}]}},
   {id:'two',status:'completed',state:{threadId:'parent',items:[reply('parent','Second report.')]}}

@@ -1,7 +1,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const path=require('node:path');
-const build=process.env.AGENTOPIA_PREVIEW_BUILD||path.resolve(__dirname,'../build');
+const build=process.env.SYLVANA_PREVIEW_BUILD||path.resolve(__dirname,'../build');
 const {builderConfiguration,builderProposal,builderSnapshot,applyBuilderProposal}=require(path.join(build,'agent-builder.js'));
 const {agentDraftSnapshot}=require(path.join(build,'agent-draft-preview-contracts.js'));
 const {previewEditorScope,editorDraftPayload}=require(path.join(build,'agent-editor-draft-contracts.js'));

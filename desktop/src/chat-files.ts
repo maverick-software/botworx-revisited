@@ -1,3 +1,5 @@
+import {currentFileHref} from './legacy-brand';
+import {inlineDocumentOutputs} from './document-output-links';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
@@ -20,7 +22,7 @@ export class ChatFiles{
  constructor(private db:SupabaseClient,private files:WorkspaceFiles,private nativeDirectory:string,readonly outputDirectory=nativeOutputDirectory(nativeDirectory),private desktop={dialog,shell},private legacyDirectory?:string|readonly string[],private recovered?:Pick<RestoredPublicFiles,'translate'>,private recoveredLink?:(owner:string,args:Record<string,unknown>,guard:()=>Promise<void>)=>Promise<RecoveredChatLink|undefined>){}
  private async offered(owner:string,args:Record<string,unknown>,guard:()=>Promise<void>){
   if(typeof args.href!=='string'||typeof args.conversationId!=='string'||! /^[a-f0-9-]{36}$/i.test(args.conversationId))return false;
-  const href=args.href.trim();if(!href||href.length>4000||/[\x00-\x1f\x7f]/.test(href))return false;
+  const href=currentFileHref(args.href.trim());if(!href||href.length>4000||/[\x00-\x1f\x7f]/.test(href))return false;
   const chat=must(await this.db.from('conversation_sessions').select('conversation_id').eq('conversation_id',args.conversationId).eq('user_id',owner).maybeSingle());if(!chat)throw Error('This chat is unavailable for your account.');
   let decodedHref=href;try{decodedHref=decodeURIComponent(href);}catch{}
   // Continue from the last saved message rather than shifting offsets as new
@@ -31,7 +33,7 @@ export class ChatFiles{
    let query=this.db.from('chat_messages_v2').select('content,desktop_sequence,id').eq('conversation_id',args.conversationId).eq('role','assistant').order('desktop_sequence',{ascending:false}).order('id',{ascending:false}).limit(200);
    if(cursor)query=query.or(`desktop_sequence.lt.${cursor.sequence},and(desktop_sequence.eq.${cursor.sequence},id.lt.${cursor.id})`);
    const rows=must(await query);await guard();
-   if(rows.some((row:any)=>{const content=typeof row.content==='string'?row.content:row.content?.text??'';return typeof content==='string'&&[href,decodedHref,href.replaceAll(' ','%20')].some(value=>content.includes(']('+value+')')||content.includes('](<'+value+'>)'));}))return true;
+   if(rows.some((row:any)=>{const content=typeof row.content==='string'?row.content:row.content?.text??'';return typeof content==='string'&&([href,decodedHref,href.replaceAll(' ','%20')].some(value=>content.includes(']('+value+')')||content.includes('](<'+value+'>)'))||inlineDocumentOutputs(content).some(value=>[href,decodedHref].includes(currentFileHref(value))));}))return true;
    if(rows.length<200)return false;
    const last=rows.at(-1),sequence=String(last.desktop_sequence),id=String(last.id);
    if(!/^\d+$/.test(sequence)||! /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id)||cursor&&cursor.sequence===sequence&&cursor.id===id)throw Error('The saved chat message order is unavailable. Try opening this file again.');
@@ -83,7 +85,7 @@ export class ChatFiles{
   if(recovered){await guard();await recovered.check();const resolved=await links.resolve(owner,recovered.args);await recovered.check();await guard();return resolved;}
   await guard();try{const resolved=await links.resolve(owner,args);await guard();return resolved;}catch(original){
    if(typeof args.href!=='string'||typeof args.conversationId!=='string'||! /^[a-f0-9-]{36}$/i.test(args.conversationId))throw original;
-   const href=args.href.trim();if(!href||href.length>4000||/[\x00-\x1f\x7f]/.test(href))throw original;
+   const href=currentFileHref(args.href.trim());if(!href||href.length>4000||/[\x00-\x1f\x7f]/.test(href))throw original;
    // Only an actual link offered in this account's saved conversation may export private scratch output.
    if(!await this.offered(owner,args,guard))throw original;
    const suffix=sourceLinkSuffix(href.replace(/^sandbox:/i,'')),fragmentIndex=suffix.href.indexOf('#'),fragment=fragmentIndex>=0?suffix.href.slice(fragmentIndex):suffix.fragment?'#'+suffix.fragment:'';
@@ -102,7 +104,7 @@ export class ChatFiles{
     if(inside(legacyScratch,absolute))raw=path.join(scratch,path.relative(legacyScratch,absolute));
     else{
      const home=path.dirname(path.dirname(path.dirname(legacyDirectory))),parts=path.relative(home,absolute).split(path.sep);
-     if(parts.length>=11&&parts[0].toLowerCase()==='appdata'&&parts[1].toLowerCase()==='local'&&parts[2].toLowerCase()==='packages'&&/^[a-z0-9_.-]+$/i.test(parts[3])&&parts[4].toLowerCase()==='localcache'&&parts[5].toLowerCase()==='roaming'&&parts[6].toLowerCase()==='agentopia'&&parts[7].toLowerCase()==='workspaces'&&same(parts[8],owner))raw=path.join(scratch,...parts.slice(9));
+     if(parts.length>=11&&parts[0].toLowerCase()==='appdata'&&parts[1].toLowerCase()==='local'&&parts[2].toLowerCase()==='packages'&&/^[a-z0-9_.-]+$/i.test(parts[3])&&parts[4].toLowerCase()==='localcache'&&parts[5].toLowerCase()==='roaming'&&parts[6].toLowerCase()==='sylvana'&&parts[7].toLowerCase()==='workspaces'&&same(parts[8],owner))raw=path.join(scratch,...parts.slice(9));
     }
    }
    if(path.isAbsolute(raw)&&inside(logicalScratch,path.resolve(raw)))raw=path.join(scratch,path.relative(logicalScratch,path.resolve(raw)));
@@ -116,7 +118,7 @@ export class ChatFiles{
     const matches:string[]=[];for(const scope of scopes){for(const root of [scratch,path.join(this.outputDirectory,owner)]){const candidate=path.join(root,scope,relative);try{await this.regular(root,candidate);matches.push(candidate);}catch{}}}
     if(matches.length!==1)throw Error(matches.length?'Several outputs have this name. Ask the agent for the full file link.':'This output is missing. Ask the agent to recreate it in its workspace and provide its full file link.');source=matches[0];
    }else if(path.isAbsolute(raw)){
-    this.files.checkPath(raw);await guard();const selection=await this.files.attach(owner,[{path:raw}],guard);return links.resolve(owner,{href:'agentopia-file://'+selection.selected[0]+'/'+fragment});
+    this.files.checkPath(raw);await guard();const selection=await this.files.attach(owner,[{path:raw}],guard);return links.resolve(owner,{href:'sylvana-file://'+selection.selected[0]+'/'+fragment});
    }
    if(!source)throw original;
    const sourceRoot=inside(scratch,source)?scratch:path.join(this.outputDirectory,owner),before=await this.regular(sourceRoot,source),bytes=await readFile(source);await guard();const after=await this.regular(sourceRoot,source);if(before.ino!==after.ino||before.size!==after.size||before.mtimeMs!==after.mtimeMs)throw Error('The output changed while opening it. Try again after the agent finishes writing.');
@@ -126,7 +128,7 @@ export class ChatFiles{
    // Equal contents in other chats/files must never share later user edits.
    const sourceIdentity=relativeSource.replaceAll(path.sep,'/'),key=createHash('sha256').update(JSON.stringify([args.conversationId.toLowerCase(),inside(scratch,source)?'scratch':'output',process.platform==='win32'?sourceIdentity.toLowerCase():sourceIdentity,hash])).digest('hex').slice(0,32),destination=path.join(this.outputDirectory,owner,'export-'+key,path.basename(source));
    const retained=await this.retainedCopy(owner,'export-'+key,path.basename(source),hash,destination,guard);
-   if(retained){const copyGuard=async()=>{await guard();if(retained.referenceId&&!this.files.list(owner).some(reference=>reference.id===retained.referenceId&&same(reference.path,retained.path)))throw Error('This saved copy reference was removed. Select it again before opening it.');};await copyGuard();const selection=await this.files.attach(owner,[{path:retained.path}],copyGuard);return links.resolve(owner,{href:'agentopia-file://'+selection.selected[0]+'/'+fragment});}
+   if(retained){const copyGuard=async()=>{await guard();if(retained.referenceId&&!this.files.list(owner).some(reference=>reference.id===retained.referenceId&&same(reference.path,retained.path)))throw Error('This saved copy reference was removed. Select it again before opening it.');};await copyGuard();const selection=await this.files.attach(owner,[{path:retained.path}],copyGuard);return links.resolve(owner,{href:'sylvana-file://'+selection.selected[0]+'/'+fragment});}
    let existing=false;try{await this.regular(this.outputDirectory,destination);existing=true;}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;}
    if(!existing){
     let initialBytes=bytes;
@@ -139,7 +141,7 @@ export class ChatFiles{
     await guard();this.files.checkPath(destination);await mkdir(path.dirname(destination),{recursive:true});await this.regularDirectory(path.dirname(destination));
     try{await writeFile(destination,initialBytes,{flag:'wx'});}catch(error){if((error as NodeJS.ErrnoException).code!=='EEXIST')throw error;await this.regular(this.outputDirectory,destination);}
    }
-   await guard();const selection=await this.files.attach(owner,[{path:destination}],guard);return links.resolve(owner,{href:'agentopia-file://'+selection.selected[0]+'/'+fragment});
+   await guard();const selection=await this.files.attach(owner,[{path:destination}],guard);return links.resolve(owner,{href:'sylvana-file://'+selection.selected[0]+'/'+fragment});
   }
  }
  private async regularDirectory(directory:string){let current=path.parse(directory).root;for(const part of directory.slice(current.length).split(path.sep)){current=path.join(current,part);const info=await lstat(current);if(info.isSymbolicLink()||!info.isDirectory()||!same(await realpath(current),current))throw Error('The export directory contains a linked path.');}}

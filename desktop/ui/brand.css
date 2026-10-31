@@ -1,0 +1,49 @@
+@font-face{font-family:Inter;src:url('./assets/fonts/InterVariable.woff2') format('woff2');font-weight:100 900;font-display:swap}
+:root{font-family:Inter,'Segoe UI Variable','Segoe UI',sans-serif;--bg:#f5f8fb;--sidebar:#eaf0f5;--surface:#fff;--soft:#edf3f7;--hover:#e1edf2;--selected:#dcebf0;--text:#132a3a;--muted:#536e80;--border:#d0dde5;--solid:#146f84;--solid-text:#fff;--focus:#167c93;--brand-gold:#8a6d35}
+:root[data-theme=dark]{--bg:#091923;--sidebar:#0b1c29;--surface:#102636;--soft:#142e3e;--hover:#193748;--selected:#163c4b;--text:#eef4f8;--muted:#9bb2c3;--work-status:#8ba7ba;--border:#294555;--solid:#59c5d4;--solid-text:#06212b;--focus:#7ad5e2;--danger:#ff9ba7;--shadow:0 18px 70px #0007;--brand-gold:#d0b477}
+body{font-family:Inter,'Segoe UI Variable','Segoe UI',sans-serif;-webkit-font-smoothing:antialiased}
+.sylvana-brand{display:inline-flex;align-items:center;justify-content:center;gap:11px;width:auto;height:auto;max-width:100%;background:none;border:0;border-radius:0;color:var(--text)}
+.sylvana-brand-symbol{display:block;flex:none;width:43px;height:43px;background:currentColor;mask-mode:luminance;mask-size:contain;mask-repeat:no-repeat;mask-position:center}
+.sylvana-brand-wordmark{font-family:Inter,'Segoe UI',sans-serif;font-size:29px;font-weight:570;letter-spacing:-1.2px;line-height:1;color:inherit}
+.home-heading .home-brand{display:flex;width:68px;max-width:100%;height:68px;margin:0 auto 21px;background:none}
+.home-heading .home-brand .sylvana-brand-symbol{width:68px;height:68px}
+.home-heading h1{font-family:Inter,'Segoe UI',sans-serif;font-size:31px;line-height:1.3;letter-spacing:-.85px;font-weight:540;margin:0}
+.home-heading p{color:var(--muted);font-size:13px;line-height:1.6;margin:13px auto 0}
+.home-heading{margin-bottom:30px}.chat-home{max-width:850px}
+.composer{background:var(--soft);border:1px solid var(--border);border-radius:21px;padding:15px 16px 11px;box-shadow:0 5px 22px #00000008}
+.composer:focus-within{border-color:color-mix(in srgb,var(--focus) 65%,var(--border));box-shadow:0 0 0 2px color-mix(in srgb,var(--focus) 7%,transparent)}
+.composer textarea{font-family:Inter,'Segoe UI',sans-serif;font-size:15px;line-height:1.65;min-height:49px}
+.composer textarea::placeholder{color:var(--muted)}
+.permission-picker.permission-ask{color:var(--brand-gold)}
+.navigation-rail{background:color-mix(in srgb,var(--sidebar) 85%,#00101d);border-color:var(--border)}
+.rail-button.active{background:var(--selected);color:var(--focus)}
+.sidebar{border-color:var(--border)}.sidebar .nav.active,.sidebar .history-row.active{background:var(--selected)}
+:root[data-theme=dark]{--desktop-chrome:#081823;--desktop-edge:#29404f}
+:root[data-theme=dark] .desktop-surface>.sidebar{background:var(--sidebar);border-right-color:var(--desktop-edge)}
+.sidebar .section-label{color:var(--muted)}
+.desktop-bar{background:var(--sidebar);border-color:var(--border)}
+.workspace-header{border-bottom:1px solid color-mix(in srgb,var(--border) 55%,transparent)}
+.workspace-header .header-title{font-size:15px;font-weight:560;letter-spacing:-.2px}
+.avatar.small{background:color-mix(in srgb,var(--focus) 16%,var(--surface));color:var(--text)}
+.getting-started{gap:16px}.getting-started .secondary{border-color:var(--border);background:var(--surface);font-weight:550}.getting-started .subtle-link{color:var(--muted)}
+.prompt-chips button{border-color:var(--border);color:var(--muted);background:transparent}.prompt-chips button:hover{background:var(--surface);color:var(--text)}
+.auth .wordmark .sylvana-brand{width:auto}
+.auth{isolation:isolate;--auth-right:var(--bg);grid-template-columns:minmax(0,1fr) minmax(0,1fr);max-width:none;gap:0;padding:0}
+.auth-half{display:flex;align-items:center;justify-content:center;min-width:0;min-height:calc(100dvh - 32px);padding:48px 40px}
+.auth-login{display:flex;flex-direction:column;align-items:center;gap:28px;width:min(100%,452px)}
+.auth-login>.wordmark{margin:0;justify-content:center}
+.auth .auth-card{width:100%;text-align:center}
+:root[data-theme=dark] .auth{--auth-right:#0d2130}
+.auth::before{content:'';position:fixed;inset:32px 0 0;z-index:-1;background:linear-gradient(to right,#050f17 0 50%,var(--auth-right) 50% 100%);pointer-events:none}
+.auth .auth-intro{position:relative;isolation:isolate;width:min(100%,452px);aspect-ratio:4/5;overflow:hidden;border-radius:22px;background:#091923;color:#f3f7fa;text-align:center}
+.auth-artwork{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.auth-intro-copy{position:absolute;inset:auto 0 0;padding:70px 28px 28px;background:linear-gradient(transparent,#091923eb 30%,#091923)}
+.auth .auth-intro h1{font-family:Inter,'Segoe UI',sans-serif;font-weight:540;font-size:32px;line-height:1.2;letter-spacing:-.8px;margin:0 0 12px}
+.auth .auth-intro p{max-width:100%;margin:0;color:#b3c9d8;font-size:13px;line-height:1.65}
+.auth .chatgpt-button{background:var(--solid);color:var(--solid-text)}.auth .chatgpt-button:hover{background:color-mix(in srgb,var(--solid) 90%,white)}
+@media(max-width:800px){.auth-half{padding:32px 24px}.auth-intro-copy{padding:50px 20px 20px}.auth .auth-intro h1{font-size:27px}.auth .auth-intro p{font-size:12px}}
+@media(max-width:600px){.auth{grid-template-columns:minmax(0,1fr)}.auth-half{min-height:0;padding:24px}.auth::before{background:linear-gradient(to bottom,#050f17 0 50%,var(--auth-right) 50% 100%)}.auth .auth-intro{aspect-ratio:4/3}.auth-artwork{object-position:center 42%}.auth-intro-copy{padding-top:40px}.auth .auth-intro h1{font-size:25px}}
+.startup-welcome .startup-brand{width:auto;max-width:100%;margin:0 auto 26px;background:none}.startup-welcome .startup-brand .sylvana-brand-symbol{width:54px;height:54px}.startup-welcome h1{font-family:inherit}
+@media(max-width:600px){.home-heading h1{font-size:26px}.home-heading .home-brand,.home-heading .home-brand .sylvana-brand-symbol{width:56px;height:56px}.home-heading p{font-size:12px}.sylvana-brand-wordmark{font-size:26px}}
+
+.chat-home .ai-mistakes-note{margin:14px 0 0;text-align:center;color:var(--muted);font-size:12px;line-height:1.6;font-weight:400}

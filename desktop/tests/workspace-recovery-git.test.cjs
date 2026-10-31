@@ -2,13 +2,13 @@ const test = require('node:test'), assert = require('node:assert/strict');
 const path = require('node:path'), fs = require('node:fs/promises');
 const {execFile} = require('node:child_process');
 const {randomUUID, createHash} = require('node:crypto');
-const build = process.env.AGENTOPIA_SCHEDULE_PROJECT_BUILD;
+const build = process.env.SYLVANA_SCHEDULE_PROJECT_BUILD;
 const {captureWorkspaceGit: capture} = require(path.join(build, 'workspace-recovery-git.js'));
 const {workspaceRecoveryInventory: inventory, writeWorkspaceRecovery: write, verifyWorkspaceRecovery: verify} = require(path.join(build, 'workspace-recovery-files.js'));
 const {ScheduledWorkspaces} = require(path.join(build, 'scheduled-workspaces.js'));
 const {WorkspaceFiles} = require(path.join(build, 'workspace.js'));
-const fixtures = process.env.AGENTOPIA_SCHEDULE_RECOVERY_FIXTURES;
-const binary = process.env.AGENTOPIA_SCHEDULE_GIT_BINARY;
+const fixtures = process.env.SYLVANA_SCHEDULE_RECOVERY_FIXTURES;
+const binary = process.env.SYLVANA_SCHEDULE_GIT_BINARY;
 assert(fixtures && binary && path.isAbsolute(fixtures) && path.isAbsolute(binary));
 const sha = value => createHash('sha256').update(value).digest('hex');
 const guard = async () => {}, signal = () => new AbortController().signal;
@@ -18,7 +18,7 @@ function command(where, boundedGuard = guard, boundedSignal = signal()) {
     await boundedGuard(); boundedSignal.throwIfAborted();
     const env = {...process.env};
     for (const key of Object.keys(env)) if (/^GIT_/i.test(key)) delete env[key];
-    Object.assign(env, {GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_SYSTEM: process.platform === 'win32' ? 'NUL' : '/dev/null', GIT_CONFIG_GLOBAL: process.platform === 'win32' ? 'NUL' : '/dev/null', GIT_NO_LAZY_FETCH: '1', GIT_ALLOW_PROTOCOL: '', GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0', GIT_AUTHOR_NAME: 'Agentopia private recovery', GIT_AUTHOR_EMAIL: 'recovery@example.invalid', GIT_COMMITTER_NAME: 'Agentopia private recovery', GIT_COMMITTER_EMAIL: 'recovery@example.invalid', GIT_AUTHOR_DATE: '2026-10-22T00:00:00Z', GIT_COMMITTER_DATE: '2026-10-22T00:00:00Z'});
+    Object.assign(env, {GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_SYSTEM: process.platform === 'win32' ? 'NUL' : '/dev/null', GIT_CONFIG_GLOBAL: process.platform === 'win32' ? 'NUL' : '/dev/null', GIT_NO_LAZY_FETCH: '1', GIT_ALLOW_PROTOCOL: '', GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0', GIT_AUTHOR_NAME: 'Sylvana private recovery', GIT_AUTHOR_EMAIL: 'recovery@example.invalid', GIT_COMMITTER_NAME: 'Sylvana private recovery', GIT_COMMITTER_EMAIL: 'recovery@example.invalid', GIT_AUTHOR_DATE: '2026-10-22T00:00:00Z', GIT_COMMITTER_DATE: '2026-10-22T00:00:00Z'});
     if (options.indexFile) env.GIT_INDEX_FILE = options.indexFile;
     if(options.gitDirectory){env.GIT_DIR=options.gitDirectory;env.GIT_WORK_TREE=where;}
     const base = ['--no-replace-objects', '-c', 'core.longpaths=true', '-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', '-c', 'protocol.allow=never', '-c', 'maintenance.auto=false', '-c', 'gc.auto=0', '-c', 'submodule.recurse=false', '-c', 'commit.gpgSign=false', '-C', where];
@@ -76,7 +76,7 @@ test('independent recovery retains reset-away detached commits, different staged
   assert.equal(sha(await fs.readFile(path.join(f.scope.gitDirectory, 'index'))), indexBefore);
   assert.equal(sha(await fs.readFile(path.join(f.source, '.git', 'index'))), sourceIndex);
   assert.equal((await f.git(['rev-parse', 'HEAD'])).trim(), original);
-  assert.equal((await f.git(['for-each-ref', '--format=%(refname)', 'refs/agentopia/recovery/'])).trim(), '');
+  assert.equal((await f.git(['for-each-ref', '--format=%(refname)', 'refs/sylvana/recovery/'])).trim(), '');
   assert.deepEqual(f.phases.map(item => item.phase), ['planned', 'reference', 'bundled', 'complete']);
 });
 test('conflict stages and resolve-undo blobs survive without original repository objects', async () => {
@@ -127,7 +127,7 @@ test('an active index lock or external index cannot start recovery mutation', as
   await assert.rejects(capture(f.scope, f.local, guard, signal(), f.progress), /writing/); assert.deepEqual(f.phases, []);
   const g = await fixture(), external = path.join(g.root, 'outside-index');
   await assert.rejects(capture(g.scope, async (args, options) => args.includes('--git-path') ? external : g.local(args, options), guard, signal(), g.progress), /outside/);
-  assert.equal((await g.git(['for-each-ref', '--format=%(refname)', 'refs/agentopia/recovery/'])).trim(), '');
+  assert.equal((await g.git(['for-each-ref', '--format=%(refname)', 'refs/sylvana/recovery/'])).trim(), '');
 });
 test('post-reference persistence failure retains inspectable intent and never repeats it', async () => {
   const f = await fixture(); let recorded;

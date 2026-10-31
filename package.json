@@ -1,7 +1,7 @@
 {
   "name": "gofr-agents",
   "private": true,
-  "version": "0.44.85",
+  "version": "0.46.3",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,6 +12,7 @@
     "server:dev": "node --watch server.js",
     "start:backend": "npm run server:dev",
     "desktop:make": "node scripts/desktop/make.mjs",
+    "desktop:make:wizard": "node scripts/desktop/build-windows-wizard.mjs",
     "desktop:test": "npm run desktop:build && node scripts/desktop/test.mjs",
     "desktop:build": "node scripts/desktop/build.mjs",
     "desktop:dev": "npm run desktop:build && electron desktop/build/main.js",
@@ -155,6 +156,7 @@
     "discord.js": "^14.15.3",
     "dotenv": "^16.5.0",
     "electron": "44.7.2",
+    "electron-builder": "26.18.0",
     "eslint": "^9.9.1",
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",
     "eslint-plugin-react-refresh": "^0.4.11",

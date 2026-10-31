@@ -6,7 +6,7 @@ SOURCE=Path(__file__).resolve().parents[1]/'runtime/manage.py'
 BACKUP=next(node for node in ast.parse(SOURCE.read_text(encoding='utf-8')).body if isinstance(node,ast.FunctionDef) and node.name=='backup')
 class SnapshotTests(unittest.TestCase):
     def setUp(self):
-        self.temp=tempfile.TemporaryDirectory(prefix='agentopia-backup-snapshot-');self.root=Path(self.temp.name);self.destination=self.root/'backup';self.key=self.root/'source-key';self.key.write_bytes(b'GENERATED DATABASE KEY');self.owners=[str(uuid.uuid4()),str(uuid.uuid4())];self.events=[];self.dumps=[];self.lines=['00000001-00000001-1\n',json.dumps(self.owners)+'\n'];self.dump_failure=False
+        self.temp=tempfile.TemporaryDirectory(prefix='sylvana-backup-snapshot-');self.root=Path(self.temp.name);self.destination=self.root/'backup';self.key=self.root/'source-key';self.key.write_bytes(b'GENERATED DATABASE KEY');self.owners=[str(uuid.uuid4()),str(uuid.uuid4())];self.events=[];self.dumps=[];self.lines=['00000001-00000001-1\n',json.dumps(self.owners)+'\n'];self.dump_failure=False
         parent=self
         class Input:
             def write(self,value):parent.events.append(('sql',value))

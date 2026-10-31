@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
-const build=process.env.AGENTOPIA_PLUGIN_IMPORT_BUILD??path.resolve(__dirname,'../build'),{RemoteTools}=require(path.join(build,'remote-tools.js')),{CodexHarness}=require(path.join(build,'codex-harness.js'));
+const build=process.env.SYLVANA_PLUGIN_IMPORT_BUILD??path.resolve(__dirname,'../build'),{RemoteTools}=require(path.join(build,'remote-tools.js')),{CodexHarness}=require(path.join(build,'codex-harness.js'));
 test('remote plugin ownership follows enabled selected connections and stays inside host tool metadata',async()=>{
  const remote=new RemoteTools({});remote.sources=async()=>[{id:'web_search',kind:'web',plugin:'search-plugin',ready:true,enabled:true},{id:'mcp:a',kind:'mcp',plugin:'oauth-notes',ready:true,enabled:true},{id:'mcp:b',kind:'mcp',plugin:'other-plugin',ready:true,enabled:true},{id:'mcp:disabled',kind:'mcp',plugin:'disabled-plugin',ready:true,enabled:false}];
  const options={permission:'ask',mode:'chat',tools:['mcp:a']},plan=await remote.plan('owner','agent',options);assert.deepEqual(plan.definitions.map(tool=>[tool.name,tool.hostPlugins]),[['mcp_search',['oauth-notes']],['mcp_call',['oauth-notes']]]);

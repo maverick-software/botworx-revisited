@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
-const {CodexHarness}=require(path.resolve(process.env.AGENTOPIA_GOAL_BUILD,'codex-harness.js'));
+const {CodexHarness}=require(path.resolve(process.env.SYLVANA_GOAL_BUILD,'codex-harness.js'));
 test('steering reuses active file context, rejects newly attached context and remains idempotent',async()=>{
  const calls=[],record={owner:'owner',ended:false,rootFinished:false,turnRunning:true,controller:new AbortController(),validate:async()=>{},options:{files:['existing'],windows:['selected-window']},state:{threadId:'thread',turnId:'turn',steering:[]},worker:{client:{request:async(method,args)=>{calls.push({method,args});if(args.expectedTurnId!=='turn')throw Error('Stale turn');}}}},harness=Object.create(CodexHarness.prototype);Object.assign(harness,{running:new Map([['request',record]]),guard:async()=>{},publish:()=>{},persist:async()=>{}});
  const context={thinking:'default',mode:'chat',permission:'ask',files:['existing'],windows:['selected-window']};

@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
-const build=process.env.AGENTOPIA_ACCESS_BUILD??path.resolve(__dirname,'../build'),{ToolService}=require(path.join(build,'tool-service.js'));
+const build=process.env.SYLVANA_ACCESS_BUILD??path.resolve(__dirname,'../build'),{ToolService}=require(path.join(build,'tool-service.js'));
 function fixture(){
  const rows=[],user={id:'owner',admin:true},options={permission:'files',mode:'chat',files:['selected'],thinking:'default'},request={id:'request',conversation_id:'chat',assistant_message_id:'answer'};let reads=0,inspects=0;
  const db={from(table){assert.equal(table,'desktop_tool_calls');let filters=[],inserted,patch;const matches=row=>filters.every(([key,value])=>row[key]===value),q={select(){return q},eq(key,value){filters.push([key,value]);return q},order(){return q},insert(row){inserted=structuredClone(row);rows.push(inserted);return q},update(value){patch=structuredClone(value);return q},async single(){const row=inserted??rows.find(matches);if(patch)Object.assign(row,patch);return {data:structuredClone(row)};},then(resolve,reject){const found=rows.filter(matches);if(patch)found.forEach(row=>Object.assign(row,patch));return Promise.resolve({data:structuredClone(found)}).then(resolve,reject);}};return q;}};

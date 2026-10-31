@@ -15,7 +15,7 @@ const keys=(value:Record<string,any>,allowed:string[])=>{if(Object.keys(value).s
 const text=(value:unknown,limit:number)=>{if(typeof value!=='string'||value.length>limit||value.includes('\0'))throw Error('The new-agent draft has an invalid text field.');};
 export function agentCreationDraft(value:unknown):AgentCreationDraft{
  const v=object(value);keys(v,['format','creationId','name','description','instructions','provider','model','appearance','image','dirty','behavior','created','connectionOptions']);
- if(v.format!=='agent-creation-1'||typeof v.dirty!=='boolean'||!['openrouter','openai-oauth'].includes(v.provider))throw Error('The new-agent draft uses an unsupported format.');
+ if(v.format!=='agent-creation-1'||typeof v.dirty!=='boolean'||!['openrouter','openai-oauth','openai-api','sylvana'].includes(v.provider))throw Error('The new-agent draft uses an unsupported format.');
  draftPreviewId(v.creationId);text(v.name,100);text(v.description,4000);text(v.instructions,agentInstructionsLimit);text(v.model,1000);
  if(v.behavior!==undefined)agentBehaviorDraft(v.behavior);
  if(v.connectionOptions!==undefined){const options=object(v.connectionOptions);if(Object.keys(options).length>100)throw Error('The new-agent draft has too many connection settings.');for(const[id,raw]of Object.entries(options)){draftPreviewId(id);const row=object(raw);keys(row,['clientId','clientMetadataUrl']);text(row.clientId,2048);text(row.clientMetadataUrl,2048);}}

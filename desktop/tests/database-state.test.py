@@ -5,7 +5,7 @@ SOURCE=Path(__file__).resolve().parents[1]/'runtime/database_state.py'
 spec=importlib.util.spec_from_file_location('database_state',SOURCE);module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
 class DatabaseStateTests(unittest.TestCase):
  def setUp(self):
-  self.temp=tempfile.TemporaryDirectory(prefix='agentopia-stopped-database-');self.root=Path(self.temp.name);self.data=self.root/'data';self.data.mkdir();(self.data/'global').mkdir();(self.data/'PG_VERSION').write_text('17');(self.data/'global/pg_control').write_bytes(b'GENERATED CONTROL');self.proc=self.root/'proc';self.proc.mkdir();self.pid=self.data/'postmaster.pid';self.pid.write_text('83\n'+str(self.data.resolve())+'\n1700000000\n');self.calls=[]
+  self.temp=tempfile.TemporaryDirectory(prefix='sylvana-stopped-database-');self.root=Path(self.temp.name);self.data=self.root/'data';self.data.mkdir();(self.data/'global').mkdir();(self.data/'PG_VERSION').write_text('17');(self.data/'global/pg_control').write_bytes(b'GENERATED CONTROL');self.proc=self.root/'proc';self.proc.mkdir();self.pid=self.data/'postmaster.pid';self.pid.write_text('83\n'+str(self.data.resolve())+'\n1700000000\n');self.calls=[]
  def tearDown(self):self.temp.cleanup()
  def retire(self,code=3,change=False):
   def run(args,**kwargs):

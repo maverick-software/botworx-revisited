@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),{randomUUID}=require('node:crypto');
-const path=require('node:path'),schedulerBuild=process.env.AGENTOPIA_PREVIEW_BUILD??path.join(__dirname,'../build');
+const path=require('node:path'),schedulerBuild=process.env.SYLVANA_PREVIEW_BUILD??path.join(__dirname,'../build');
 const {TaskScheduler}=require(path.join(schedulerBuild,'task-scheduler.js'));
 const {ScheduledTaskNotSubmitted}=require(path.join(schedulerBuild,'scheduled-task-contracts.js'));
 const deferred=()=>{let resolve;return {promise:new Promise(r=>resolve=r),resolve};};

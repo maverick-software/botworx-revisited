@@ -1,4 +1,4 @@
-param([string]$CacheDistro='AgentopiaRuntime')
+param([string]$CacheDistro='SylvanaRuntime')
 $ErrorActionPreference='Stop'
 $repo=(Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $private=Join-Path $repo '.supabase/desktop-poc'
@@ -12,12 +12,12 @@ $expectedUbuntu=($checksumLine -split '\s+')[0]
 if((Get-FileHash $rootfs -Algorithm SHA256).Hash.ToLower() -ne $expectedUbuntu){throw 'Ubuntu archive checksum mismatch'}
 function LinuxPath([string]$value){return '/mnt/'+$value.Substring(0,1).ToLower()+$value.Substring(2).Replace('\','/')}
 $cache=Join-Path $private 'native-cache.tar'
-wsl --distribution $CacheDistro --user agentopia --exec tar -cf (LinuxPath $cache) -C /home/agentopia/.supabase cache
+wsl --distribution $CacheDistro --user sylvana --exec tar -cf (LinuxPath $cache) -C /home/sylvana/.supabase cache
 if($LASTEXITCODE -ne 0){throw 'Native cache export failed'}
-$name='AgentopiaRuntime-Build'
+$name='SylvanaRuntime-Build'
 $distros=(& wsl --list --quiet) -replace "`0",''
 if($distros.Trim() -contains $name){throw 'Build distribution already exists. Inspect it before creating another template.'}
-$buildPath=Join-Path $env:LOCALAPPDATA 'Agentopia/runtime-build'
+$buildPath=Join-Path $env:LOCALAPPDATA 'Sylvana/runtime-build'
 wsl --import $name $buildPath $rootfs --version 2
 if($LASTEXITCODE -ne 0){throw 'Clean template import failed'}
 wsl --distribution $name --user root --exec bash (LinuxPath (Join-Path $repo 'desktop/runtime/prepare-template.sh')) (LinuxPath (Join-Path $repo 'desktop')) (LinuxPath $cache) (LinuxPath $cliArchive)

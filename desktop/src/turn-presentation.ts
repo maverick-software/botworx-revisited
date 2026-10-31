@@ -1,5 +1,8 @@
 import {diffLines} from 'diff';
 import type {ToolActivity,ToolPreview} from './tool-contracts';
+import type {NativeState} from './native-contracts';
+import type {ResponseFileChange} from './response-file-contracts';
+import {nativeChanges} from './native-change-presentation';
 
 export type TurnTiming={requestId:string;startedAt:string;finishedAt?:string};
 export type ChangedFile={key:string;path:string;referenceId:string;relativePath:string;before:string|null;after:string;tools:ToolActivity[];added:number|null;removed:number|null};
@@ -33,7 +36,22 @@ export function changedFiles(activities:ToolActivity[]):ChangedFile[]{
 
 export function undoableEdits(activities:ToolActivity[]):ToolActivity[]{
  const visible=new Set(changedFiles(activities).flatMap(file=>file.tools.map(tool=>tool.id)));
- return activities.filter(tool=>visible.has(tool.id)).slice().reverse();
+ return activities.filter(tool=>visible.has(tool.id)||tool.name==='manage_file'&&tool.status==='completed'&&(tool.result as any)?.changed===true&&(tool.result as any)?.kind==='file'&&typeof (tool.result as any)?.operation_id==='string').slice().reverse();
+}
+
+/** Verified working-folder observations and durable file-operation receipts. */
+export function observedFileChanges(state:NativeState|undefined,activities:ToolActivity[]):ResponseFileChange[]{
+ const canonical=(value:string)=>value.replaceAll('\\','/').toLowerCase(),patched=new Set([...changedFiles(activities).map(f=>canonical(f.path)),...nativeChanges(state).flatMap(f=>[f.absoluteFrom,f.absoluteTo].filter((p):p is string=>!!p).map(canonical))]);
+ const managed:ResponseFileChange[]=activities.flatMap(tool=>{
+  const result=tool.result as any;if(tool.name!=='manage_file'||tool.status!=='completed'||!result?.changed||result.kind!=='file'||!['move','remove'].includes(result.action))return [];
+  const relativePath=String(result.destination??result.path??tool.arguments.path??''),path=String(result.action==='move'?result.destination_absolute_path??relativePath:result.absolute_path??relativePath);
+  return [{key:'operation:'+tool.id,path,relativePath,kind:result.action==='remove'?'deleted':'moved',before:null,after:null,beforeHash:null,afterHash:null,text:false,added:null,removed:null,referenceId:typeof tool.arguments.reference_id==='string'?tool.arguments.reference_id:undefined,operationId:result.operation_id,destination:result.destination}];
+ });
+ const reverted=new Set(activities.filter(t=>t.status==='reverted').flatMap(t=>t.preview?[canonical(t.preview.path)]:(t.result as any)?.absolute_path?[canonical((t.result as any).absolute_path)]:[]));
+ const files=new Map<string,ResponseFileChange>();
+ for(const current of [state,...(state?.reports??[]).map(r=>r.state)])for(const file of current?.workspaceChanges??[]){const key=canonical(file.path);if(!patched.has(key)&&!reverted.has(key))files.set(key,file);}
+ for(const file of managed){const key=canonical(file.path);if(patched.has(key))continue;const observed=files.get(key);files.set(key,observed?{...observed,operationId:file.operationId,referenceId:file.referenceId}:file);}
+ return [...files.values()];
 }
 
 export function turnLabel(status:string|undefined,elapsed:string|undefined,awaiting:boolean){

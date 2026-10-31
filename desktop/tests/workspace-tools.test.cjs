@@ -4,7 +4,7 @@ const {WorkspaceFiles}=require('../build/workspace.js'),{WorkspaceTools,workspac
 const {streamTurn}=require('../build/providers.js'),{providerHistory}=require('../build/composer.js');
 class Secrets{data=new Map();get(k){return this.data.get(k);}async set(k,v){this.data.set(k,v);}}
 test('workspace tools enforce selected roots, credential exclusions, read-only mode, hashes, conflicts, creation, and undo',async()=>{
- const base=await mkdtemp(path.join(os.tmpdir(),'agentopia-tools-')),root=path.join(base,'workspace'),outside=path.join(base,'outside');await mkdir(root);await mkdir(outside);
+ const base=await mkdtemp(path.join(os.tmpdir(),'sylvana-tools-')),root=path.join(base,'workspace'),outside=path.join(base,'outside');await mkdir(root);await mkdir(outside);
  const files=new WorkspaceFiles(new Secrets()),tools=new WorkspaceTools(files,[path.join(root,'private')]);
  try{
   await writeFile(path.join(root,'notes.md'),'Original\r\n');await writeFile(path.join(root,'.env'),'DO_NOT_READ');await writeFile(path.join(outside,'outside.md'),'OUTSIDE');await mkdir(path.join(root,'private'));await writeFile(path.join(root,'private','data.md'),'PROTECTED');
@@ -28,11 +28,11 @@ test('workspace tools enforce selected roots, credential exclusions, read-only m
  }finally{assert(path.resolve(base).startsWith(path.resolve(os.tmpdir())+path.sep));await rm(base,{recursive:true,force:true});}
 });
 test('attachments and tools exclude application storage and native backend paths before reading them',async()=>{
- const root=await mkdtemp(path.join(os.tmpdir(),'agentopia-protected-')),protectedFolder=path.join(root,'app-storage');await mkdir(protectedFolder);await writeFile(path.join(protectedFolder,'settings.json'),'PRIVATE');
+ const root=await mkdtemp(path.join(os.tmpdir(),'sylvana-protected-')),protectedFolder=path.join(root,'app-storage');await mkdir(protectedFolder);await writeFile(path.join(protectedFolder,'settings.json'),'PRIVATE');
  const files=new WorkspaceFiles(new Secrets(),undefined,[protectedFolder]);
  try{
   await assert.rejects(files.add('owner',[path.join(protectedFolder,'settings.json')]),/storage cannot be attached/);
-  for(const file of ['\\\\wsl.localhost\\AgentopiaRuntime\\home\\agentopia\\app\\supabase\\config.toml','\\\\wsl$\\AgentopiaRuntime\\home\\agentopia\\app\\supabase\\config.toml',path.join(root,'.supabase','config.toml')])assert.throws(()=>files.checkPath(file),/cannot be attached/);
+  for(const file of ['\\\\wsl.localhost\\SylvanaRuntime\\home\\sylvana\\app\\supabase\\config.toml','\\\\wsl$\\SylvanaRuntime\\home\\sylvana\\app\\supabase\\config.toml',path.join(root,'.supabase','config.toml')])assert.throws(()=>files.checkPath(file),/cannot be attached/);
   const [ref]=await files.add('owner',[root]),context=await files.context('owner',[ref.id],'files');assert(!context[0].text.includes('PRIVATE'));
  }finally{assert(path.resolve(root).startsWith(path.resolve(os.tmpdir())+path.sep));await rm(root,{recursive:true,force:true});}
 });

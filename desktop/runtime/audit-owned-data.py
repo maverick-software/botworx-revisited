@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 state = json.loads(subprocess.check_output(['supabase', 'stack', 'status', '--output-format', 'json'], text=True))
 database = urlparse(state['env']['DB_URL'])
-psql = glob.glob('/home/agentopia/.supabase/cache/stack/slim-services/postgres/*/linux-amd64/*/bin/psql')[0]
+psql = glob.glob('/home/sylvana/.supabase/cache/stack/slim-services/postgres/*/linux-amd64/*/bin/psql')[0]
 
 
 def sql(query):
@@ -20,7 +20,7 @@ def encoded(value):
     return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=True, default=str)
 
 
-owners = json.loads(sql("SELECT json_agg(id::text ORDER BY id) FROM auth.users WHERE email IN ('admin@agentopia.local','user@agentopia.local')"))
+owners = json.loads(sql("SELECT json_agg(id::text ORDER BY id) FROM auth.users WHERE email IN ('admin@sylvana.local','user@sylvana.local')"))
 assert len(owners) == 2
 owner_values = ','.join("'" + value + "'" for value in owners)
 tables = json.loads(sql("SELECT json_agg(c.table_name ORDER BY c.table_name) FROM information_schema.columns c JOIN information_schema.tables t ON t.table_schema=c.table_schema AND t.table_name=c.table_name WHERE c.table_schema='public' AND c.column_name='user_id' AND c.data_type IN ('uuid','text','character varying') AND t.table_type='BASE TABLE'"))

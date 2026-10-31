@@ -1,0 +1,17 @@
+import {extractAll,extractFile,createPackageWithOptions} from '@electron/asar';
+import {readFile,writeFile,mkdir,cp,copyFile,readdir} from 'node:fs/promises';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import ts from 'typescript';
+import {desktopOperation} from './operation-lock.mjs';
+import {hash} from './phased-backup-control.mjs';
+desktopOperation('prepare observed goal repairs');
+const program='C:/Users/charl/AppData/Local/SylvanaDesktop/app-0.46.3',image=program+'/resources/app.asar',records='F:/Sylvana/verification/provider-goal/desktop-install',job=records+'/candidate-'+Date.now(),expected='07316ae80366c1a217044d4e04cfdd615edd7a3195becb9da2fd446723e3cb55';
+assert.equal(await hash(image),expected,'Installed backend changed; review before preparing this focused update.');
+const source=await readFile('desktop/src/script-runtimes.ts','utf8'),compiled=extractFile(image,'build/script-runtimes.js').toString('utf8');
+function findLiteral(text,source){const ast=ts.createSourceFile(source,text,ts.ScriptTarget.Latest,true),found=[];function visit(node){if(ts.isStringLiteral(node)&&node.text.includes('Use pwsh for UTF-8 script files.'))found.push(node);ts.forEachChild(node,visit);}visit(ast);assert.equal(found.length,1,'Expected exactly one runtime guidance string.');const literal=found[0];return {value:literal.text,start:literal.getStart(ast),end:literal.end};}
+const old=findLiteral(compiled,'runtime.js'),updated=findLiteral(source,'runtime.ts'),anchor='Use pwsh for UTF-8 script files.',addition=' Use the native apply_patch tool API directly when available. On Windows, apply_patch is not a PowerShell command; never pipe patch text to a shell command named apply_patch. If the native patch tool is unavailable, use Sylvana write_file or UTF-8 PowerShell file operations within the authorized workspace.';
+assert.equal(updated.value,old.value.replace(anchor,anchor+addition),'Only the reviewed patch-tool guidance may change.');
+await mkdir(job,{recursive:true});const stage=job+'/package';extractAll(image,stage);const patched=compiled.slice(0,old.start)+JSON.stringify(updated.value)+compiled.slice(old.end);await writeFile(stage+'/build/script-runtimes.js',patched);await createPackageWithOptions(stage,job+'/app.asar',{});assert.equal(extractFile(job+'/app.asar','build/script-runtimes.js').toString('utf8'),patched);
+await cp('desktop/resources/ui',job+'/ui',{recursive:true});const uiFiles={};async function walk(dir=''){for(const entry of await readdir(job+'/ui/'+dir,{withFileTypes:true})){const name=path.posix.join(dir,entry.name);if(entry.isDirectory())await walk(name);else uiFiles[name]=await hash(job+'/ui/'+name);}}await walk();
+const proof={ready:true,version:'0.46.3',localRevision:'goal-draft-and-friendly-notices',program,job,baseImageSha256:expected,image:job+'/app.asar',imageSha256:await hash(job+'/app.asar'),changedCompiled:['script-runtimes.js'],runtimeInstructionOnly:true,uiFiles,ui:job+'/ui',checks:{goalDraftAndNotices:3,uiTypecheck:true,uiBuild:true,backendInstructionDeltaReviewed:true},schemaChanged:false,publicInstallerChanged:false,at:new Date().toISOString()};await writeFile(job+'/proof.json',JSON.stringify(proof,null,2));await writeFile(records+'/current-candidate.json',JSON.stringify({proof:job+'/proof.json'},null,2));console.log(JSON.stringify({ready:true,job,imageSha256:proof.imageSha256,changedCompiled:proof.changedCompiled}));

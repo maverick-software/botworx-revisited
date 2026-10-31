@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
-const build=process.env.AGENTOPIA_AGENT_TEST_BUILD??path.resolve(__dirname,'../build');
+const build=process.env.SYLVANA_AGENT_TEST_BUILD??path.resolve(__dirname,'../build');
 const {contextMention,agentMention}=require(path.join(build,'agent-mention.js')),{ChatDrafts}=require(path.join(build,'chat-drafts.js'));
 test('context queries include Unicode names and file paths while retaining code and quote exclusions',()=>{
  for(const query of ['résumé.pdf','folder/report.md','Search-app']){const text='Review @'+query,mention=contextMention(text,text.length);assert.equal(mention.query,query.toLowerCase());assert.equal(text.slice(mention.start,mention.end),'@'+query);}

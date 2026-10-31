@@ -7,7 +7,7 @@ export function nativeToml(value:unknown):string{
  if(typeof value==='string'||typeof value==='boolean'||typeof value==='number'&&Number.isFinite(value))return JSON.stringify(value);throw new Error('Unsupported native configuration value.');
 }
 export async function nativePatchPolicy(resources:string,allowFileChanges=true){
- const file=path.join(resources,'runtime/native-patch-guard.cjs'),info=await lstat(file);if(!info.isFile()||info.isSymbolicLink()||createHash('sha256').update(await readFile(file)).digest('hex')!==manifest.sha256)throw new Error('The native Windows patch guard is missing or changed. Reinstall Agentopia before starting native work.');
+ const file=path.join(resources,'runtime/native-patch-guard.cjs'),info=await lstat(file);if(!info.isFile()||info.isSymbolicLink()||createHash('sha256').update(await readFile(file)).digest('hex')!==manifest.sha256)throw new Error('The native Windows patch guard is missing or changed. Reinstall Sylvana before starting native work.');
  // The pinned Windows hook runner uses PowerShell. Preserve exit 2 explicitly:
  // PowerShell otherwise converts a native failure to exit 1, which does not block.
  const encoded=Buffer.from(file,'utf8').toString('base64'),command=`node -e "${allowFileChanges?'':"process.stderr.write('Files & Terminal plugin is disabled.');process.exit(2);"}require(Buffer.from('${encoded}','base64').toString()).run()"; exit $LASTEXITCODE`;

@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),{randomUUID}=require('node:crypto');
-const build=process.env.AGENTOPIA_DELIVERY_BUILD,{Broker}=require(path.join(build,'broker.js')),{CodexHarness}=require(path.join(build,'codex-harness.js')),{defaultAgentPolicy}=require(path.join(build,'agent-contracts.js')),{chatDeliveryText}=require(path.join(build,'chat-origin.js'));
+const build=process.env.SYLVANA_DELIVERY_BUILD,{Broker}=require(path.join(build,'broker.js')),{CodexHarness}=require(path.join(build,'codex-harness.js')),{defaultAgentPolicy}=require(path.join(build,'agent-contracts.js')),{chatDeliveryText}=require(path.join(build,'chat-origin.js'));
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 function fixture(){
  const user={id:randomUUID(),admin:true},chat=randomUUID(),agent=randomUUID(),shared=randomUUID(),privateFile=randomUUID(),project={id:randomUUID(),name:'Receiver',revision:1,instructions:'Project instructions',file_ids:[shared,privateFile],reference_id:null,memory_enabled:false},options={provider:'openai-oauth',model:'fixture-model',thinking:'default',permission:'ask',mode:'chat',files:[shared]};
@@ -47,7 +47,7 @@ function nativeFixture(){
  harness.running.set(id,record);harness.publish=()=>{};harness.persist=async()=>{};return {owner,id,calls,harness,record};
 }
 test('native steering validates the actual turn and supplies untrusted sender attribution without duplicating it in the visible text',async()=>{
- const f=nativeFixture(),source={id:randomUUID(),sourceConversationId:randomUUID(),sourceMessageId:randomUUID(),sourceAgentId:'source',sourceAgentName:'Researcher',citation:'agentopia-chat://fixture'};
+ const f=nativeFixture(),source={id:randomUUID(),sourceConversationId:randomUUID(),sourceMessageId:randomUUID(),sourceAgentId:'source',sourceAgentName:'Researcher',citation:'sylvana-chat://fixture'};
  await f.harness.steer(f.owner,f.id,'turn-one','Review this result','message-one',undefined,source);assert.equal(f.calls.length,1);assert.equal(f.calls[0].args.input[0].text,chatDeliveryText('Review this result',source));assert.equal(f.record.state.steering[0].text,'Review this result');assert.equal(f.record.state.steering[0].source.id,source.id);await f.harness.steer(f.owner,f.id,'turn-one','Review this result','message-one',undefined,source);assert.equal(f.calls.length,1);await assert.rejects(f.harness.steer(f.owner,f.id,'turn-one','Changed','message-one'),/another message/);
 });
 test('a native turn changing during permission reads rejects steering before its app-server call',async()=>{
@@ -128,7 +128,7 @@ test('pausing an old goal cannot stop the user response now reusing its native w
 });
 
 test('the actual broker receiving path runs bundled Codex, passes sender provenance to the controlled provider and saves the reply',async()=>{
- const fs=require('node:fs/promises'),os=require('node:os'),{chatDeliveryProvenance}=require(path.join(build,'chat-delivery.js')),f=fixture(),directory=await fs.mkdtemp(path.join(os.tmpdir(),'agentopia-delivery-native-')),savedEnv={},originalFetch=global.fetch,tables=new Map(),requests=[],validated=[];
+ const fs=require('node:fs/promises'),os=require('node:os'),{chatDeliveryProvenance}=require(path.join(build,'chat-delivery.js')),f=fixture(),directory=await fs.mkdtemp(path.join(os.tmpdir(),'sylvana-delivery-native-')),savedEnv={},originalFetch=global.fetch,tables=new Map(),requests=[],validated=[];
  for(const [key,value]of Object.entries({USERPROFILE:directory,APPDATA:path.join(directory,'appdata'),LOCALAPPDATA:path.join(directory,'local')})){savedEnv[key]=process.env[key];process.env[key]=value;}
  const originalFrom=f.broker.admin.from;
  f.broker.admin.from=name=>{
@@ -145,7 +145,7 @@ test('the actual broker receiving path runs bundled Codex, passes sender provena
  Object.assign(f.broker.terminal,{definitions:()=>[],permissions:()=>({enabled:false}),sessions:{finishRequest:async()=>{}}});f.broker.emitOwned=(owner,event)=>{assert.equal(owner,f.user.id);f.events.push(event);};
  f.broker.loadMessages=async()=>[{id:f.request.user_message_id,role:'user',content:{text:f.row.text},metadata:{chat_delivery:chatDeliveryProvenance(f.row)}},{id:f.request.assistant_message_id,role:'assistant',content:{text:''},metadata:{}}];
  f.broker.executeNative=Broker.prototype.executeNative;
- const harness=new CodexHarness(f.broker.admin,f.broker.providers,directory,process.env.AGENTOPIA_DELIVERY_RESOURCES,(_,event)=>f.events.push(event),async()=>{});f.broker.native=harness;
+ const harness=new CodexHarness(f.broker.admin,f.broker.providers,directory,process.env.SYLVANA_DELIVERY_RESOURCES,(_,event)=>f.events.push(event),async()=>{});f.broker.native=harness;
  global.fetch=async(url,init)=>{
   assert.equal(String(url),'https://api.openai.com/v1/responses','Only the controlled response endpoint may be used');requests.push(JSON.parse(init.body));assert.equal(requests.length,1,'The receiving task must not be replayed');
   const item={id:'message-'+randomUUID(),type:'message',role:'assistant',status:'completed',content:[{type:'output_text',text:'CONTROLLED-RECEIVER-RESULT',annotations:[]}]},response={id:'response-'+randomUUID(),object:'response',status:'completed',output:[item],usage:{input_tokens:5,output_tokens:2,total_tokens:7}};
@@ -158,7 +158,7 @@ test('the actual broker receiving path runs bundled Codex, passes sender provena
   const input=JSON.stringify(requests[0].input);assert(input.includes(f.row.text));assert(input.includes(f.row.source_chat));assert(input.includes('Researcher'));
   const saved=tables.get('desktop_codex_turns').find(row=>row.request_id===f.row.id);assert(saved.state.items.some(entry=>entry.item.type==='agentMessage'&&entry.item.text==='CONTROLLED-RECEIVER-RESULT'));assert.equal(saved.context.options.provider,'openai-oauth');assert.equal(saved.context.options.permission,'ask');assert.deepEqual(saved.context.options.files,[]);
   const checkpoint=f.calls.find(call=>call.name==='desktop_checkpoint_chat');assert.equal(checkpoint.args.p_text,'CONTROLLED-RECEIVER-RESULT');assert.equal(checkpoint.args.p_status,'completed');
-  await fs.writeFile(path.join(process.env.AGENTOPIA_DELIVERY_OUTPUT,'actual-native-receiver.json'),JSON.stringify({success:true,actualBrokerPreparation:true,actualBrokerExecution:true,actualCodex:true,controlledDatabase:true,controlledProvider:true,modelRequests:requests.length,liveInferenceRequests:0,provenanceInInput:true,deliveryValidated:true,replyCheckpointed:true},null,2));
+  await fs.writeFile(path.join(process.env.SYLVANA_DELIVERY_OUTPUT,'actual-native-receiver.json'),JSON.stringify({success:true,actualBrokerPreparation:true,actualBrokerExecution:true,actualCodex:true,controlledDatabase:true,controlledProvider:true,modelRequests:requests.length,liveInferenceRequests:0,provenanceInInput:true,deliveryValidated:true,replyCheckpointed:true},null,2));
  }finally{
   clearTimeout(timeout);for(const active of f.broker.active.values())active.controller.abort();await harness.close();global.fetch=originalFetch;
   for(const [key,value]of Object.entries(savedEnv))if(value===undefined)delete process.env[key];else process.env[key]=value;

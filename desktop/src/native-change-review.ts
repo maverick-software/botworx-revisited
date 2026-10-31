@@ -13,7 +13,7 @@ export class NativeChangeReviewService{
   if(current.sha256===snapshot.afterHash)return'after';throw new Error('The file changed after this native edit. Undo preserved its newer contents.');
  }
  private view(row:any):NativeChangeReceipt{return{id:row.id,key:row.change_key,status:row.status,paths:row.paths,error:row.error??undefined};}
- async recover(){data(await this.db.from('desktop_native_file_review').update({status:'uncertain',error:'Agentopia stopped during undo. Review the current files before explicitly retrying.',updated_at:new Date().toISOString()}).eq('status','restoring'));}
+ async recover(){data(await this.db.from('desktop_native_file_review').update({status:'uncertain',error:'Sylvana stopped during undo. Review the current files before explicitly retrying.',updated_at:new Date().toISOString()}).eq('status','restoring'));}
  async statuses(owner:string,request:string){return data(await this.db.from('desktop_native_file_review').select('change_key,status').eq('user_id',owner).eq('request_id',request)).map((row:any)=>({key:row.change_key,status:row.status}));}
  async prepare(owner:string,requestId:string,guard:()=>Promise<void>):Promise<NativeChangeReview>{return this.native.quietFiles(owner,async()=>{
   await guard();const request=data(await this.db.from('desktop_requests').select('id,status,conversation_id').eq('id',requestId).eq('user_id',owner).single());if(request.status==='running')throw new Error('Wait for this response to finish before preparing undo.');

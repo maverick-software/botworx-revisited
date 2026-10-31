@@ -2,7 +2,7 @@
 """Local Whisper execution. Audio is temporary and never sent to an API."""
 import hashlib,json,os,pathlib,re,subprocess,sys,tarfile,time
 os.umask(0o077)
-root=pathlib.Path('/home/agentopia/.agentopia-voice');root.mkdir(exist_ok=True)
+root=pathlib.Path('/home/sylvana/.sylvana-voice');root.mkdir(exist_ok=True)
 operation=sys.argv[1]
 if operation=='recover':
  temporary=root/'tmp';temporary.mkdir(exist_ok=True)

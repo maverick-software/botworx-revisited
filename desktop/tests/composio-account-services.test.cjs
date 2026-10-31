@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
-const build=process.env.AGENTOPIA_COMPOSIO_CATALOG_BUILD;
+const build=process.env.SYLVANA_COMPOSIO_CATALOG_BUILD;
 const {ComposioAccountServices,composioListedService,composioDirectToolBelongs,composioResponseData}=require(path.join(build,'composio-account-services.js'));
 const definitions=require('./fixtures/composio-connect-meta80.cjs');
 const owner='11111111-1111-4111-8111-111111111111',other='22222222-2222-4222-8222-222222222222';

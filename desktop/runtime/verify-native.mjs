@@ -25,8 +25,8 @@ function pass(message) { console.log(`PASS: ${message}`); }
 
 try {
   const accounts = check(await admin.auth.admin.listUsers()).users;
-  assert(accounts.some(u => u.email === 'admin@agentopia.local'));
-  assert(accounts.some(u => u.email === 'user@agentopia.local'));
+  assert(accounts.some(u => u.email === 'admin@sylvana.local'));
+  assert(accounts.some(u => u.email === 'user@sylvana.local'));
   pass('Both original accounts are present in the restored native database.');
   const signup = check(await user.auth.signUp({ email, password, options: {
     data: { first_name: 'Native', last_name: 'Proof' },
@@ -43,7 +43,7 @@ try {
   assert((await user.auth.signInWithPassword({ email, password: 'incorrect-password!Aa1' })).error);
   pass('Password sign-in works and rejects an incorrect password.');
 
-  const forbidden = await user.from('agentopia_runtime_probe').insert({ id, value: 'forbidden' });
+  const forbidden = await user.from('sylvana_runtime_probe').insert({ id, value: 'forbidden' });
   assert(forbidden.error);
   pass('The database rejects an unprivileged write to the restricted probe table.');
 
@@ -56,7 +56,7 @@ try {
     channel.on('open', () => channel.send(JSON.stringify({
       topic: `realtime:native-proof-${id}`, event: 'phx_join', ref: '1', payload: {
         config: { broadcast: { self: false }, presence: { key: '' }, postgres_changes: [
-          { event: 'INSERT', schema: 'public', table: 'agentopia_runtime_probe' },
+          { event: 'INSERT', schema: 'public', table: 'sylvana_runtime_probe' },
         ] }, access_token: config.SERVICE_ROLE_KEY,
       },
     })));
@@ -69,13 +69,13 @@ try {
       if (message.event === 'postgres_changes') receive(message.payload.data);
     });
   });
-  check(await admin.from('agentopia_runtime_probe').insert({ id, value: 'persistent-native-proof' }));
+  check(await admin.from('sylvana_runtime_probe').insert({ id, value: 'persistent-native-proof' }));
   const payload = await Promise.race([event, new Promise((_, reject) => {
     const timeout = setTimeout(() => reject(new Error('Realtime change delivery timed out')), 20000);
     timeout.unref();
   })]);
   assert.equal(payload.record.id, id);
-  assert.equal(check(await admin.from('agentopia_runtime_probe').select('value').eq('id', id).single()).value, 'persistent-native-proof');
+  assert.equal(check(await admin.from('sylvana_runtime_probe').select('value').eq('id', id).single()).value, 'persistent-native-proof');
   pass('Windows REST requests persist data and realtime delivers the database change.');
 
   check(await admin.storage.createBucket(`native-proof-${id}`, { public: false }));

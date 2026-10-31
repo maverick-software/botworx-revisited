@@ -18,7 +18,7 @@ export class BackupControl {
  get busy(){return !!this.pending;}
  status():PortableBackupStatus{return {...this.state};}
  start(display:DisplaySnapshot={}){
-  if(this.closing)throw Error('Agentopia is closing. Reopen it before making a backup.');
+  if(this.closing)throw Error('Sylvana is closing. Reopen it before making a backup.');
   if(this.pending)throw Error('A backup is already in progress.');
   this.state={phase:'choosing',message:'Choose a private folder for your backup.'};
   const work=this.perform(structuredClone(display));this.pending=work;

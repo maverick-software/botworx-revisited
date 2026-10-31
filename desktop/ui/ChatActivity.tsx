@@ -3,14 +3,14 @@ import {call} from './ui';
 
 export const ChatActivity=createContext<{running:Set<string>;completed:Set<string>}>({running:new Set(),completed:new Set()});
 export function ChatActivityProvider({owner,current,running,children}:{owner:string;current:string|null;running?:Set<string>;children:React.ReactNode}){
- const key='agentopia.completed-chats:'+owner;
+ const key='sylvana.completed-chats:'+owner;
  const [completed,setCompleted]=useState<Set<string>>(()=>{try{return new Set(JSON.parse(localStorage.getItem(key)??'[]'));}catch{return new Set();}});
  const visible=useRef(current);visible.current=current;
  const [reportChats,setReportChats]=useState(new Map<string,string>());
  useEffect(()=>{try{setCompleted(new Set(JSON.parse(localStorage.getItem(key)??'[]')));}catch{setCompleted(new Set());}},[key]);
  useEffect(()=>{
   let live=true;const reports=new Map<string,string>(),observedRequests=new Set<string>();setReportChats(new Map());
-  const stop=window.agentopia.onChat(event=>{
+  const stop=window.sylvana.onChat(event=>{
    if(event.ownerId!==owner)return;
    if(event.status==='completed'&&event.conversationId&&event.conversationId!==visible.current)setCompleted(previous=>new Set([...previous,event.conversationId!]));
    if(!event.native||!event.conversationId||!['native','native-background'].includes(event.kind??''))return;

@@ -5,7 +5,7 @@ export type FindRequest={query:string;matchCase:boolean;step:number;forward:bool
 export type FindResult={matches:number;ordinal:number;pending?:boolean;error?:string};
 export const emptyFind:FindResult={matches:0,ordinal:0};
 type Span={node:Text;start:number;end:number};
-const allName='agentopia-find-matches',currentName='agentopia-find-current';
+const allName='sylvana-find-matches',currentName='sylvana-find-current';
 function indexText(root:HTMLElement){
  const spans:Span[]=[],parts:string[]=[],visibility=new Map<Element,boolean>();let length=0,block:Element|null=null;
  const visible=(element:Element):boolean=>{const known=visibility.get(element);if(known!==undefined)return known;const style=getComputedStyle(element),value=style.display!=='none'&&style.visibility!=='hidden'&&(!element.parentElement||element===root||visible(element.parentElement));visibility.set(element,value);return value;};

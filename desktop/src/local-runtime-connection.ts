@@ -1,7 +1,7 @@
 /** Transport recovery never retries the caller's operation. */
-export const localRuntimeUnavailableTag='[agentopia-local-runtime-unavailable]';
-export const localRuntimeUnavailableMessage='Agentopia cannot reach its local services. Your drafts are retained. Wait for the connection to return, then try again.';
-const interruptedMessage='Agentopia lost its local connection while handling this action. Your drafts are retained. Check its saved result before trying again.';
+export const localRuntimeUnavailableTag='[sylvana-local-runtime-unavailable]';
+export const localRuntimeUnavailableMessage='Sylvana cannot reach its local services. Your drafts are retained. Wait for the connection to return, then try again.';
+const interruptedMessage='Sylvana lost its local connection while handling this action. Your drafts are retained. Check its saved result before trying again.';
 export function localRuntimeUnavailable(error:unknown){const message=String((error as Error)?.message??error);return message.includes(localRuntimeUnavailableTag)||message.includes(localRuntimeUnavailableMessage)||message.includes(interruptedMessage);}
 export function localRuntimeError(interrupted=false){return Error(localRuntimeUnavailableTag+' '+(interrupted?interruptedMessage:localRuntimeUnavailableMessage));}
 export function transportFailure(error:unknown){return /fetch failed|failed to fetch|ECONNREFUSED|ECONNRESET|EPIPE|UND_ERR_CONNECT_TIMEOUT/i.test(String((error as Error)?.message??error));}

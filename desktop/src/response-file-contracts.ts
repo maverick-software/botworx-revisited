@@ -1,0 +1,1 @@
+export type ResponseFileChange={key:string;path:string;relativePath:string;kind:'created'|'modified'|'deleted'|'moved';before:string|null;after:string|null;beforeHash:string|null;afterHash:string|null;text:boolean;binary?:boolean;added:number|null;removed:number|null;referenceId?:string;operationId?:string;destination?:string};

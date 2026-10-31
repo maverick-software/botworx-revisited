@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),fs=require('node:fs/promises'),os=require('node:os');
-const build=process.env.AGENTOPIA_PRESENTATION_BUILD;
+const build=process.env.SYLVANA_PRESENTATION_BUILD;
 const {agentAppearance,defaultAgentAppearance,defaultAgentStarters}=require(path.join(build,'agent-presentation-contracts.js')),{AgentPresentationStore,agentPresentationRow,avatarDimensions}=require(path.join(build,'agent-presentation.js'));
 const owner='11111111-1111-4111-8111-111111111111',agent='22222222-2222-4222-8222-222222222222',foreign='33333333-3333-4333-8333-333333333333',initial='2026-10-23T01:00:00.000Z';
 function png(w=128,h=128){const b=Buffer.alloc(40);Buffer.from([137,80,78,71,13,10,26,10]).copy(b);b.write('IHDR',12);b.writeUInt32BE(w,16);b.writeUInt32BE(h,20);return b;}

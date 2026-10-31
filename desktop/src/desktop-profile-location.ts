@@ -15,7 +15,7 @@ const invalid=()=>new Error('The verified Windows profile migration is incomplet
 
 /** One reserved private root, also valid as a portable backup's source label. */
 export function relocatedProfileRoot(value:string){
- const match=/^[a-z]:\\Agentopia-Data\\profiles\\([a-f0-9-]{36})\\profile$/i.exec(value);
+ const match=/^[a-z]:\\Sylvana-Data\\profiles\\([a-f0-9-]{36})\\profile$/i.exec(value);
  return !!match&&uuid.test(match[1].toLowerCase());
 }
 
@@ -26,9 +26,9 @@ export function relocatedProfileRoot(value:string){
 // when realpath(directory) reports the ordinary Windows directory.
 export function migratedDesktopProfile(exe:string,home:string|undefined,io:ProfileLocationIO=nativeIO):string|undefined{
  if(!home||!path.win32.isAbsolute(home)||home.startsWith('\\\\'))return;
- const installation=/^([a-z]:\\.+?\\AppData\\Local\\AgentopiaDesktop)\\app-\d+\.\d+\.\d+(?:-[a-z0-9.-]+)?\\Agentopia\.exe$/i.exec(path.win32.normalize(exe));
+ const installation=/^([a-z]:\\.+?\\AppData\\Local\\SylvanaDesktop)\\app-\d+\.\d+\.\d+(?:-[a-z0-9.-]+)?\\Sylvana\.exe$/i.exec(path.win32.normalize(exe));
  if(!installation)return;
- const directory=path.win32.join(io.realpath(home),'.agentopia','desktop'),recordFile=path.win32.join(directory,'profile-location.json');
+ const directory=path.win32.join(io.realpath(home),'.sylvana','desktop'),recordFile=path.win32.join(directory,'profile-location.json');
  // Activation owns this cross-profile lock before its final stopped-process
  // check. A new launch must not open either store while selection is changing.
  try{io.inspect(path.win32.join(directory,'migration.lock'));throw invalid();}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw invalid();}
@@ -38,22 +38,29 @@ export function migratedDesktopProfile(exe:string,home:string|undefined,io:Profi
  try{
   if(!recordStat.isFile())throw invalid();directoryChecked(directory);
   const record=JSON.parse(fileChecked(recordFile,4096)) as Record<string,unknown>;
-  if(Object.keys(record).sort().join(',')!=='format,installationRoot,kind,migrationSha256,profile,runtimeInstanceId'||![1,2].includes(record.format as number)||record.kind!=='verified-profile-migration'||typeof record.installationRoot!=='string'||!equal(record.installationRoot,installation[1])||typeof record.runtimeInstanceId!=='string'||!uuid.test(record.runtimeInstanceId)||typeof record.migrationSha256!=='string'||!/^[a-f0-9]{64}$/.test(record.migrationSha256))throw invalid();
+  if(Object.keys(record).sort().join(',')!=='format,installationRoot,kind,migrationSha256,profile,runtimeInstanceId'||![1,2,3,4].includes(record.format as number)||record.kind!=='verified-profile-migration'||typeof record.installationRoot!=='string'||!equal(record.installationRoot,installation[1])||typeof record.runtimeInstanceId!=='string'||!uuid.test(record.runtimeInstanceId)||typeof record.migrationSha256!=='string'||!/^[a-f0-9]{64}$/.test(record.migrationSha256))throw invalid();
   const original=path.win32.join(directory,'profile');let profile=original;
   if(record.format===1){if(record.profile!=='profile')throw invalid();}
   else{
    // Fixed private layout keeps inactive and other-account stores excluded by
    // file tools, even when they are not the currently selected userData folder.
    if(typeof record.profile!=='string'||!relocatedProfileRoot(record.profile))throw invalid();
-   const expected=path.win32.join(record.profile.slice(0,3),'Agentopia-Data','profiles',record.runtimeInstanceId,'profile');
+   const expected=path.win32.join(record.profile.slice(0,3),'Sylvana-Data','profiles',record.runtimeInstanceId,'profile');
    if(!equal(record.profile,expected))throw invalid();profile=record.profile;
   }
   directoryChecked(profile);
   const receipt=fileChecked(path.win32.join(profile,'profile-migration.json'),4*1024*1024);
   if(createHash('sha256').update(receipt).digest('hex')!==record.migrationSha256)throw invalid();
   const migration=JSON.parse(receipt);
+  if(record.format===4){
+   const archive=fileChecked(path.win32.join(profile,'previous-profile-archive.json'),1024*1024);
+   if(migration?.format!==4||migration.kind!=='verified-fresh-profile'||migration.status!=='complete'||migration.encryptedStorageVerified!==true||migration.runtimeInstanceId!==record.runtimeInstanceId||!equal(migration.destination,profile)||!relocatedProfileRoot(migration.archivedProfile)||equal(migration.archivedProfile,profile)||createHash('sha256').update(archive).digest('hex')!==migration.archiveReceiptSha256)throw invalid();
+   const receipt=JSON.parse(archive);if(receipt.status!=='verified-archive'||!equal(receipt.profile,migration.archivedProfile)||typeof receipt.databaseManifestSha256!=='string'||!/^[a-f0-9]{64}$/.test(receipt.databaseManifestSha256)||typeof receipt.profileArchiveSha256!=='string'||!/^[a-f0-9]{64}$/.test(receipt.profileArchiveSha256))throw invalid();
+  }else{
   if(migration?.format!==record.format||migration.status!=='complete'||migration.encryptedStorageVerified!==true||migration.nativeHistoryVerified!==true||!Number.isSafeInteger(migration.files)||migration.files<1||typeof migration.copyManifestSha256!=='string'||!/^[a-f0-9]{64}$/.test(migration.copyManifestSha256))throw invalid();
+  if(record.format===3&&(migration.kind!=='verified-brand-migration'||migration.runtimeInstanceId!==record.runtimeInstanceId||typeof migration.destination!=='string'||!equal(migration.destination,profile)||typeof migration.priorMigrationSha256!=='string'||!/^[a-f0-9]{64}$/.test(migration.priorMigrationSha256)))throw invalid();
   if(record.format===2&&(migration.kind!=='verified-profile-relocation'||typeof migration.source!=='string'||!equal(migration.source,original)||typeof migration.destination!=='string'||!equal(migration.destination,profile)||migration.runtimeInstanceId!==record.runtimeInstanceId||typeof migration.priorMigrationSha256!=='string'||!/^[a-f0-9]{64}$/.test(migration.priorMigrationSha256)))throw invalid();
+  }
   const binding=parseRuntimeBinding(JSON.parse(fileChecked(path.win32.join(profile,'runtime-binding.json'),4096)));
   if(binding.instanceId!==record.runtimeInstanceId)throw invalid();
   return profile;

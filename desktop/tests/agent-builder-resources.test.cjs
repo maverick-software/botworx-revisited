@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),{createHash}=require('node:crypto'),{readFileSync}=require('node:fs');
-const build=process.env.AGENTOPIA_PREVIEW_BUILD||path.resolve(__dirname,'../build');
+const build=process.env.SYLVANA_PREVIEW_BUILD||path.resolve(__dirname,'../build');
 const {builderConfiguration,builderProposal,builderSnapshot,applyBuilderProposal,builderValue,builderInstructions,legacyBuilderInstructions,legacyBuilderInstructions83}=require(path.join(build,'agent-builder.js'));
 const {builderResources,builderResourceSelection}=require(path.join(build,'agent-builder-resources.js'));
 const {agentDraftSnapshot}=require(path.join(build,'agent-draft-preview-contracts.js'));

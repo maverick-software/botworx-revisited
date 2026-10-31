@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
-const build=process.env.AGENTOPIA_PLUGIN_IMPORT_BUILD??path.resolve(__dirname,'../build'),{readPluginSource}=require(path.join(build,'plugin-import.js')),{checkPluginSourcePath}=require(path.join(build,'plugin-source-policy.js')),{WorkspaceFiles}=require(path.join(build,'workspace.js'));
+const build=process.env.SYLVANA_PLUGIN_IMPORT_BUILD??path.resolve(__dirname,'../build'),{readPluginSource}=require(path.join(build,'plugin-import.js')),{checkPluginSourcePath}=require(path.join(build,'plugin-source-policy.js')),{WorkspaceFiles}=require(path.join(build,'workspace.js'));
 const manifest={name:'guarded-public-plugin',version:'1.0.0',description:'Generated guarded folder fixture',author:{name:'Fixture author'}};
 async function fixture(){const directory=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'psp-'))),files=new WorkspaceFiles({get:()=>[],set:async()=>{}});return {directory,guard:file=>checkPluginSourcePath(file,files)};}
 async function cleanup(f){assert.equal(path.dirname(await fs.realpath(f.directory)),await fs.realpath(os.tmpdir()));assert(path.basename(f.directory).startsWith('psp-'));await fs.rm(f.directory,{recursive:true,force:true,maxRetries:10,retryDelay:100});}

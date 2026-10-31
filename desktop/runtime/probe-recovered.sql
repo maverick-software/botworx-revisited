@@ -1,8 +1,8 @@
 SELECT count(*) AS restored_accounts FROM auth.users;
 SELECT count(*) AS restored_agents FROM public.agents;
 SELECT count(*) AS restored_messages FROM public.chat_messages_v2;
-SELECT count(*) AS applied_migrations FROM agentopia_desktop.migrations;
-SELECT count(*) AS verified_imports FROM agentopia_desktop.imports;
+SELECT count(*) AS applied_migrations FROM sylvana_desktop.migrations;
+SELECT count(*) AS verified_imports FROM sylvana_desktop.imports;
 SELECT count(*)=3 AS auth_application_triggers_restored FROM pg_trigger
 WHERE tgrelid='auth.users'::regclass AND tgname IN ('on_auth_user_created','assign_local_user_role_after_signup','desktop_keep_admin_account');
 SELECT count(*)=1 AS completed_reply_restored FROM public.chat_messages_v2

@@ -3,7 +3,7 @@ import React,{useEffect,useRef,useState} from 'react';
 import type {Agent,ChatOptions} from '../src/contracts';
 import type {NativeSkill} from '../src/native-contracts';
 import {Modal,call} from './ui';
-export const nativeSkillSelectionName=(value:string)=>value.startsWith('agentopia-plugin:')?value.split(':')[1]+' · '+(value.split(':')[3]?.split('/')[1]??'skill'):value.split(/[\\/]/).filter(Boolean).slice(-2).join('/');
+export const nativeSkillSelectionName=(value:string)=>value.startsWith('sylvana-plugin:')?value.split(':')[1]+' · '+(value.split(':')[3]?.split('/')[1]??'skill'):value.split(/[\\/]/).filter(Boolean).slice(-2).join('/');
 export function NativeSkills({agent,options,change,close,inline,discover,description,emptyText}:{agent:Pick<Agent,'id'>;options:ChatOptions;change:(value:Partial<ChatOptions>)=>void;close:()=>void;inline?:boolean;discover?:()=>Promise<{skills:NativeSkill[];errors:string[]}>;description?:string;emptyText?:string}){
  const [skills,setSkills]=useState<NativeSkill[]>([]),[errors,setErrors]=useState<string[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[filter,setFilter]=useState(''),generation=useRef(0);
  const refresh=async()=>{const current=++generation.current;setLoading(true);try{const result=await (discover?discover():call<{skills:NativeSkill[];errors:string[]}>('skills.discovery',{agentId:agent.id,options}));if(current!==generation.current)return;setSkills(result.skills);setErrors(result.errors);setError('');}catch(e){if(current===generation.current)setError((e as Error).message);}finally{if(current===generation.current)setLoading(false);}};

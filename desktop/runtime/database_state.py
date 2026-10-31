@@ -43,32 +43,32 @@ def retire_stopped_pidfile(directory,pg_ctl,proc=Path('/proc'),runner=subprocess
     pidfile.unlink();return True
 
 def retire_runtime_pidfiles():
-    base=Path('/home/agentopia/.supabase/stacks');directories=[]
+    base=Path('/home/sylvana/.supabase/stacks');directories=[]
     for statefile in base.glob('*/state.json'):
         if statefile.is_symlink() or not re.fullmatch('[a-f0-9]{64}',statefile.parent.name):
             raise RuntimeError('Could not verify the private runtime state')
         state=json.loads(statefile.read_text());identity=state.get('identity',{})
-        if identity.get('projectRoot')!='/home/agentopia/app' or identity.get('stackName')!='default' or identity.get('branchContext')!='ordinary-workspace':continue
+        if identity.get('projectRoot')!='/home/sylvana/app' or identity.get('stackName')!='default' or identity.get('branchContext')!='ordinary-workspace':continue
         for directory in (statefile.parent/'data').glob('*/data'):
             if (directory/'PG_VERSION').exists():directories.append(directory)
     if len(directories)>1:raise RuntimeError('The private database data directory is ambiguous')
     if not directories:return 0
-    controls=glob.glob('/home/agentopia/.supabase/cache/stack/slim-services/postgres/*/linux-amd64/*/bin/pg_ctl')
+    controls=glob.glob('/home/sylvana/.supabase/cache/stack/slim-services/postgres/*/linux-amd64/*/bin/pg_ctl')
     if len(controls)!=1:raise RuntimeError('Could not verify the PostgreSQL controller')
     return int(retire_stopped_pidfile(directories[0],Path(controls[0])))
 
 CORE_SERVICES={'database','rest','auth','realtime','storage','functions'}
 
-def verified_existing_runtime(instance,root=Path('/opt/agentopia'),home=Path('/home/agentopia')):
+def verified_existing_runtime(instance,root=Path('/opt/sylvana'),home=Path('/home/sylvana')):
     """Read-only gate: reconnecting must never create a database or a key."""
     if str(uuid.UUID(instance))!=instance:raise RuntimeError('Invalid runtime instance')
-    assert (root/'runtime-identity').read_text().strip()=='local.agentopia.desktop-runtime.v1'
+    assert (root/'runtime-identity').read_text().strip()=='local.sylvana.desktop-runtime.v1'
     assert (root/'runtime-instance').read_text().strip()==instance
     states=list((home/'.supabase/stacks').glob('*/state.json'))
     assert len(states)==1 and not states[0].is_symlink() and re.fullmatch('[a-f0-9]{64}',states[0].parent.name),'The existing service state is unavailable'
     saved=json.loads(states[0].read_text())
     identity=saved.get('identity',{})
-    assert identity.get('projectRoot')=='/home/agentopia/app' and identity.get('stackName')=='default' and identity.get('branchContext')=='ordinary-workspace'
+    assert identity.get('projectRoot')=='/home/sylvana/app' and identity.get('stackName')=='default' and identity.get('branchContext')=='ordinary-workspace'
     versions=list((states[0].parent/'data').glob('*/data/PG_VERSION'))
     assert len(versions)==1 and versions[0].read_text().strip()=='17'
     directory=versions[0].parent
@@ -79,7 +79,7 @@ def verified_existing_runtime(instance,root=Path('/opt/agentopia'),home=Path('/h
     assert re.fullmatch('[0-9a-fA-F]{64}',key)
     configuration=tomllib.loads((home/'app/supabase/config.toml').read_text())
     assert saved['credentials']['postgresRootKey']==key
-    assert json.loads((home/'.config/agentopia/runtime-secrets.json').read_text())['root_key']==key
+    assert json.loads((home/'.config/sylvana/runtime-secrets.json').read_text())['root_key']==key
     assert configuration['db']['root_key']==key
     return {'instance':instance,'directory':str(directory),'port':configuration['db']['port'],
             'rootFingerprint':hashlib.sha256(key.encode()).hexdigest(),
@@ -88,7 +88,7 @@ def verified_existing_runtime(instance,root=Path('/opt/agentopia'),home=Path('/h
 def existing_services_healthy(state):
     return state.get('runtime')=='native' and CORE_SERVICES <= {row['service'] for row in state.get('services',[]) if row.get('state')=='running' and row.get('health')=='healthy'}
 
-def resume_existing_services(instance,root=Path('/opt/agentopia'),home=Path('/home/agentopia'),run=subprocess.run,read_status=subprocess.check_output,retire=retire_runtime_pidfiles,expected_port=None):
+def resume_existing_services(instance,root=Path('/opt/sylvana'),home=Path('/home/sylvana'),run=subprocess.run,read_status=subprocess.check_output,retire=retire_runtime_pidfiles,expected_port=None):
     before=verified_existing_runtime(instance,root,home)
     if expected_port is not None:assert 1<=expected_port<=65535 and before['port']==expected_port,'The bound database port changed'
     def status():
@@ -103,7 +103,7 @@ def resume_existing_services(instance,root=Path('/opt/agentopia'),home=Path('/ho
     if not existing_services_healthy(current):
         retire()
         result=run(['supabase','start','--runtime','native','--eager','--exclude','analytics,pooler,studio'],capture_output=True,text=True,timeout=240)
-        if result.returncode:raise RuntimeError('Existing local services could not reconnect. Reopen Agentopia or export diagnostics.')
+        if result.returncode:raise RuntimeError('Existing local services could not reconnect. Reopen Sylvana or export diagnostics.')
         started=True;deadline=time.monotonic()+60
         while not existing_services_healthy(current:=status()) and time.monotonic()<deadline:time.sleep(1)
     assert existing_services_healthy(current),'The existing services did not become healthy'
@@ -114,6 +114,6 @@ if __name__=='__main__':
     if len(sys.argv)==1:retire_runtime_pidfiles()
     elif len(sys.argv)==4 and sys.argv[1]=='--resume-existing':
         import os
-        os.chdir('/home/agentopia/app')
+        os.chdir('/home/sylvana/app')
         print(json.dumps(resume_existing_services(sys.argv[2],expected_port=int(sys.argv[3]))))
     else:raise RuntimeError('Unsupported existing-runtime operation')

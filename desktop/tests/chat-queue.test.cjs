@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
-const {ChatQueue}=require(path.resolve(process.env.AGENTOPIA_GOAL_BUILD,'chat-queue.js'));
+const {ChatQueue}=require(path.resolve(process.env.SYLVANA_GOAL_BUILD,'chat-queue.js'));
 const sleep=()=>new Promise(resolve=>setTimeout(resolve,10));
 function fixture(){const values=new Map(),sent=[],events=[];let available=false;const store={get:key=>values.get(key),set:async(key,value)=>{values.set(key,structuredClone(value));}},queue=new ChatQueue(store,async(owner,row)=>{available=false;sent.push({owner,...row});},()=>available,(...event)=>events.push(event));return {store,queue,sent,events,available:value=>available=value};}
 function row(id='one',conversation='chat'){return {id,conversationId:conversation,agentId:'agent',text:'Build a landscaper website',options:{provider:'openai-oauth',model:'gpt-6.1-sol',thinking:'high',mode:'chat',permission:'ask',files:['selected-file']},status:'queued',createdAt:'2026-10-18T16:00:00Z'};}

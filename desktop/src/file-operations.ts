@@ -31,7 +31,7 @@ export class FileOperations{
  cancelOwner(owner:string){for(const entry of this.active)if(entry.owner===owner)entry.controller.abort();}
  async close(){for(const entry of this.active)entry.controller.abort();await Promise.allSettled([...this.active].map(entry=>entry.done));}
  async recoverOwner(owner:string,guard:()=>Promise<void>){return this.run(owner,AbortSignal.timeout(20000),guard,async(signal,check)=>{let after='';for(;;){const query=this.db.from('desktop_file_operations').select('*').eq('user_id',owner).eq('status','interrupted').order('id').limit(100);const rows=data(await (after?query.gt('id',after):query)) as FileOperation[];for(const row of rows){await check();await this.reconcile(row,signal);}if(rows.length<100)break;after=rows.at(-1)!.id;}});}
- async recover(){data(await this.db.from('desktop_file_operations').update({status:'interrupted',error:'Agentopia restarted. Inspect the saved operation; it will not run again automatically.',updated_at:new Date().toISOString()}).in('status',['prepared','applying','restoring']));}
+ async recover(){data(await this.db.from('desktop_file_operations').update({status:'interrupted',error:'Sylvana restarted. Inspect the saved operation; it will not run again automatically.',updated_at:new Date().toISOString()}).in('status',['prepared','applying','restoring']));}
  private snapshot(file:string,signal:AbortSignal,privateRoot?:string){return snapshotFiles(this.files,file,signal,privateRoot,target=>this.tools.guardManagedPath(target));}
  private async query<T>(request:PromiseLike<T>):Promise<T>{let timer:ReturnType<typeof setTimeout>|undefined;try{return await Promise.race([Promise.resolve(request),new Promise<T>((_,reject)=>{timer=setTimeout(()=>reject(new Error('The local database did not acknowledge this file operation within 10 seconds. Inspect its saved journal before retrying.')),10000);timer.unref();})]);}finally{clearTimeout(timer);}}
  private load(owner:string,id:string):Promise<FileOperation>{return this.query(this.db.from('desktop_file_operations').select('*').eq('id',id).eq('user_id',owner).single()).then(data) as Promise<FileOperation>;}
@@ -76,7 +76,7 @@ export class FileOperations{
  });}
  private async recoveryPath(row:FileOperation,create=false){
   const {root}=row.preview;await this.root(row.user_id,row.preview);let current=root;
-  for(const segment of ['.agentopia-recovery',row.user_id,row.id]){
+  for(const segment of ['.sylvana-recovery',row.user_id,row.id]){
    current=path.join(current,segment);const existing=await optionalStat(current);
    if(!existing&&create)await mkdir(current,{mode:0o700});else if(!existing)throw new Error('The recovery folder is missing. Inspect the original workspace in Windows.');else if(create&&segment===row.id)throw new Error('This recovery slot already exists. Review the saved operation before retrying.');
    const stat=await lstat(current);if(!stat.isDirectory()||stat.isSymbolicLink()||!sameFilePath(await realpath(current),current))throw new Error('A recovery folder was replaced or linked. Inspect it in Windows.');
@@ -108,7 +108,7 @@ export class FileOperations{
     await check();this.assertGrant(owner,p);signal.throwIfAborted();if(row.action==='create_folder')await mkdir(p.source,{mode:0o700});else await helper!.commit(p.source,p.target);
     const afterPath=row.action==='create_folder'?p.source:p.target;let warning:string|undefined;
     try{p.after=await this.snapshot(afterPath,new AbortController().signal,row.action==='remove'?path.dirname(p.target):undefined);}catch{warning='The operation finished, but the item changed before its final inventory was saved. Inspect it before restoring.';}
-    const result:FileOperationResult={operation_id:row.id,action:row.action,path:p.path,kind:p.snapshot?.nodes[0]?.kind??'folder',...(row.action==='move'?{destination:p.destination}:{}),changed:true,...(row.action==='remove'?{removed:true}:{}),...(warning?{warning}:{})};
+    const result:FileOperationResult={operation_id:row.id,action:row.action,path:p.path,absolute_path:p.source,...(row.action==='move'?{destination_absolute_path:p.target}:{}),kind:p.snapshot?.nodes[0]?.kind??'folder',...(row.action==='move'?{destination:p.destination}:{}),changed:true,...(row.action==='remove'?{removed:true}:{}),...(warning?{warning}:{})};
     await this.finish(row,result);return result;
    }catch(error){await this.patch(row,{status:began?'interrupted':'failed',error:(error as Error).message}).catch(()=>{});throw error;}
    finally{await helper?.close();}
@@ -125,7 +125,7 @@ export class FileOperations{
     await this.patch(row,{status:'restoring',phase:'restore',error:null});began=true;await check();const latest=await this.currentSnapshot(row,signal,true);if(latest.snapshot!.fingerprint!==before.snapshot!.fingerprint)throw new Error('The item changed during restore review. Inspect it again.');
     await check();const reference=await this.root(owner,p);await this.tools.operationPath(owner,reference.id,p.path,row.action!=='create_folder');
     this.assertGrant(owner,p,true);if(row.action==='create_folder')await rmdir(latest.target);else await helper!.commit(latest.target,p.source);
-    const result:FileOperationResult={operation_id:row.id,action:row.action,path:p.path,kind:p.snapshot?.nodes[0]?.kind??'folder',...(row.action==='move'?{destination:p.destination}:{}),changed:true,restored:true};await this.finish(row,result,true);return result;
+    const result:FileOperationResult={operation_id:row.id,action:row.action,path:p.path,absolute_path:p.source,...(row.action==='move'?{destination_absolute_path:p.target}:{}),kind:p.snapshot?.nodes[0]?.kind??'folder',...(row.action==='move'?{destination:p.destination}:{}),changed:true,restored:true};await this.finish(row,result,true);return result;
    }catch(error){if(began)await this.patch(row,{status:'interrupted',error:(error as Error).message}).catch(()=>{});throw error;}finally{await helper?.close();}
   }));
  });}

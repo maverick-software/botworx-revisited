@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
-const {CodexHarness}=require(path.join(process.env.AGENTOPIA_PREVIEW_BUILD??path.resolve(__dirname,'../build'),'codex-harness.js'));
+const {CodexHarness}=require(path.join(process.env.SYLVANA_PREVIEW_BUILD??path.resolve(__dirname,'../build'),'codex-harness.js'));
 function fixture(steering=[],result='Verified child result',foreign=false){
  const h=new CodexHarness({}, {},'unused','unused',()=>{},async()=>{}),calls=[],w={children:new Map()},origin={owner:'alice',request:{id:'parent-request'},conversation:'parent-chat',state:{threadId:'parent-thread',reports:[]},rootFinished:true,ended:false,validate:async()=>{},save:Promise.resolve()},child={root:origin,view:{threadId:'owned-child',parentThreadId:'parent-thread',turnId:'child-turn',status:'completed',delivery:'waiting',result,state:{steering}}};origin.worker=w;w.children.set('owned-child',child);
  if(foreign)w.children.set('foreign-child',{root:{...origin,owner:'bob',state:{threadId:'foreign-parent'}},view:{threadId:'foreign-child',turnId:'foreign-turn',status:'completed',delivery:'waiting',result:'FOREIGN_RESULT',state:{steering:[{id:'foreign-id',text:'FOREIGN_USER_TEXT'}]}}});

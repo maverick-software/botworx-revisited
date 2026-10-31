@@ -17,4 +17,4 @@ export function sourceLinkSuffix(href:string,hasFragment=true){
  const location=sourceLocation({line:Number(match[1]),endLine:Number(match[3]??match[1]),...(match[2]?{column:Number(match[2])}:{})});return {href:base.slice(0,match.index),fragment:sourceFragmentText(location)};
 }
 export function goToSourceLocation(value:string){const text=value.trim();const fragment=/^\d+(?::\d+)?$/.test(text)?'L'+text.replace(':','C'):/^\d+-\d+$/.test(text)?'L'+text.replace('-','-L'):text;const location=sourceFragment(fragment,true);if(!location)throw new Error('Enter a line, line:column, or line range, such as 18, 18:4, or 18-22.');return location;}
-export function workspaceSourceLink(referenceId:string,path:string){if(!/^[a-f0-9-]{36}$/i.test(referenceId))throw new Error('Invalid workspace reference.');return 'agentopia-file://'+referenceId+'/'+path.split(/[\\/]/).map(encodeURIComponent).join('/');}
+export function workspaceSourceLink(referenceId:string,path:string){if(!/^[a-f0-9-]{36}$/i.test(referenceId))throw new Error('Invalid workspace reference.');return 'sylvana-file://'+referenceId+'/'+path.split(/[\\/]/).map(encodeURIComponent).join('/');}

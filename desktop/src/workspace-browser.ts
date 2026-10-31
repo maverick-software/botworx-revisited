@@ -55,7 +55,7 @@ export class WorkspaceBrowser{
   return this.dispatch(action,args,owner,guard);
  }
  private async dispatch(action:string,args:Record<string,unknown>,owner:string,guard:()=>Promise<void>){
-  await guard();if(this.stopping)throw new Error('Agentopia’s browser is stopping. Reopen the application to continue.');if(this.clearing.has(owner))throw new Error('Wait for browser data to finish clearing.');if(this.activeOwner&&this.activeOwner!==owner)this.closeAll();this.activeOwner=owner;
+  await guard();if(this.stopping)throw new Error('Sylvana’s browser is stopping. Reopen the application to continue.');if(this.clearing.has(owner))throw new Error('Wait for browser data to finish clearing.');if(this.activeOwner&&this.activeOwner!==owner)this.closeAll();this.activeOwner=owner;
   if(action==='browser.preferences')return {rememberSignIns:this.data.get(owner).rememberSignIns};
   if(action==='browser.tabs.list'||action==='browser.context.list'){const rows=this.tabs.list(owner),titles=rows.length&&this.conversationTitles?await this.conversationTitles(owner,[...new Set(rows.map(row=>row.conversation))]):{};await guard();const tabs=rows.map(row=>({...row,conversationTitle:row.scope==='agent-draft-preview'?'Agent preview':titles[row.conversation],status:this.entries.get(row.id)?.agentConversation===row.conversation?'live':'saved'}));if(action==='browser.context.list')for(const [id,entry]of this.entries){if(entry.owner!==owner||entry.canvas||entry.agentConversation||entry.view.webContents.isDestroyed())continue;try{tabs.push({id,conversation:'',url:browserAddress(entry.view.webContents.getURL()),title:entry.view.webContents.getTitle().slice(0,240),updatedAt:new Date().toISOString(),conversationTitle:'',status:'live'});}catch{/* A loading or unsupported page cannot be selected as context. */}}return {tabs,error:this.tabs.error(owner)||this.uploads?.error(owner)||''};}
   if(action==='browser.resolve'){const id=args.id;if(typeof id!=='string'||!/^[a-f0-9-]{36}$/i.test(id))throw new Error('Invalid browser tab.');return {id:this.tabs.closed(owner,id)?require('node:crypto').randomUUID():id};}
@@ -69,7 +69,7 @@ export class WorkspaceBrowser{
    this.clearing.add(owner);this.closeAll();try{
     if(action==='browser.data.clear'||args.rememberSignIns===false){for(const isolated of this.sessions.get(owner)??[]){await isolated.clearStorageData();await isolated.clearCache();await isolated.clearAuthCache();await isolated.closeAllConnections();}const saved=session.fromPartition(browserPartition(owner,true));await saved.clearStorageData();await saved.clearCache();await saved.clearAuthCache();await saved.closeAllConnections();}
     await guard();const previous=this.data.get(owner).rememberSignIns;if(action==='browser.preferences.save')this.data.get(owner).rememberSignIns=args.rememberSignIns as boolean;try{await this.data.save(owner);}catch(error){this.data.get(owner).rememberSignIns=previous;throw error;}return;
-   }finally{this.clearing.delete(owner);if(!this.window.isDestroyed())this.window.webContents.send('agentopia:command','browser-reset');}
+   }finally{this.clearing.delete(owner);if(!this.window.isDestroyed())this.window.webContents.send('sylvana:command','browser-reset');}
   }
   if(action==='browser.hide'){this.hide();return;}
   const id=args.id;if(typeof id!=='string'||!/^[a-f0-9-]{36}$/i.test(id))throw new Error('Invalid browser tab.');
@@ -79,7 +79,7 @@ export class WorkspaceBrowser{
    if(args.restoreConversation!==undefined&&(this.tabs.get(owner,id)?.conversation!==args.restoreConversation||this.tabs.get(owner,id)?.url!==args.restoreUrl))throw new Error('This saved tab was closed or changed before restoration.');
    const opening=this.openingConversations.get(id),saved=this.tabs.get(owner,id);let agentConversation=opening?.conversation??saved?.conversation;const agentScope:BrowserScope=opening?.scope??saved?.scope??'chat';
    if(!agentConversation&&!this.tabs.closed(owner,id)&&this.legacyLookup&&typeof args.html!=='string'){agentConversation=await this.legacyLookup(owner,id);if(agentConversation){await this.validateAgent(owner,agentConversation);await this.tabs.put(owner,{id,conversation:agentConversation,url:browserAddress(args.url),title:'',updatedAt:new Date().toISOString()});}}
-   if(agentConversation)await this.validateAgent(owner,agentConversation,agentScope);await guard();if(this.stopping)throw new Error('Agentopia’s browser is stopping.');
+   if(agentConversation)await this.validateAgent(owner,agentConversation,agentScope);await guard();if(this.stopping)throw new Error('Sylvana’s browser is stopping.');
    let existed=!!entry;const wasCanvas=entry?.canvas;
    const canvas=typeof args.html==='string',url=canvas?'':browserAddress(!entry&&args.navigate!==true&&this.tabs.get(owner,id)?this.tabs.get(owner,id)!.url:args.url);
    if(canvas&&(args.html as string).length>160000)throw new Error('This canvas is too large.');
@@ -105,7 +105,7 @@ export class WorkspaceBrowser{
     view.webContents.on('did-start-navigation',(_event,_url,inPlace,main)=>{if(main&&!inPlace){current.generation++;current.error='';clearTimeout(current.findTimer);current.findRequest=undefined;current.find={matches:0,ordinal:0,pending:!!current.findQuery};if(current.findQuery)current.findTimer=setTimeout(()=>{if(current.find.pending)current.find={matches:0,ordinal:0,pending:false,error:'This page is still loading. Try search again when it is ready.'};},5000);}});
     view.webContents.on('did-navigate-in-page',(_event,_url,main)=>{if(main)current.generation++;if(main&&current.findOpen)this.find(current);});
     view.webContents.on('did-finish-load',()=>{if(current.findOpen)this.find(current);});
-    view.webContents.on('before-input-event',(event,input)=>{if(this.shown!==id||input.type!=='keyDown'||input.alt)return;const key=input.key.toLowerCase(),command=(input.control||input.meta)&&key==='f'?'open':key==='f3'?(input.shift?'previous':'next'):key==='escape'&&current.findOpen?'close':null;if(command){event.preventDefault();this.window.webContents.focus();this.window.webContents.send('agentopia:command','workspace-find-'+command);}});
+    view.webContents.on('before-input-event',(event,input)=>{if(this.shown!==id||input.type!=='keyDown'||input.alt)return;const key=input.key.toLowerCase(),command=(input.control||input.meta)&&key==='f'?'open':key==='f3'?(input.shift?'previous':'next'):key==='escape'&&current.findOpen?'close':null;if(command){event.preventDefault();this.window.webContents.focus();this.window.webContents.send('sylvana:command','workspace-find-'+command);}});
    }
    entry.canvas=canvas;
    const csp="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
@@ -114,10 +114,10 @@ export class WorkspaceBrowser{
    entry.error='';entry.target=target;
    void entry.view.webContents.loadURL(target).catch(error=>{if(entry?.target===target&&error?.code!=='ERR_ABORTED')this.failed(entry,'This page could not be loaded. Check the address and your connection.');});return;
   }
-  if(!entry){if(action==='browser.close'){await this.tabs.forget(owner,id);await guard();if(this.activeOwner===owner)this.window.webContents.send('agentopia:command','browser-tab-closed:'+id);await this.uploads?.closeTab(owner,id);}if(action==='browser.close'||action==='browser.release'||action==='browser.bounds'||action==='browser.findClose')return;throw new Error('Open the browser tab first.');}
+  if(!entry){if(action==='browser.close'){await this.tabs.forget(owner,id);await guard();if(this.activeOwner===owner)this.window.webContents.send('sylvana:command','browser-tab-closed:'+id);await this.uploads?.closeTab(owner,id);}if(action==='browser.close'||action==='browser.release'||action==='browser.bounds'||action==='browser.findClose')return;throw new Error('Open the browser tab first.');}
   const contents=entry.view.webContents;
   if(action==='browser.release'&&args.keepAgent===true&&entry.agentConversation){if(entry.capture)entry.capture.visible=false;else entry.view.setVisible(false);if(this.shown===id)this.shown=null;return;}
-  if(action==='browser.close'||action==='browser.release'){if(action==='browser.close'){await this.tabs.forget(owner,id);await guard();if(this.activeOwner===owner)this.window.webContents.send('agentopia:command','browser-tab-closed:'+id);}else await this.saveTab(entry,id);const pending=this.tabWrites.get(id);if(pending){clearTimeout(pending.timer);this.tabWrites.delete(id);}this.finishCapture(entry);clearTimeout(entry.findTimer);downloadSources.delete(contents);this.window.contentView.removeChildView(entry.view);contents.close();this.entries.delete(id);if(this.shown===id)this.shown=null;await this.uploads?.closeTab(owner,id);return;}
+  if(action==='browser.close'||action==='browser.release'){if(action==='browser.close'){await this.tabs.forget(owner,id);await guard();if(this.activeOwner===owner)this.window.webContents.send('sylvana:command','browser-tab-closed:'+id);}else await this.saveTab(entry,id);const pending=this.tabWrites.get(id);if(pending){clearTimeout(pending.timer);this.tabWrites.delete(id);}this.finishCapture(entry);clearTimeout(entry.findTimer);downloadSources.delete(contents);this.window.contentView.removeChildView(entry.view);contents.close();this.entries.delete(id);if(this.shown===id)this.shown=null;await this.uploads?.closeTab(owner,id);return;}
   if(action==='browser.focus'){if(this.shown===id)contents.focus();return;}
   if(action==='browser.find'||action==='browser.findClose'){
    if(!Number.isSafeInteger(args.version)||(args.version as number)<1)throw new Error('Invalid preview search version.');

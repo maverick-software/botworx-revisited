@@ -25,7 +25,7 @@ for archive in archives:
     toc = "\n".join(line for line in toc.splitlines()
                     if " SCHEMA - public " not in line
                     and not (" DEFAULT ACL " in line and line.endswith(" supabase_admin")))
-    with tempfile.NamedTemporaryFile(mode="w+", prefix="agentopia-restore-") as listing:
+    with tempfile.NamedTemporaryFile(mode="w+", prefix="sylvana-restore-") as listing:
         listing.write(toc + "\n")
         listing.flush()
         subprocess.run([

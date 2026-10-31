@@ -49,7 +49,7 @@ export async function captureWorkspaceGit(
  if(before.entries.some(entry=>entry.kind==='file'&&entry.path.endsWith('.lock')))throw Error('Git is writing this workspace. Wait for it to finish before creating recovery.');
  // A compact fixed namespace avoids Windows' path limit in deeply nested
  // projects. The authenticated operation journal retains all three identities.
- const reference='refs/agentopia/recovery/'+createHash('sha256').update([scope.owner,scope.run,scope.operation].join(':')).digest('hex');
+ const reference='refs/sylvana/recovery/'+createHash('sha256').update([scope.owner,scope.run,scope.operation].join(':')).digest('hex');
  await progress({phase:'planned',reference});
  const head=object(await git(['rev-parse','--verify','--end-of-options','HEAD^{commit}']));
  const policy=await readGitRecoveryPolicy(commonDirectory,head.length,guard,signal),policySha256=gitRecoveryPolicyId(policy);
@@ -120,7 +120,7 @@ export async function captureWorkspaceGit(
  }
  if(parents.size>10000)throw Error('The workspace has too much recovery history. Keep it for manual review.');
  const tree=object(await git(['mktree','-z'],{input:[...objects].map(([hash,type])=>(type==='tree'?'040000':'100644')+' '+type+' '+hash+'\t'+hash+'\0').join('')}));
- const commit=object(await git(['-c','commit.gpgSign=false','commit-tree',tree,...[...parents].flatMap(parent=>['-p',parent]),'-m','Agentopia private workspace recovery']));
+ const commit=object(await git(['-c','commit.gpgSign=false','commit-tree',tree,...[...parents].flatMap(parent=>['-p',parent]),'-m','Sylvana private workspace recovery']));
  await guard();signal.throwIfAborted();
  await git(['update-ref','--no-deref',reference,commit,'0'.repeat(commit.length)]);
  await progress({phase:'reference',reference,commit});

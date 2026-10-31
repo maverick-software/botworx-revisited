@@ -67,6 +67,6 @@ export class TaskScheduler{
   }
  }
  async stop(owner:string,id:string){const run=this.executions.get(id);if(!run||run.owner!==owner)return false;run.controller.abort(new DOMException('Scheduled response stopped by you.','AbortError'));await run.done;return true;}
- async accountChanged(owner:string){this.generation++;const running=[...this.executions.values()].filter(run=>run.owner===owner);for(const run of running)run.controller.abort(new DOMException('The Agentopia account changed.','AbortError'));await Promise.all(running.map(run=>run.done));}
- async close(){this.closed=true;this.generation++;if(this.timer)clearInterval(this.timer);await this.pumping;for(const run of this.executions.values())run.controller.abort(new DOMException('Agentopia closed. Inspect the saved scheduled response before continuing.','AbortError'));await Promise.all([...this.executions.values()].map(run=>run.done));}
+ async accountChanged(owner:string){this.generation++;const running=[...this.executions.values()].filter(run=>run.owner===owner);for(const run of running)run.controller.abort(new DOMException('The Sylvana account changed.','AbortError'));await Promise.all(running.map(run=>run.done));}
+ async close(){this.closed=true;this.generation++;if(this.timer)clearInterval(this.timer);await this.pumping;for(const run of this.executions.values())run.controller.abort(new DOMException('Sylvana closed. Inspect the saved scheduled response before continuing.','AbortError'));await Promise.all([...this.executions.values()].map(run=>run.done));}
 }

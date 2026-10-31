@@ -45,7 +45,7 @@ export class ComputerService{
   const result=await this.client.request<T>(method,args,signal);
   // Overlay/control windows are never task content. Enforce this in the host
   // as well, including when an older native helper reports them as available.
-  const protect=(window:NativeComputerWindow)=>/^(?:codex-computer-use|Agentopia\.Computer)$/i.test(window.app)?{...window,blocked:'Computer Use control and overlay windows cannot be shared or automated.'}:window;
+  const protect=(window:NativeComputerWindow)=>/^(?:codex-computer-use|Sylvana\.Computer)$/i.test(window.app)?{...window,blocked:'Computer Use control and overlay windows cannot be shared or automated.'}:window;
   if(method==='windows')return (result as NativeComputerWindow[]).map(protect) as T;
   if(method==='inspect'){const window=protect(result as NativeComputerWindow);if(window.blocked)throw new Error(window.blocked);return window as T;}
   if(method==='snapshot'){const snapshot=result as NativeComputerSnapshot,window=protect(snapshot.window);if(window.blocked)throw new Error(window.blocked);}

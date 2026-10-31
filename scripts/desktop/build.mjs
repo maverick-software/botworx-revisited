@@ -3,10 +3,11 @@ import {cpSync,mkdirSync,readFileSync,writeFileSync,unlinkSync,readdirSync} from
 import path from 'node:path';
 import {desktopOperation} from './operation-lock.mjs';desktopOperation('build');
 const root=path.resolve(import.meta.dirname,'../..');
+if(process.argv.includes('--ui-only')){run(['node_modules/typescript/bin/tsc','-p','desktop/ui/tsconfig.json']);run(['node_modules/vite/bin/vite.js','build','--config','desktop/vite.config.mjs']);console.log('Desktop interface built; backend resources preserved.');process.exit(0);}
 const version=JSON.parse(readFileSync(path.join(root,'package.json'),'utf8')).version;
 const guardManifest=JSON.parse(readFileSync(path.join(root,'desktop/src/native-guard-manifest.json'),'utf8'));if((await import('node:crypto')).createHash('sha256').update(readFileSync(path.join(root,'desktop/runtime/native-patch-guard.cjs'))).digest('hex')!==guardManifest.sha256)throw new Error('Update and verify the native patch guard fingerprint before building.');
 const recoveryManifest=JSON.parse(readFileSync(path.join(root,'desktop/src/recovery-resource-manifest.json'),'utf8'));for(const name of ['prepare-desktop-recovery.py','relocate-native-profile.py'])if((await import('node:crypto')).createHash('sha256').update(readFileSync(path.join(root,'desktop/runtime',name))).digest('hex')!==recoveryManifest.files['runtime/'+name])throw new Error('Update and verify the recovery resource fingerprints before building.');
-if(!process.env.AGENTOPIA_BUILD_LOCK_OWNED){
+if(!process.env.SYLVANA_BUILD_LOCK_OWNED){
  const lock=path.join(root,'desktop/.build-lock');
  try{writeFileSync(lock,String(process.pid),{flag:'wx'});}catch{throw new Error('Another desktop build is in progress. Let it finish before compiling again.');}
  process.on('exit',()=>{try{unlinkSync(lock);}catch{}});
@@ -42,11 +43,11 @@ cpSync(path.join(root,'desktop/runtime/terminal.ps1'),path.join(resources,'runti
 cpSync(path.join(root,'desktop/runtime/interactive.ps1'),path.join(resources,'runtime/interactive.ps1'));
 cpSync(path.join(root,'desktop/runtime/file-actions.ps1'),path.join(resources,'runtime/file-actions.ps1'));
 cpSync(path.join(root,'desktop/runtime/native-patch-guard.cjs'),path.join(resources,'runtime/native-patch-guard.cjs'));
-cpSync(path.join(root,'scripts/desktop/import-backup.ps1'),path.join(resources,'runtime/Restore-Agentopia.ps1'));
-writeFileSync(path.join(resources,'runtime/config.toml'),readFileSync(path.join(root,'desktop/runtime/poc-config.toml'),'utf8').replaceAll('agentopia-desktop-poc','agentopia-desktop').replaceAll('563','573').replace('enable_signup = true','enable_signup = false').replace('[studio]\nenabled = true','[studio]\nenabled = false'));
+cpSync(path.join(root,'scripts/desktop/import-backup.ps1'),path.join(resources,'runtime/Restore-Sylvana.ps1'));
+writeFileSync(path.join(resources,'runtime/config.toml'),readFileSync(path.join(root,'desktop/runtime/poc-config.toml'),'utf8').replaceAll('sylvana-desktop-poc','sylvana-desktop').replaceAll('563','573').replace('enable_signup = true','enable_signup = false').replace('[studio]\nenabled = true','[studio]\nenabled = false')+'\n[auth.hook.password_verification_attempt]\nenabled = true\nuri = "pg-functions://postgres/sylvana_desktop/reject_password_login"\n');
 writeFileSync(path.join(resources,'version.json'),JSON.stringify({version,supabase:'2.121.0',schema:readdirSync(path.join(root,'desktop/database')).filter(name=>name.endsWith('.sql')).length,desktopRecovery:recoveryManifest.format}));
-const stage=path.join(root,'desktop/staging');mkdirSync(stage,{recursive:true});
+const stage=path.resolve(process.env.SYLVANA_STAGE_DIR??path.join(root,'desktop/staging'));mkdirSync(stage,{recursive:true});
 cpSync(path.join(root,'desktop/build'),path.join(stage,'build'),{recursive:true});
-writeFileSync(path.join(stage,'package.json'),JSON.stringify({name:'agentopia',productName:'Agentopia',version,description:'Private desktop AI workspace with PostgreSQL and Supabase',author:'Agentopia',main:'build/main.js',type:'commonjs',dependencies:{'@modelcontextprotocol/client':'2.3.1','@supabase/supabase-js':'2.117.3',jose:'6.2.12',ws:'8.22.0','tar-stream':'3.2.2','electron-squirrel-startup':'1.0.1',croner:'9.1.0',unpdf:'1.9.0',fflate:'0.8.3',saxes:'6.0.0',ssf:'0.11.2',diff:'8.0.2'},devDependencies:{electron:'44.7.2'},config:{forge:'./forge.config.cjs'}},null,2));
+writeFileSync(path.join(stage,'package.json'),JSON.stringify({name:'sylvana',productName:'Sylvana',version,description:'Private desktop AI workspace with PostgreSQL and Supabase',author:'Sylvana',main:'build/main.js',type:'commonjs',dependencies:{'@modelcontextprotocol/client':'2.3.1','@supabase/supabase-js':'2.117.3',jose:'6.2.12',ws:'8.22.0','tar-stream':'3.2.2','electron-squirrel-startup':'1.0.1',croner:'9.1.0',unpdf:'1.9.0',fflate:'0.8.3',saxes:'6.0.0',ssf:'0.11.2',diff:'8.0.2',yaml:'2.7.1'},devDependencies:{electron:'44.7.2'},config:{forge:'./forge.config.cjs'}},null,2));
 cpSync(path.join(root,'desktop/forge.config.cjs'),path.join(stage,'forge.config.cjs'));
 console.log('Desktop compiled and staged.');

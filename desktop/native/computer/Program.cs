@@ -7,7 +7,7 @@ using System.Windows.Automation;
 using System.Security.Cryptography;
 using Microsoft.Win32.SafeHandles;
 
-namespace Agentopia.Computer;
+namespace Sylvana.Computer;
 
 internal static class Win
 {
@@ -95,8 +95,9 @@ internal static class Desktop
     }
     public static readonly HashSet<int> ProtectedPids=[];
     private static volatile bool stopped;
-    public static void InputCheckpoint(){if(stopped||((Win.GetAsyncKeyState(17)&0x8000)!=0&&(Win.GetAsyncKeyState(18)&0x8000)!=0&&(Win.GetAsyncKeyState(8)&0x8000)!=0)){stopped=true;throw new OperationCanceledException("Computer use stopped.");}}
-    private static readonly HashSet<string> DeniedApps=new(StringComparer.OrdinalIgnoreCase){"Agentopia","Codex","ChatGPT","cmd","powershell","pwsh","WindowsTerminal","wt","conhost","OpenConsole","Taskmgr","SystemSettings","SecHealthUI","SecurityHealthSystray","UserAccountControlSettings","consent","CredentialUIBroker","LogonUI","LockApp","CredentialManager","keepass","keepassxc","1password","bitwarden","dashlane","lastpass"};
+    public static void StopInput()=>stopped=true;
+    public static void InputCheckpoint(){if(stopped)throw new OperationCanceledException("Computer use stopped.");}
+    private static readonly HashSet<string> DeniedApps=new(StringComparer.OrdinalIgnoreCase){"Sylvana","Codex","ChatGPT","cmd","powershell","pwsh","WindowsTerminal","wt","conhost","OpenConsole","Taskmgr","SystemSettings","SecHealthUI","SecurityHealthSystray","UserAccountControlSettings","consent","CredentialUIBroker","LogonUI","LockApp","CredentialManager","keepass","keepassxc","1password","bitwarden","dashlane","lastpass"};
     private static readonly System.Text.RegularExpressions.Regex ProtectedTitle=new(@"\b(?:Windows Security|User Account Control|Credential Manager|Password Manager|sign[ -]?in|log[ -]?in|authentication|verify your identity)(?=$|\s|:)",System.Text.RegularExpressions.RegexOptions.IgnoreCase|System.Text.RegularExpressions.RegexOptions.CultureInvariant);
     public static void Interactive()
     {
@@ -155,6 +156,7 @@ internal static class Desktop
 
 internal sealed class Engine
 {
+    internal static string Role(ControlType? type)=>type?.ProgrammaticName?.Replace("ControlType.","")??"Custom";
     private readonly Dictionary<string,Snapshot> snapshots=[];
     private static string Safe(string value)=>value.Length<=500?value:value[..500];
     private static Box Bounds(System.Windows.Rect r)=>new((int)Math.Round(r.X),(int)Math.Round(r.Y),(int)Math.Round(r.Width),(int)Math.Round(r.Height));
@@ -167,12 +169,12 @@ internal sealed class Engine
             cancellation.ThrowIfCancellationRequested();if(depth>16||nodes.Count>=250){truncated=true;return;}
             try{
                 var current=element.Current;if(current.IsPassword&&!current.IsOffscreen)throw new ProtectedInputException();if(current.IsOffscreen&&depth>0)return;
-                var rect=current.BoundingRectangle;if(!rect.IsEmpty&&double.IsFinite(rect.X)&&double.IsFinite(rect.Y)&&rect.Width>0&&rect.Height>0){string id="e"+nodes.Count;var node=new NodeInfo(id,current.ControlType.ProgrammaticName.Replace("ControlType.",""),Safe(current.Name??""),Safe(current.AutomationId??""),Bounds(rect),current.IsEnabled,current.HasKeyboardFocus);nodes.Add(node);elements[id]=new(element,element.GetRuntimeId(),node);if(node.Focused)focused=id;}
+                var rect=current.BoundingRectangle;if(!rect.IsEmpty&&double.IsFinite(rect.X)&&double.IsFinite(rect.Y)&&rect.Width>0&&rect.Height>0){string id="e"+nodes.Count;var node=new NodeInfo(id,Role(current.ControlType),Safe(current.Name??""),Safe(current.AutomationId??""),Bounds(rect),current.IsEnabled,current.HasKeyboardFocus);nodes.Add(node);elements[id]=new(element,element.GetRuntimeId(),node);if(node.Focused)focused=id;}
                 var child=TreeWalker.ControlViewWalker.GetFirstChild(element);while(child!=null){Visit(child,depth+1);if(nodes.Count>=250)break;child=TreeWalker.ControlViewWalker.GetNextSibling(child);}
             }catch(ProtectedInputException){throw;}catch(ElementNotAvailableException){}catch(InvalidOperationException){}
         }
         Visit(root,0);
-        try{var focus=AutomationElement.FocusedElement;if(focus!=null&&focus.Current.ProcessId==window.Pid){if(focus.Current.IsPassword)throw new ProtectedInputException();var current=focus.Current;var rect=current.BoundingRectangle;if(!rect.IsEmpty&&window.Frame.Contains((int)(rect.X+rect.Width/2),(int)(rect.Y+rect.Height/2))){var runtime=focus.GetRuntimeId();var existing=elements.FirstOrDefault(p=>p.Value.Runtime.SequenceEqual(runtime));if(existing.Key!=null)focused=existing.Key;else{focused="focused";var node=new NodeInfo(focused,current.ControlType.ProgrammaticName.Replace("ControlType.",""),Safe(current.Name??""),Safe(current.AutomationId??""),Bounds(rect),current.IsEnabled,true);nodes.Add(node);elements[focused]=new(focus,runtime,node);}}}}catch(ProtectedInputException){throw;}catch(ElementNotAvailableException){}
+        try{var focus=AutomationElement.FocusedElement;if(focus!=null&&focus.Current.ProcessId==window.Pid){if(focus.Current.IsPassword)throw new ProtectedInputException();var current=focus.Current;var rect=current.BoundingRectangle;if(!rect.IsEmpty&&window.Frame.Contains((int)(rect.X+rect.Width/2),(int)(rect.Y+rect.Height/2))){var runtime=focus.GetRuntimeId();var existing=elements.FirstOrDefault(p=>p.Value.Runtime.SequenceEqual(runtime));if(existing.Key!=null)focused=existing.Key;else{focused="focused";var node=new NodeInfo(focused,Role(current.ControlType),Safe(current.Name??""),Safe(current.AutomationId??""),Bounds(rect),current.IsEnabled,true);nodes.Add(node);elements[focused]=new(focus,runtime,node);}}}}catch(ProtectedInputException){throw;}catch(ElementNotAvailableException){}
         string token=Guid.NewGuid().ToString();var view=new SnapshotInfo(token,window,nodes.ToArray(),focused,truncated);foreach(string old in snapshots.Where(p=>p.Value.View.Window.Handle==window.Handle||DateTimeOffset.UtcNow-p.Value.At>TimeSpan.FromMinutes(2)).Select(p=>p.Key).ToArray())snapshots.Remove(old);while(snapshots.Count>=32)snapshots.Remove(snapshots.OrderBy(p=>p.Value.At).First().Key);snapshots[token]=new(view,elements,DateTimeOffset.UtcNow);return view;
     }
     public object Act(JsonElement args,CancellationToken cancellation)
@@ -231,10 +233,12 @@ internal static class Program
         // all processes, simulate last input, or change foreground-lock settings.
         if(args.Length==4&&args[0]=="--allow-foreground"&&int.TryParse(args[1],out int recipient)&&recipient>0&&args[2]=="--parent"&&int.TryParse(args[3],out int approvalHost)&&approvalHost>0){bool allowed=false;try{using var target=Process.GetProcessById(recipient);Win.GetWindowThreadProcessId(Win.GetForegroundWindow(),out uint foreground);if(foreground==(uint)approvalHost&&target.SessionId==Process.GetCurrentProcess().SessionId&&string.Equals(target.MainModule?.FileName,Environment.ProcessPath,StringComparison.OrdinalIgnoreCase)){for(int n=0;n<25&&(Win.GetAsyncKeyState(13)&0x8000)!=0;n++)Thread.Sleep(20);Win.GetWindowThreadProcessId(Win.GetForegroundWindow(),out foreground);if(foreground==(uint)approvalHost&&(Win.GetAsyncKeyState(13)&0x8000)==0)allowed=Win.AllowSetForegroundWindow((uint)recipient);}}catch{}Console.WriteLine(JsonSerializer.Serialize(new{allowed},Json));return;}
         if(args.Length!=2||args[0]!="--parent"||!int.TryParse(args[1],out int parent)||parent<=0)return;Desktop.ProtectedPids.Add(parent);Desktop.ProtectedPids.Add(Environment.ProcessId);
+        using var emergency=new EmergencyStop(()=>{Desktop.StopInput();lock(Output)Console.WriteLine("{\"event\":\"escape\"}");});
         var engine=new Engine();CancellationTokenSource? cancellation=null;Task? active=null;string? activeId=null;int busy=0;
         try{
             string? line;while((line=Console.ReadLine())!=null){if(line.Length>256000)break;JsonDocument message;try{message=JsonDocument.Parse(line);}catch{break;}var root=message.RootElement.Clone();message.Dispose();string id=root.GetProperty("id").GetString()??"",method=root.GetProperty("method").GetString()??"";
                 if(method=="cancel"){if(root.TryGetProperty("operation",out var operation)&&operation.GetString()==activeId)cancellation?.Cancel();continue;}
+                if(method=="watch-escape"){try{emergency.Enable(root.GetProperty("args").GetProperty("enabled").GetBoolean());Reply(id,new{watching=true});}catch(Exception e){Reply(id,null,e.Message);}continue;}
                 if(Interlocked.CompareExchange(ref busy,1,0)!=0){Reply(id,null,"A Windows operation is already running.");continue;}cancellation?.Dispose();cancellation=new CancellationTokenSource();var token=cancellation.Token;activeId=id;
                 active=Task.Run(()=>{Win.SetThreadDpiAwarenessContext((nint)(-4));try{token.ThrowIfCancellationRequested();var data=root.TryGetProperty("args",out var value)?value:default;object result=method switch{"windows"=>Desktop.Windows(),"inspect"=>Desktop.Bound(data),"snapshot"=>engine.Capture(Desktop.Bound(data),token),"action"=>engine.Act(data,token),_=>throw new InvalidOperationException("Unsupported Windows operation.")};Interlocked.Exchange(ref busy,0);Reply(id,result);}catch(OperationCanceledException){Interlocked.Exchange(ref busy,0);Reply(id,null,"Windows operation cancelled. Inspect the window before continuing.");}catch(Exception e){Interlocked.Exchange(ref busy,0);Reply(id,null,e is InvalidOperationException or ProtectedInputException?e.Message:"The selected application could not be inspected. Capture or select it again.");}});
             }

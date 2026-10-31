@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os'),{randomUUID}=require('node:crypto');
-const build=process.env.AGENTOPIA_COMPOSIO_TEST_BUILD,resources=process.env.AGENTOPIA_COMPOSIO_NATIVE_RESOURCES;
+const build=process.env.SYLVANA_COMPOSIO_TEST_BUILD,resources=process.env.SYLVANA_COMPOSIO_NATIVE_RESOURCES;
 if(!build||!resources)throw Error('Run the isolated native Composio qualification.');
 const {fixture}=require('./fixtures/composio.cjs'),{CodexHarness}=require(path.join(build,'codex-harness.js')),{ToolService}=require(path.join(build,'tool-service.js')),{RemoteTools}=require(path.join(build,'remote-tools.js')),{Broker}=require(path.join(build,'broker.js'));
 
@@ -13,7 +13,7 @@ function toolCall(body,name,args,id){
  assert(direct,'The actual Codex catalog must expose '+name);return nativeResponse({id,call_id:id,type:'function_call',name:direct.name,...(direct.namespace?{namespace:direct.namespace}:{}),arguments:JSON.stringify(args),status:'completed'});
 }
 async function setup(run){
- const directory=await fs.mkdtemp(path.join(os.tmpdir(),'agentopia-composio-native-')),f=fixture(),connection=await f.connect(),db=database(f),events=[],user={id:f.owner,email:'controlled-composio@example.invalid',admin:true},saved={},realFetch=global.fetch;
+ const directory=await fs.mkdtemp(path.join(os.tmpdir(),'sylvana-composio-native-')),f=fixture(),connection=await f.connect(),db=database(f),events=[],user={id:f.owner,email:'controlled-composio@example.invalid',admin:true},saved={},realFetch=global.fetch;
  for(const [key,value]of Object.entries({USERPROFILE:directory,APPDATA:path.join(directory,'appdata'),LOCALAPPDATA:path.join(directory,'local')})){saved[key]=process.env[key];process.env[key]=value;}
  const remote=new RemoteTools(db);remote.composio=f.service;remote.plugins={ensure:async()=>{},search:async()=>({name:'serper-search',adapter:'serper',enabled:false}),managedChrome:async()=>{throw Error('Not assigned');}};
  const providers={harnessScope:provider=>'controlled-composio-'+provider,models:async()=>[{id:'gpt-6.1-sol'},{id:'openai/gpt-6.1-sol'}],token:async()=>'CONTROLLED-COMPOSIO-TOKEN'},harness=new CodexHarness(db,providers,directory,resources,(_,event)=>events.push(event),async()=>{},async()=>true),tools=new ToolService(db,{},(owner,event)=>{events.push(event);harness.toolEvent(owner,event);},async()=>user,remote,undefined,{definitions:()=>[],authorize:()=>{}});

@@ -1,0 +1,14 @@
+# Standard and Max goal observation repairs
+
+On October 30, 2026, both service tiers ran a synthetic intake audit with 64 distinct matters and 200 event rows. Both completed all nine requested deliverables. Independent checks matched all 46 issue records, all 128 queue records, each deadline and priority, all summary metrics and the selected 12 matters. Both Word memos opened in the installed canvas. Both dashboards passed actual browser search/filter checks. The signed-in administrator had no subscription or purchased resets and was charged zero credits across 34 model requests.
+
+The run exposed four issues:
+
+- The VPS Compose configuration allowed only one provider request at a time. Overlapping work paused Max before it reached the model. After Standard finished and the provider was idle, the configuration was raised to two and deployed as release `1158a99111a9781f`. Runtime inspection confirms two; encrypted credentials and model/privacy settings were preserved. Max resumed its saved goal and completed.
+- `useChatDrafts.goalConversation` activated a goal conversation without consuming the submitted new-chat draft. It now reuses `sent`, clearing the submitted draft/source selection while preserving the goal's context and unrelated unsent conversation drafts. The existing stale test selections were cleared through the context picker without forgetting registrations or deleting files.
+- Goal details displayed the raw retry/status note. `goal-status-note.ts` now presents a readable busy/resume notice for the observed refusal and a safe fallback for technical transport failures. Both native goal details and the workspace goal pane use it.
+- Both models attempted to pipe patches into an unavailable PowerShell command. They recovered through supported file-writing operations. The runtime guidance now explicitly distinguishes the native patch tool API from shell commands and directs the model to supported alternatives. The installed backend changes only this instruction text; the goal runs preceded that guidance change.
+
+`test-goal-draft-and-notices.mjs` reproduced the draft and notice failures before the repair and passed all three checks afterward. UI and backend typechecks and the UI build passed. The narrowly prepared package changed only the runtime guidance string in `script-runtimes.js`, plus the reviewed UI. No schema changes were needed. Normal maintenance preserved the closed profile, identities, chats, goals and saved-work counts.
+
+Detailed observations, costs, independent calculations, input hashes, generated outputs and screenshots are linked in [the comparison report](F:/Sylvana/verification/goal-comparison/comparison.md). Max had an initial service-capacity pause and duplicate references to identical input content, so these observations describe this particular exercise.

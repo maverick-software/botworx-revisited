@@ -19,6 +19,6 @@ else{
   else await rename(stage,target);
   manifest[kind]={version:pin.version,directory:pin.directory,entry:pin.entry,url:pin.url,archiveSha256:pin.sha256};console.log('Prepared pinned '+kind+' '+pin.version+'.');
  }
- for(const name of ['npm-user.npmrc','npm-global.npmrc']){const bytes=Buffer.from('# Agentopia managed sessions use project-local npm configuration.\n');const file=path.join(resources,name);try{const current=await readFile(file);if(hash(current)!==hash(bytes))throw new Error('Bundled npm configuration changed: '+name);}catch(error){if(error.code!=='ENOENT')throw error;await writeFile(file,bytes,{flag:'wx'});}manifest.files[name]=hash(bytes);}
+ for(const name of ['npm-user.npmrc','npm-global.npmrc']){const bytes=Buffer.from('# Sylvana managed sessions use project-local npm configuration.\n'),previous=Buffer.from('# Agentopia managed sessions use project-local npm configuration.\n');const file=path.join(resources,name);try{const current=await readFile(file);if(hash(current)!==hash(bytes)){if(hash(current)!==hash(previous))throw new Error('Bundled npm configuration changed: '+name);await writeFile(file,bytes);}}catch(error){if(error.code!=='ENOENT')throw error;await writeFile(file,bytes,{flag:'wx'});}manifest.files[name]=hash(bytes);}
  await verify(manifest);await writeFile(manifestFile,JSON.stringify(manifest,null,2));console.log('Pinned complete script runtimes and bundled license notices.');
 }

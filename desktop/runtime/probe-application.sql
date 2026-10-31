@@ -9,8 +9,8 @@ CREATE TRIGGER auto_create_contact_management_credential_trigger AFTER INSERT ON
 FOR EACH ROW EXECUTE FUNCTION public.auto_create_contact_management_credential();
 CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users
 FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
-CREATE TABLE public.agentopia_runtime_probe(id uuid PRIMARY KEY, value text NOT NULL);
-ALTER TABLE public.agentopia_runtime_probe ENABLE ROW LEVEL SECURITY;
-GRANT ALL ON public.agentopia_runtime_probe TO service_role;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.agentopia_runtime_probe;
+CREATE TABLE public.sylvana_runtime_probe(id uuid PRIMARY KEY, value text NOT NULL);
+ALTER TABLE public.sylvana_runtime_probe ENABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.sylvana_runtime_probe TO service_role;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.sylvana_runtime_probe;
 NOTIFY pgrst, 'reload schema';

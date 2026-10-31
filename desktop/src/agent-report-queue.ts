@@ -91,7 +91,7 @@ export class AgentReportQueue{
  }
  async recover(owner:string){
   this.owners.add(agentId(owner));
-  await this.update(owner,row=>!inactive.has(row.status),row=>({...row,status:'held',error:row.status==='running'?'Agentopia closed while reporting. Inspect the saved parent turn; this report was not replayed.':'Agentopia restarted. Review the specialist result before continuing its report.',updatedAt:new Date().toISOString()}));
+  await this.update(owner,row=>!inactive.has(row.status),row=>({...row,status:'held',error:row.status==='running'?'Sylvana closed while reporting. Inspect the saved parent turn; this report was not replayed.':'Sylvana restarted. Review the specialist result before continuing its report.',updatedAt:new Date().toISOString()}));
  }
  async pauseOwner(owner:string,reason:string){
   for(const job of this.processing.values())if(job.owner===owner)job.controller.abort();
@@ -155,7 +155,7 @@ export class AgentReportQueue{
  async close(){
   this.closed=true;if(this.timer)clearTimeout(this.timer);this.timer=undefined;
   for(const job of this.processing.values())job.controller.abort();
-  for(const owner of this.owners)try{await this.update(owner,row=>!inactive.has(row.status),row=>({...row,status:'held',error:'Agentopia closed. Inspect the saved parent and specialist before continuing.',updatedAt:new Date().toISOString()}));}catch(error){this.recordFault(owner,error);}
+  for(const owner of this.owners)try{await this.update(owner,row=>!inactive.has(row.status),row=>({...row,status:'held',error:'Sylvana closed. Inspect the saved parent and specialist before continuing.',updatedAt:new Date().toISOString()}));}catch(error){this.recordFault(owner,error);}
   await this.settled();
  }
 }

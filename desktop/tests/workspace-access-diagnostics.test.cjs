@@ -1,7 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
-const build=process.env.AGENTOPIA_ACCESS_BUILD??path.resolve(__dirname,'../build');
+const build=process.env.SYLVANA_ACCESS_BUILD??path.resolve(__dirname,'../build');
 const {protectionEvidence,WorkspaceAccessDiagnostics,protectionQuery}=require(path.join(build,'workspace-access-diagnostics.js'));
-const now=Date.parse('2026-10-19T06:15:00Z'),root='D:\\Selected folder',program='C:\\Agentopia\\pwsh.exe';
+const now=Date.parse('2026-10-19T06:15:00Z'),root='D:\\Selected folder',program='C:\\Sylvana\\pwsh.exe';
 const event=(extra={})=>({eventId:1123,at:new Date(now-1000).toISOString(),process:program,target:root+'\\public',...extra});
 test('only exact managed processes, selected folder boundaries and recent block events establish a refusal',()=>{
  const valid=event(),other=[event({target:root+'-other\\private'}),event({process:'C:\\Other\\pwsh.exe'}),event({eventId:1124}),event({at:new Date(now-31*60000).toISOString()}),event({at:new Date(now+60000).toISOString()})];

@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),{randomUUID}=require('node:crypto');
-const build=process.env.AGENTOPIA_COMPOSIO_TEST_BUILD;if(!build)throw Error('Run the isolated Composio qualification script.');
+const build=process.env.SYLVANA_COMPOSIO_TEST_BUILD;if(!build)throw Error('Run the isolated Composio qualification script.');
 const {ComposioClient,ComposioUnavailableError}=require(path.join(build,'composio-client.js'));
 const {ComposioConnections}=require(path.join(build,'composio-connections.js'));
 const {composioInvalidatedAgents}=require(path.join(build,'composio-connections.js'));

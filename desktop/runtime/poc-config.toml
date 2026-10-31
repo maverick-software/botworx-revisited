@@ -1,4 +1,4 @@
-project_id = "agentopia-desktop-poc"
+project_id = "sylvana-desktop-poc"
 
 [experimental]
 stack = true

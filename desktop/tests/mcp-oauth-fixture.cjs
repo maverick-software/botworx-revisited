@@ -1,6 +1,6 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
 const {createServer}=require('node:http'),{createHash}=require('node:crypto');
-const build=process.env.AGENTOPIA_OAUTH_TEST_BUILD||path.resolve(__dirname,'../build');
+const build=process.env.SYLVANA_OAUTH_TEST_BUILD||path.resolve(__dirname,'../build');
 const {McpOAuth}=require(path.join(build,'mcp-oauth.js')),{oauthNetwork,publicOAuthAddress}=require(path.join(build,'mcp-oauth-network.js')),{withMcp}=require(path.join(build,'mcp-client.js'));
 const scope={owner:'owner-a',agent:'agent-a',connection:'connection-a'};
 async function fixture(t,options={}){

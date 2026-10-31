@@ -18,14 +18,14 @@ async function inventory(root:string){
 function same(left:unknown,right:unknown){return JSON.stringify(left)===JSON.stringify(right);}
 async function checkedDirectory(directory:string,physicalRoot:string){
  const before=await exists(directory);if(before?.isSymbolicLink()||before&&!before.isDirectory())throw new Error('The native state directory is linked or unavailable.');await mkdir(directory,{recursive:true});const actual=await realpath(directory),relative=path.relative(physicalRoot,actual);
- if((await lstat(directory)).isSymbolicLink()||relative.startsWith('..')||path.isAbsolute(relative))throw new Error('The native state directory resolves outside this Agentopia profile.');
+ if((await lstat(directory)).isSymbolicLink()||relative.startsWith('..')||path.isAbsolute(relative))throw new Error('The native state directory resolves outside this Sylvana profile.');
  return actual;
 }
 
 /** Keep existing ordinary homes. Compact only paths the bundled Windows state
  * database cannot open. The existing three-level backup layout stays intact. */
 export async function nativeHome(directory:string,owner:string,provider:string,scope:string,resources?:string,platform=process.platform):Promise<string>{
- if(!/^[a-f0-9-]{36}$/i.test(owner)||!['openai-oauth','openrouter'].includes(provider)||!scope||scope.length>200||!/^[a-z0-9-]+$/i.test(scope))throw new Error('Invalid native state scope.');
+ if(!/^[a-f0-9-]{36}$/i.test(owner)||!['openai-oauth','openrouter','openai-api','sylvana'].includes(provider)||!scope||scope.length>200||!/^[a-z0-9-]+$/i.test(scope))throw new Error('Invalid native state scope.');
  const legacy=path.join(directory,'codex',owner,provider,scope);
  await mkdir(directory,{recursive:true});const physicalRoot=await realpath(directory),physicalLegacy=path.join(physicalRoot,'codex',owner,provider,scope);
  const binding:Binding={format:1,owner,provider,scope},key=createHash('sha256').update(JSON.stringify(binding)).digest('hex').slice(0,32);
@@ -33,11 +33,11 @@ export async function nativeHome(directory:string,owner:string,provider:string,s
  const adopted=await exists(compact);if(!adopted&&(platform!=='win32'||physicalLegacy.length<=maximumHome)){
   let parent=directory;for(const segment of ['codex',owner,provider,scope]){parent=path.join(parent,segment);await checkedDirectory(parent,physicalRoot);}return legacy;
  }
- if(platform==='win32'&&physicalCompact.length>maximumHome)throw new Error('The Windows Agentopia profile path is too long for the bundled Codex state database. Use a shorter profile location. Existing native history has been retained.');
+ if(platform==='win32'&&physicalCompact.length>maximumHome)throw new Error('The Windows Sylvana profile path is too long for the bundled Codex state database. Use a shorter profile location. Existing native history has been retained.');
  const existing=pending.get(physicalCompact);if(existing)return existing;
  const task=(async()=>{
   let parent=directory;for(const segment of ['codex','_',provider]){parent=path.join(parent,segment);await checkedDirectory(parent,physicalRoot);}
-  const verify=async()=>{await checkedDirectory(compact,physicalRoot);const metadata=path.join(compact,'.agentopia-scope.json');if((await lstat(metadata)).isSymbolicLink()||!same(JSON.parse(await readFile(metadata,'utf8')),binding))throw new Error('The compact native state belongs to a different account or conversation. Its data has been retained.');return compact;};
+  const verify=async()=>{await checkedDirectory(compact,physicalRoot);const metadata=path.join(compact,'.sylvana-scope.json');if((await lstat(metadata)).isSymbolicLink()||!same(JSON.parse(await readFile(metadata,'utf8')),binding))throw new Error('The compact native state belongs to a different account or conversation. Its data has been retained.');return compact;};
   if(await exists(compact))return verify();
   const source=await exists(legacy);if(source?.isSymbolicLink()||source&&!source.isDirectory())throw new Error('The original native history is linked or unavailable. Its data has been retained.');
   if(source){const actual=await realpath(legacy);if(actual!==physicalLegacy)throw new Error('The original native history resolves elsewhere. Its data has been retained.');}
@@ -51,7 +51,7 @@ export async function nativeHome(directory:string,owner:string,provider:string,s
   if(!same(await inventory(legacy),before)||!same(await inventory(stage),before))throw new Error('Native history changed during relocation. Original and partial copies have been retained.');
   await rebaseNativeHome(stage,compact,legacy,physicalLegacy,resources);
   if(!same(await inventory(legacy),before))throw new Error('Original native history changed during index repair. Both copies have been retained.');
-  await writeFile(path.join(stage,'.agentopia-scope.json'),JSON.stringify(binding),{flag:'wx',mode:0o600});
+  await writeFile(path.join(stage,'.sylvana-scope.json'),JSON.stringify(binding),{flag:'wx',mode:0o600});
   try{await rename(stage,compact);}catch(error){if(!['EEXIST','ENOTEMPTY','EPERM'].includes((error as NodeJS.ErrnoException).code??'')||!await exists(compact))throw error;}
   return verify();
  })();pending.set(physicalCompact,task);void task.finally(()=>pending.delete(physicalCompact)).catch(()=>{});return task;

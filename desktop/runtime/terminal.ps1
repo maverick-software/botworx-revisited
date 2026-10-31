@@ -9,7 +9,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
-public static class AgentopiaCommandJob {
+public static class SylvanaCommandJob {
  [StructLayout(LayoutKind.Sequential)] struct IO { public ulong a,b,c,d,e,f; }
  [StructLayout(LayoutKind.Sequential)] struct Basic { public long a,b; public uint flags; public UIntPtr min,max; public uint count; public UIntPtr affinity; public uint priority,scheduling; }
  [StructLayout(LayoutKind.Sequential)] struct Extended { public Basic basic; public IO io; public UIntPtr processMemory,jobMemory,peakProcess,peakJob; }
@@ -45,7 +45,7 @@ public static class AgentopiaCommandJob {
  $taskExecutable=[string]$taskPayload.executable
  if([string]::IsNullOrWhiteSpace($taskExecutable)){$taskExecutable=Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/powershell.exe'}
  if(-not [IO.Path]::IsPathRooted($taskExecutable) -or -not [IO.File]::Exists($taskExecutable)){throw 'The configured PowerShell executable is unavailable.'}
- [AgentopiaCommandJob]::Run($taskExecutable,$taskEncoded,[string]$taskPayload.cwd,[int]$taskPayload.timeoutMs)
+ [SylvanaCommandJob]::Run($taskExecutable,$taskEncoded,[string]$taskPayload.cwd,[int]$taskPayload.timeoutMs)
 } catch {
  [Console]::WriteLine('F:'+[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($_.ToString())))
  exit 1

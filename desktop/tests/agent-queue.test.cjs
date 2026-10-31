@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
-const {AgentQueue}=require(path.join(process.env.AGENTOPIA_AGENT_TEST_BUILD??path.resolve(__dirname,'../build'),'agent-queue.js'));
+const {AgentQueue}=require(path.join(process.env.SYLVANA_AGENT_TEST_BUILD??path.resolve(__dirname,'../build'),'agent-queue.js'));
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 test('named work queues honestly, never duplicates a receipt, and respects actual capacity',async()=>{
  let capacity=false;const started=[],finished=[],release=[];const queue=new AgentQueue(()=>capacity,2);

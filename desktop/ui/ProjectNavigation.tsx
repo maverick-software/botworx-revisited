@@ -36,8 +36,8 @@ function ProjectRow({project,reference,count,closed,disabled,toggle,start,folder
  </Popover.Content></Popover.Portal></Popover.Root>;
 }
 export function ProjectNavigation({owner,state,files,chats,current,disabled,create,edit,start,open,folder,manage,search}:{owner?:string;state:ProjectsState;files:FileReference[];chats:Conversation[];current:string|null;disabled:boolean;create:()=>void;edit:(p:Project)=>void;start:(p:Project)=>void;open:(c:Conversation)=>void;folder:(p:Project)=>void;manage:(c:Conversation,action:string)=>void;search:(p:Project)=>void}){
- const [expanded,setExpanded]=useState<Record<string,boolean>>(()=>{try{return cleanDisplayState({projectFolders:JSON.parse(localStorage.getItem('agentopia.project-folders.'+owner)??'{}')}).projectFolders??{};}catch{return {};}}),[allProjects,setAllProjects]=useState(false),[allChats,setAllChats]=useState<string[]>([]);
- useEffect(()=>{if(owner)try{localStorage.setItem('agentopia.project-folders.'+owner,JSON.stringify(expanded));}catch{}},[owner,expanded]);
+ const [expanded,setExpanded]=useState<Record<string,boolean>>(()=>{try{return cleanDisplayState({projectFolders:JSON.parse(localStorage.getItem('sylvana.project-folders.'+owner)??'{}')}).projectFolders??{};}catch{return {};}}),[allProjects,setAllProjects]=useState(false),[allChats,setAllChats]=useState<string[]>([]);
+ useEffect(()=>{if(owner)try{localStorage.setItem('sylvana.project-folders.'+owner,JSON.stringify(expanded));}catch{}},[owner,expanded]);
  const currentProject=state.memberships.find(m=>m.conversation_id===current)?.project_id;
  // Follow the selected chat without retaining every automatically opened folder.
  // Deliberately expanded projects keep their own independent disclosure state.

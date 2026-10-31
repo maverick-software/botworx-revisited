@@ -1,6 +1,6 @@
 import {contextBridge,ipcRenderer,webUtils} from 'electron';
 import type {ChatEvent,RuntimeStatus,AttachmentInput} from './contracts';
-contextBridge.exposeInMainWorld('agentopia',{
+contextBridge.exposeInMainWorld('sylvana',{
  attach:async(files:File[],owner:string)=>{
   if(!Array.isArray(files)||!files.length||files.length>20)throw new Error('Attach up to 20 files or folders at a time.');
   // Sandboxed preloads cannot require local modules. These mirror image-limits.
@@ -11,21 +11,21 @@ contextBridge.exposeInMainWorld('agentopia',{
    if((imageBytes+=file.size)>maxImageBatchBytes)throw new Error('Pasted images exceed 40 MB in one batch.');
    items.push({name:file.name,image:Buffer.from(await file.arrayBuffer()).toString('base64')});
   }
-  return ipcRenderer.invoke('agentopia:attach',{owner,items});
+  return ipcRenderer.invoke('sylvana:attach',{owner,items});
  },
- call:(action:string,args?:Record<string,unknown>)=>ipcRenderer.invoke('agentopia:call',action,args),
- onNotification:(listener:(target:{owner:string;conversationId:string;child?:{requestId:string;threadId:string}})=>void)=>{const receive=(_event:unknown,target:{owner:string;conversationId:string;child?:{requestId:string;threadId:string}})=>listener(target);ipcRenderer.on('agentopia:notification',receive);return()=>ipcRenderer.removeListener('agentopia:notification',receive);},
- onCommand:(listener:(command:string)=>void)=>{const receive=(_event:unknown,command:string)=>listener(command);ipcRenderer.on('agentopia:command',receive);return()=>ipcRenderer.removeListener('agentopia:command',receive);},
+ call:(action:string,args?:Record<string,unknown>)=>ipcRenderer.invoke('sylvana:call',action,args),
+ onNotification:(listener:(target:{owner:string;conversationId:string;child?:{requestId:string;threadId:string}})=>void)=>{const receive=(_event:unknown,target:{owner:string;conversationId:string;child?:{requestId:string;threadId:string}})=>listener(target);ipcRenderer.on('sylvana:notification',receive);return()=>ipcRenderer.removeListener('sylvana:notification',receive);},
+ onCommand:(listener:(command:string)=>void)=>{const receive=(_event:unknown,command:string)=>listener(command);ipcRenderer.on('sylvana:command',receive);return()=>ipcRenderer.removeListener('sylvana:command',receive);},
  onBeforeClose:(listener:()=>Promise<void>)=>{
-  const receive=async(_event:unknown,token:string)=>{try{await listener();ipcRenderer.send('agentopia:close-ready',{token});}catch{ipcRenderer.send('agentopia:close-ready',{token,error:true});}};
-  ipcRenderer.on('agentopia:before-close',receive);return ()=>ipcRenderer.removeListener('agentopia:before-close',receive);
+  const receive=async(_event:unknown,token:string)=>{try{await listener();ipcRenderer.send('sylvana:close-ready',{token});}catch{ipcRenderer.send('sylvana:close-ready',{token,error:true});}};
+  ipcRenderer.on('sylvana:before-close',receive);return ()=>ipcRenderer.removeListener('sylvana:before-close',receive);
  },
  onChat:(listener:(event:ChatEvent)=>void)=>{
-  const receive=(_event:unknown,data:ChatEvent)=>listener(data);ipcRenderer.on('agentopia:chat',receive);
-  return ()=>ipcRenderer.removeListener('agentopia:chat',receive);
+  const receive=(_event:unknown,data:ChatEvent)=>listener(data);ipcRenderer.on('sylvana:chat',receive);
+  return ()=>ipcRenderer.removeListener('sylvana:chat',receive);
  },
  onRuntime:(listener:(event:RuntimeStatus)=>void)=>{
-  const receive=(_event:unknown,data:RuntimeStatus)=>listener(data);ipcRenderer.on('agentopia:runtime',receive);
-  return ()=>ipcRenderer.removeListener('agentopia:runtime',receive);
+  const receive=(_event:unknown,data:RuntimeStatus)=>listener(data);ipcRenderer.on('sylvana:runtime',receive);
+  return ()=>ipcRenderer.removeListener('sylvana:runtime',receive);
  },
 });

@@ -3,7 +3,7 @@ import {createHash} from 'node:crypto';
 import {mkdir,lstat,readFile,writeFile,realpath} from 'node:fs/promises';
 import {backupDirectory} from './backup-archives';
 import {protectBackupFolder} from './backup-private-folder';
-export function profileRecoveryDirectory(profile:string){const absolute=path.resolve(profile);return path.join(path.parse(absolute).root,'.agentopia-recovery-'+createHash('sha256').update(process.platform==='win32'?absolute.toLowerCase():absolute).digest('hex').slice(0,12));}
+export function profileRecoveryDirectory(profile:string){const absolute=path.resolve(profile);return path.join(path.parse(absolute).root,'.sylvana-recovery-'+createHash('sha256').update(process.platform==='win32'?absolute.toLowerCase():absolute).digest('hex').slice(0,12));}
 export async function prepareProfileRecoveryDirectory(profile:string,guard:()=>Promise<void>){
  await guard();await backupDirectory(profile);let family=profileRecoveryDirectory(profile),fresh=false;
  try{await mkdir(family);fresh=true;}catch(error){const code=(error as NodeJS.ErrnoException).code;if(code==='EACCES'||code==='EPERM'){family=path.join(path.dirname(profile),path.basename(family));try{await mkdir(family);fresh=true;}catch(fallback){if((fallback as NodeJS.ErrnoException).code!=='EEXIST')throw fallback;}}else if(code!=='EEXIST')throw error;}

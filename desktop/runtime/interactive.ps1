@@ -11,7 +11,7 @@ using System.Threading;
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using System.Diagnostics;
-public static class AgentopiaInteractive {
+public static class SylvanaInteractive {
  [StructLayout(LayoutKind.Sequential)] struct Coord { public short X,Y; public Coord(int x,int y){X=(short)x;Y=(short)y;} }
  [StructLayout(LayoutKind.Sequential,CharSet=CharSet.Unicode)] struct Startup { public int cb;public string reserved,desktop,title;public int x,y,w,h,xchars,ychars,fill,flags;public short show,reservedSize;public IntPtr reservedBytes,input,output,error; }
  [StructLayout(LayoutKind.Sequential)] struct StartupEx { public Startup startup;public IntPtr attributes; }
@@ -58,11 +58,11 @@ public static class AgentopiaInteractive {
    // Explicit null standard handles make Windows initialize the client's pseudoconsole handles.
    startup.startup.flags=0x100;
    // Keep console editing/history in this session. Do not read or append the Windows user's shared history.
-   string initialization="$ErrorActionPreference='Stop';try{[Console]::InputEncoding=[Text.UTF8Encoding]::new($false);[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false);$OutputEncoding=[Console]::OutputEncoding;Import-Module PSReadLine;Set-PSReadLineOption -HistorySaveStyle SaveNothing -HistorySavePath (Join-Path $env:TEMP ('AgentopiaSession-'+[guid]::NewGuid().ToString()+'.history'));[Microsoft.PowerShell.PSConsoleReadLine]::ClearHistory($null,$null)}catch{[Console]::Error.WriteLine($_.ToString());exit 1};$ErrorActionPreference='Continue'";
+   string initialization="$ErrorActionPreference='Stop';try{[Console]::InputEncoding=[Text.UTF8Encoding]::new($false);[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false);$OutputEncoding=[Console]::OutputEncoding;Import-Module PSReadLine;Set-PSReadLineOption -HistorySaveStyle SaveNothing -HistorySavePath (Join-Path $env:TEMP ('SylvanaSession-'+[guid]::NewGuid().ToString()+'.history'));[Microsoft.PowerShell.PSConsoleReadLine]::ClearHistory($null,$null)}catch{[Console]::Error.WriteLine($_.ToString());exit 1};$ErrorActionPreference='Continue'";
    // ConsoleHost records the encoded startup command after it executes. Clear
    // both engine and editor history in the first prompt, before PSReadLine
    // initializes from Get-History, and only then accept input.
-   initialization+=";$script:AgentopiaInitialPrompt=${function:prompt};function global:prompt { $ErrorActionPreference='Stop';try { $taskInitialPrompt=$script:AgentopiaInitialPrompt;Set-Item function:global:prompt -Value $taskInitialPrompt;Remove-Variable AgentopiaInitialPrompt -Scope Script -ErrorAction SilentlyContinue;Microsoft.PowerShell.Core\\Clear-History;[Microsoft.PowerShell.PSConsoleReadLine]::ClearHistory($null,$null);[Console]::WriteLine([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('"+Convert.ToBase64String(Encoding.UTF8.GetBytes(ready))+"'))); & $taskInitialPrompt } catch { [Console]::Error.WriteLine($_.ToString());exit 1 } };Clear-Host";
+   initialization+=";$script:SylvanaInitialPrompt=${function:prompt};function global:prompt { $ErrorActionPreference='Stop';try { $taskInitialPrompt=$script:SylvanaInitialPrompt;Set-Item function:global:prompt -Value $taskInitialPrompt;Remove-Variable SylvanaInitialPrompt -Scope Script -ErrorAction SilentlyContinue;Microsoft.PowerShell.Core\\Clear-History;[Microsoft.PowerShell.PSConsoleReadLine]::ClearHistory($null,$null);[Console]::WriteLine([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('"+Convert.ToBase64String(Encoding.UTF8.GetBytes(ready))+"'))); & $taskInitialPrompt } catch { [Console]::Error.WriteLine($_.ToString());exit 1 } };Clear-Host";
    string encoded=Convert.ToBase64String(Encoding.Unicode.GetBytes(initialization));
    ProcessInfo process;Check(CreateProcessW(executable,new StringBuilder("\""+executable+"\" -NoLogo -NoProfile -NoExit -EncodedCommand "+encoded),IntPtr.Zero,IntPtr.Zero,false,0x80000,IntPtr.Zero,directory,ref startup,out process));
    CloseHandle(inputRead);inputRead=IntPtr.Zero;CloseHandle(outputWrite);outputWrite=IntPtr.Zero;CloseHandle(process.thread);Emit("S",process.pid.ToString());
@@ -81,7 +81,7 @@ public static class AgentopiaInteractive {
  $taskExecutable=[string]$taskPayload.executable
  if([string]::IsNullOrWhiteSpace($taskExecutable)){$taskExecutable=Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/powershell.exe'}
  if(-not [IO.Path]::IsPathRooted($taskExecutable) -or -not [IO.File]::Exists($taskExecutable)){throw 'The configured PowerShell executable is unavailable.'}
- [AgentopiaInteractive]::Run($taskExecutable,[string]$taskPayload.cwd,[int]$taskPayload.columns,[int]$taskPayload.rows,[string]$taskPayload.ready)
+ [SylvanaInteractive]::Run($taskExecutable,[string]$taskPayload.cwd,[int]$taskPayload.columns,[int]$taskPayload.rows,[string]$taskPayload.ready)
 } catch {
  [Console]::WriteLine('F:'+[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($_.ToString())))
  exit 1

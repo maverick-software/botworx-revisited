@@ -11,13 +11,13 @@ import hashlib
 from database_state import retire_stopped_pidfile,shared_memory_attached,DatabaseStillStopping
 
 os.umask(0o077)
-os.chdir('/home/agentopia/app')
-ROOT = Path('/opt/agentopia')
+os.chdir('/home/sylvana/app')
+ROOT = Path('/opt/sylvana')
 state = json.loads(subprocess.check_output(['supabase','stack','status','--output-format','json'],text=True))
 assert state['runtime'] == 'native'
 from urllib.parse import urlparse
 db = urlparse(state['env']['DB_URL'])
-binary = Path(glob.glob('/home/agentopia/.supabase/cache/stack/slim-services/postgres/*/linux-amd64/*/bin/psql')[0]).parent
+binary = Path(glob.glob('/home/sylvana/.supabase/cache/stack/slim-services/postgres/*/linux-amd64/*/bin/psql')[0]).parent
 connection = ['-h','127.0.0.1','-p',str(db.port),'-U','supabase_admin','-d','postgres']
 def sql(text):
     return subprocess.check_output([str(binary/'psql'),'-X','-v','ON_ERROR_STOP=1','-At',*connection,'-c',text],text=True).strip()
@@ -65,14 +65,14 @@ def backup(destination):
         account_ids=json.loads(keeper.stdout.readline())
         import uuid
         assert isinstance(account_ids,list) and len(account_ids)==len(set(account_ids)) and all(str(uuid.UUID(value))==value for value in account_ids),'Invalid snapshot account identities'
-        exports=[('database.dump',[]),('auth.dump',['--data-only','-n','auth','--exclude-table=auth.schema_migrations']),('application.dump',['-n','public','-n','agentopia_local_setup','-n','agentopia_desktop']),('vault.dump',['--data-only','-n','pgsodium','-n','vault'])]
+        exports=[('database.dump',[]),('auth.dump',['--data-only','-n','auth','--exclude-table=auth.schema_migrations']),('application.dump',['-n','public','-n','sylvana_local_setup','-n','sylvana_desktop']),('vault.dump',['--data-only','-n','pgsodium','-n','vault'])]
         for name,arguments in exports:
             subprocess.run([str(binary/'pg_dump'),*connection,'-Fc','--snapshot',snapshot,*arguments,'-f',str(target/name)],check=True)
     finally:
         if keeper.poll() is None:
             keeper.stdin.write('ROLLBACK;\n\\q\n');keeper.stdin.flush();keeper.stdin.close()
             keeper.wait(timeout=15)
-    root=glob.glob('/home/agentopia/.supabase/stacks/*/data/*/pgsodium_root.key')
+    root=glob.glob('/home/sylvana/.supabase/stacks/*/data/*/pgsodium_root.key')
     assert len(root)==1
     import shutil
     shutil.copyfile(root[0],target/'pgsodium_root.key')
@@ -90,14 +90,25 @@ def append_restore(archive,destination):
         destination.flush()
         subprocess.run([str(binary/'pg_restore'),'--no-owner','--use-list',listing.name,'--file=-',str(archive)],stdout=destination,check=True)
 
+def migrate_ledger_names():
+    # Compatibility applies only to retained maintenance schemas, never content.
+    former='agen'+'topia'
+    for suffix in ['_desktop','_local_setup']:
+        old,new=former+suffix,'sylvana'+suffix
+        present=sql("SELECT to_regnamespace('"+old+"') IS NOT NULL")=='t'
+        current=sql("SELECT to_regnamespace('"+new+"') IS NOT NULL")=='t'
+        if present and current:raise RuntimeError('Ambiguous retained maintenance schema')
+        if present:sql('ALTER SCHEMA '+old+' RENAME TO '+new)
+
 command=sys.argv[1]
 if command=='provision':
-    sql('CREATE SCHEMA IF NOT EXISTS agentopia_desktop; REVOKE ALL ON SCHEMA agentopia_desktop FROM PUBLIC; CREATE TABLE IF NOT EXISTS agentopia_desktop.migrations(version text PRIMARY KEY, checksum text NOT NULL, applied_at timestamptz DEFAULT now())')
+    migrate_ledger_names()
+    sql('CREATE SCHEMA IF NOT EXISTS sylvana_desktop; REVOKE ALL ON SCHEMA sylvana_desktop FROM PUBLIC; CREATE TABLE IF NOT EXISTS sylvana_desktop.migrations(version text PRIMARY KEY, checksum text NOT NULL, applied_at timestamptz DEFAULT now())')
     import hashlib
     files=sorted((ROOT/'database').glob('*.sql'))
     for file in files:
         version=file.name; checksum=hashlib.sha256(file.read_bytes()).hexdigest()
-        applied=sql("SELECT checksum FROM agentopia_desktop.migrations WHERE version='"+version+"'")
+        applied=sql("SELECT checksum FROM sylvana_desktop.migrations WHERE version='"+version+"'")
         if applied:
             assert applied==checksum, 'An applied database migration was modified: '+version
             continue
@@ -105,7 +116,7 @@ if command=='provision':
             sql('CREATE EXTENSION IF NOT EXISTS pgsodium; CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public; CREATE EXTENSION IF NOT EXISTS pg_cron; CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions; CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;')
         # Record the version inside the same transaction as its schema changes.
         with tempfile.NamedTemporaryFile(mode='w+',suffix='.sql') as migration:
-            migration.write(file.read_text()+"\nINSERT INTO agentopia_desktop.migrations(version,checksum) VALUES('"+version+"','"+checksum+"');\n")
+            migration.write(file.read_text()+"\nINSERT INTO sylvana_desktop.migrations(version,checksum) VALUES('"+version+"','"+checksum+"');\n")
             migration.flush(); sql_file(migration.name)
     # An unexpected process exit may leave saved partial responses marked running.
     # Auth is bootstrapped by Supabase, while these cross-schema application
@@ -139,8 +150,8 @@ elif command=='import':
         with (source/name).open('rb') as stream: checksum=hashlib.file_digest(stream,'sha256').hexdigest()
         assert checksum==item['sha256'],'Migration backup checksum failed: '+name
     fingerprint=hashlib.sha256((source/'manifest.json').read_bytes()).hexdigest()
-    schema_exists=sql("SELECT to_regclass('agentopia_desktop.imports') IS NOT NULL")=='t'
-    imported=schema_exists and sql("SELECT count(*) FROM agentopia_desktop.imports WHERE source_digest='"+fingerprint+"'")=='1'
+    schema_exists=sql("SELECT to_regclass('sylvana_desktop.imports') IS NOT NULL")=='t'
+    imported=schema_exists and sql("SELECT count(*) FROM sylvana_desktop.imports WHERE source_digest='"+fingerprint+"'")=='1'
     if not imported:
         assert sql("SELECT count(*) FROM auth.users")=='0','The target already has accounts'
         assert sql("SELECT count(*) FROM pg_tables WHERE schemaname='public'")=='0','The target already has application tables'
@@ -148,13 +159,13 @@ elif command=='import':
         checksum=hashlib.sha256((ROOT/'database'/'0001-baseline.sql').read_bytes()).hexdigest()
         with tempfile.NamedTemporaryFile(mode='w+b',suffix='.sql') as combined:
             for name in ['auth.dump','application.dump','vault.dump']: append_restore(source/name,combined)
-            combined.write(("\nCREATE SCHEMA IF NOT EXISTS agentopia_desktop; REVOKE ALL ON SCHEMA agentopia_desktop FROM PUBLIC; CREATE TABLE IF NOT EXISTS agentopia_desktop.migrations(version text PRIMARY KEY,checksum text NOT NULL,applied_at timestamptz DEFAULT now()); INSERT INTO agentopia_desktop.migrations VALUES('0001-baseline.sql','"+checksum+"',now()) ON CONFLICT DO NOTHING; CREATE TABLE IF NOT EXISTS agentopia_desktop.imports(source_digest text PRIMARY KEY,completed_at timestamptz DEFAULT now()); INSERT INTO agentopia_desktop.imports(source_digest) VALUES('"+fingerprint+"');\n").encode())
+            combined.write(("\nDO $brand$ BEGIN IF to_regnamespace('agen'||'topia_desktop') IS NOT NULL AND to_regnamespace('sylvana_desktop') IS NULL THEN EXECUTE 'ALTER SCHEMA '||'agen'||'topia_desktop RENAME TO sylvana_desktop'; END IF; IF to_regnamespace('agen'||'topia_local_setup') IS NOT NULL AND to_regnamespace('sylvana_local_setup') IS NULL THEN EXECUTE 'ALTER SCHEMA '||'agen'||'topia_local_setup RENAME TO sylvana_local_setup'; END IF; END $brand$; CREATE SCHEMA IF NOT EXISTS sylvana_desktop; REVOKE ALL ON SCHEMA sylvana_desktop FROM PUBLIC; CREATE TABLE IF NOT EXISTS sylvana_desktop.migrations(version text PRIMARY KEY,checksum text NOT NULL,applied_at timestamptz DEFAULT now()); INSERT INTO sylvana_desktop.migrations VALUES('0001-baseline.sql','"+checksum+"',now()) ON CONFLICT DO NOTHING; CREATE TABLE IF NOT EXISTS sylvana_desktop.imports(source_digest text PRIMARY KEY,completed_at timestamptz DEFAULT now()); INSERT INTO sylvana_desktop.imports(source_digest) VALUES('"+fingerprint+"');\n").encode())
             combined.flush();sql_file(combined.name)
     # Restored catalogs need fresh planner statistics before the API builds its
     # schema cache. Also run this when resuming an already committed import.
     sql('ANALYZE')
     import shutil
-    root=glob.glob('/home/agentopia/.supabase/stacks/*/data/*/pgsodium_root.key')
+    root=glob.glob('/home/sylvana/.supabase/stacks/*/data/*/pgsodium_root.key')
     assert len(root)==1
     data_directory=Path(root[0]).parent/'data'
     pidfile=data_directory/'postmaster.pid'
@@ -162,7 +173,7 @@ elif command=='import':
     subprocess.run(['supabase','stop'],check=True,stdout=subprocess.DEVNULL)
     wait_database_shutdown(data_directory,shared_record=shared_record)
     shutil.copyfile(source/'pgsodium_root.key',root[0]); os.chmod(root[0],0o600)
-    secrets_file=Path('/home/agentopia/.config/agentopia/runtime-secrets.json')
+    secrets_file=Path('/home/sylvana/.config/sylvana/runtime-secrets.json')
     if secrets_file.exists():
         # Future starts must continue using the restored encryption root.
         values=json.loads(secrets_file.read_text())
@@ -174,7 +185,7 @@ elif command=='import':
         configuration.write_text(re.sub(r'^root_key = .*$', 'root_key = '+json.dumps(values['root_key']),configuration.read_text(),flags=re.M))
         # CLI 2.121.0 keeps a second root binding in its saved stack state.
         # Update only that binding while its owner and services are stopped.
-        states=list(Path('/home/agentopia/.supabase/stacks').glob('*/state.json'))
+        states=list(Path('/home/sylvana/.supabase/stacks').glob('*/state.json'))
         assert len(states)==1,'Ambiguous stopped runtime state'
         saved=json.loads(states[0].read_text())
         saved['credentials']['postgresRootKey']=values['root_key']

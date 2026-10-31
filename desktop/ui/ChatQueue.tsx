@@ -10,7 +10,7 @@ export function QueuedMessages({owner,conversation,request,turnId,error,openSche
  useEffect(()=>{
   let live=true;setRows([]);setEditing(null);
   const load=()=>{if(conversation)void call<QueuedChat[]>('chat.queue.list',{conversationId:conversation}).then(rows=>{if(live)setRows(rows);}).catch(e=>{if(live)error(e.message);});};
-  load();const off=window.agentopia.onChat(event=>{if(event.ownerId===owner&&event.kind==='queue'&&event.conversationId===conversation)load();});
+  load();const off=window.sylvana.onChat(event=>{if(event.ownerId===owner&&event.kind==='queue'&&event.conversationId===conversation)load();});
   return()=>{live=false;off();};
  },[owner,conversation]);
  async function operate(task:()=>Promise<unknown>){

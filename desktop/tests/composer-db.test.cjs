@@ -6,10 +6,10 @@ const {createClient}=require('@supabase/supabase-js');const {Broker}=require('./
 class Secrets{data=new Map();get(k){return this.data.get(k);}async set(k,v){if(v===undefined)this.data.delete(k);else this.data.set(k,v);}}
 const check=r=>{if(r.error)throw new Error(r.error.message);return r.data;};
 test('composer persists per-turn settings and file context; goals enforce ownership, budgets, plan mode, and pause',async()=>{
- const state=JSON.parse(execFileSync('wsl.exe',['-d',testDistribution(),'-u','agentopia','--cd','/home/agentopia/app','--exec','supabase','stack','status','--output-format','json'],{encoding:'utf8',windowsHide:true}));
+ const state=JSON.parse(execFileSync('wsl.exe',['-d',testDistribution(),'-u','sylvana','--cd','/home/sylvana/app','--exec','supabase','stack','status','--output-format','json'],{encoding:'utf8',windowsHide:true}));
  const db=createClient(state.env.API_URL,state.env.SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}}),secrets=new Secrets(),events=[];
  const broker=new Broker(state.env,secrets,new Providers(secrets,'urn:uuid:'+randomUUID()),event=>events.push(event));const second=new Broker(state.env,new Secrets(),new Providers(new Secrets(),'urn:uuid:'+randomUUID()),()=>{});
- const accounts=[],password=randomBytes(24).toString('base64url')+'Aa1!';const original=global.fetch;let agent;const root=await mkdtemp(path.join(os.tmpdir(),'agentopia-composer-db-'));
+ const accounts=[],password=randomBytes(24).toString('base64url')+'Aa1!';const original=global.fetch;let agent;const root=await mkdtemp(path.join(os.tmpdir(),'sylvana-composer-db-'));
  let payload,goalTurn=0,replyKind='normal';
  const wait=async predicate=>{for(let n=0;n<200;n++){const value=await predicate();if(value)return value;await new Promise(r=>setTimeout(r,50));}throw new Error('Timed out waiting for the local workflow.');};
  try{

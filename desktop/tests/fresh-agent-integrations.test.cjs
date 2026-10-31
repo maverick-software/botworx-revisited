@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),{readFile}=require('node:fs/promises'),{randomUUID}=require('node:crypto');
-const root=process.env.AGENTOPIA_TEST_ROOT??path.resolve(__dirname,'../..'),{PGlite}=require(path.join(root,'.supabase/desktop-scheduler/pg-fixture/node_modules/@electric-sql/pglite'));
+const root=process.env.SYLVANA_TEST_ROOT??path.resolve(__dirname,'../..'),{PGlite}=require(path.join(root,'.supabase/desktop-scheduler/pg-fixture/node_modules/@electric-sql/pglite'));
 
 test('new agents work without inherited contact credentials and an upgrade preserves existing grants',async t=>{
  const db=new PGlite();t.after(()=>db.close());const q=(sql,args=[])=>db.query(sql,args);

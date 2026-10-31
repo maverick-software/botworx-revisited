@@ -41,7 +41,7 @@ test('OAuth callback, PKCE, signed identity, per-user storage, renewal, and deni
  };
  try{
   assert.deepEqual(await providers.connect('local-user-a'),[{id:'fixture-model',name:'Fixture model',thinking:[]}]);
-  assert.equal(authorization.searchParams.get('client_id'),'dynamic_agent_client');assert.equal(authorization.searchParams.get('agent_name_hint'),'Agentopia');
+  assert.equal(authorization.searchParams.get('client_id'),'dynamic_agent_client');assert.equal(authorization.searchParams.get('agent_name_hint'),'Sylvana');
   assert.equal(secrets.get('openai:local-user-a').subject,'fixture-subject');
   assert(!JSON.stringify(providers.status('local-user-a')).includes('fixture-access'));
   assert.equal(providers.status('local-user-b').chatgpt,null);await assert.rejects(providers.token('openai-oauth','local-user-b'),/Connect your ChatGPT/);

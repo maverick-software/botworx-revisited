@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
-const build=process.env.AGENTOPIA_AGENT_TEST_BUILD??path.resolve(__dirname,'../build');
+const build=process.env.SYLVANA_AGENT_TEST_BUILD??path.resolve(__dirname,'../build');
 const {AgentAssignments}=require(path.join(build,'agent-assignments.js')),{defaultAgentPolicy}=require(path.join(build,'agent-contracts.js'));
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 function fixture(){

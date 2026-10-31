@@ -9,7 +9,7 @@ const {Providers}=require('../build/providers.js');
 class Secrets{data=new Map();get(k){return this.data.get(k);}async set(k,v){if(v===undefined)this.data.delete(k);else this.data.set(k,v);}}
 function check(r){if(r.error)throw new Error(r.error.message);return r.data;}
 test('restored settings: owned agent configuration, catalog management, Vault isolation, and Stripe requests',async()=>{
- const runtime=JSON.parse(execFileSync('wsl.exe',['-d',testDistribution(),'-u','agentopia','--cd','/home/agentopia/app','--exec','supabase','stack','status','--output-format','json'],{encoding:'utf8',windowsHide:true}));
+ const runtime=JSON.parse(execFileSync('wsl.exe',['-d',testDistribution(),'-u','sylvana','--cd','/home/sylvana/app','--exec','supabase','stack','status','--output-format','json'],{encoding:'utf8',windowsHide:true}));
  const db=createClient(runtime.env.API_URL,runtime.env.SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
  const events=[];const secrets=new Secrets(),providers=new Providers(secrets,'urn:uuid:'+randomUUID()),broker=new Broker(runtime.env,secrets,providers,event=>events.push(event));
  const otherSecrets=new Secrets(),otherBroker=new Broker(runtime.env,otherSecrets,new Providers(otherSecrets,'urn:uuid:'+randomUUID()),()=>{});

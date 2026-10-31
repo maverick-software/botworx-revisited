@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
-test "$(id -un)" = agentopia
-cd /home/agentopia/app
-mapfile -t key_paths < <(find /home/agentopia/.supabase/stacks -name pgsodium_root.key)
+test "$(id -un)" = sylvana
+cd /home/sylvana/app
+mapfile -t key_paths < <(find /home/sylvana/.supabase/stacks -name pgsodium_root.key)
 test "${#key_paths[@]}" = 1
 supabase stop >/dev/null
 cp -- "${key_paths[0]}" "${key_paths[0]}.before-migration-proof"

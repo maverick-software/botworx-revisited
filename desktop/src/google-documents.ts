@@ -31,7 +31,7 @@ export class GoogleDocuments{
  private args(tool:ComposioTool,args:Record<string,unknown>){if(!this.validator.getValidator(tool.inputSchema)(args).valid)throw Error('The Google Drive action schema changed. Refresh the connection before continuing.');return args;}
  private async execute(owner:string,input:GoogleDocumentInput,authority:Authority,tool:ComposioTool,args:Record<string,unknown>,signal:AbortSignal){this.args(tool,args);await this.guard(owner,input,authority,signal);const value=await authority.client.execute(authority.connection.accountId,authority.user,tool.name,tool.version,args,signal);await this.guard(owner,input,authority,signal);return value;}
  private metadata(value:unknown,row:GoogleDocumentOperation){
-  if(!composioRecord(value)||!googleFileId(value.id)||value.mimeType!==googleOfficeTypes[row.extension].target||value.trashed!==false||!composioRecord(value.appProperties)||value.appProperties.agentopia_operation!==row.id)throw Error('Google has not confirmed a matching, converted document. Check the existing upload again.');return value.id;
+  if(!composioRecord(value)||!googleFileId(value.id)||value.mimeType!==googleOfficeTypes[row.extension].target||value.trashed!==false||!composioRecord(value.appProperties)||value.appProperties.sylvana_operation!==row.id)throw Error('Google has not confirmed a matching, converted document. Check the existing upload again.');return value.id;
  }
  private async verify(owner:string,input:GoogleDocumentInput,authority:Authority,row:GoogleDocumentOperation,cloudId:string,signal:AbortSignal){
   const tool=await this.tool(authority,metadataTool,signal),result=await this.execute(owner,input,authority,tool,{fileId:cloudId,fields:'id,mimeType,appProperties,trashed'},signal);
@@ -39,7 +39,7 @@ export class GoogleDocuments{
  }
  private result(row:GoogleDocumentOperation,id:string,input:GoogleDocumentInput):GoogleDocumentResult{return {kind:'opened',operationId:row.id,url:googleDocumentUrl(row.extension,id),sourceChanged:createHash('sha256').update(input.bytes).digest('hex')!==row.sha256};}
  private async inspect(owner:string,input:GoogleDocumentInput,authority:Authority,row:GoogleDocumentOperation,signal:AbortSignal):Promise<GoogleDocumentResult>{
-  const tool=await this.tool(authority,findTool,signal),result=await this.execute(owner,input,authority,tool,{q:"trashed = false and appProperties has { key='agentopia_operation' and value='"+row.id+"' }",fields:'files(id,mimeType,appProperties,trashed),nextPageToken,incompleteSearch',corpora:'user',pageSize:2},signal);
+  const tool=await this.tool(authority,findTool,signal),result=await this.execute(owner,input,authority,tool,{q:"trashed = false and appProperties has { key='sylvana_operation' and value='"+row.id+"' }",fields:'files(id,mimeType,appProperties,trashed),nextPageToken,incompleteSearch',corpora:'user',pageSize:2},signal);
   if(result.successful!==true||!composioRecord(result.data)||!Array.isArray(result.data.files)||result.data.nextPageToken||result.data.incompleteSearch===true||result.data.files.length!==1)return {kind:'held',operationId:row.id,notice:heldNotice};
   const id=this.metadata(result.data.files[0],row);await this.verify(owner,input,authority,row,id,signal);await this.phase(owner,row.id,'completed',id);await this.guard(owner,input,authority,signal);return this.result(row,id,input);
  }
@@ -55,14 +55,14 @@ export class GoogleDocuments{
    if(existing&&['creating','held'].includes(existing.phase))return {kind:'held' as const,operationId:existing.id,notice:heldNotice};
    // Resolve all required tool schemas before sending file bytes. Unsupported schemas stop locally.
    const upload=await this.tool(authority,uploadTool,signal),find=await this.tool(authority,findTool,signal),meta=await this.tool(authority,metadataTool,signal),kind=googleOfficeTypes[captured.extension];
-   this.args(upload,{file_to_upload:{name:input.name,mimetype:kind.source,s3key:'validation-only'},metadata:{name:input.name.replace(/\.[^.]+$/,''),mimeType:kind.target,appProperties:{agentopia_operation:existing?.id??randomUUID()}},chunkSize:262144,queryParams:{uploadType:'resumable'}});
-   this.args(find,{q:"trashed = false and appProperties has { key='agentopia_operation' and value='validation-only' }",fields:'files(id,mimeType,appProperties,trashed),nextPageToken,incompleteSearch',corpora:'user',pageSize:2});this.args(meta,{fileId:'validation-only',fields:'id,mimeType,appProperties,trashed'});
+   this.args(upload,{file_to_upload:{name:input.name,mimetype:kind.source,s3key:'validation-only'},metadata:{name:input.name.replace(/\.[^.]+$/,''),mimeType:kind.target,appProperties:{sylvana_operation:existing?.id??randomUUID()}},chunkSize:262144,queryParams:{uploadType:'resumable'}});
+   this.args(find,{q:"trashed = false and appProperties has { key='sylvana_operation' and value='validation-only' }",fields:'files(id,mimeType,appProperties,trashed),nextPageToken,incompleteSearch',corpora:'user',pageSize:2});this.args(meta,{fileId:'validation-only',fields:'id,mimeType,appProperties,trashed'});
    const now=new Date().toISOString(),row:GoogleDocumentOperation=existing??{id:randomUUID(),binding:authority.binding,connectionId:authority.connection.id,referenceId:input.referenceId,relative:input.relative,name:input.name,sha256:captured.sha256,bytes:captured.bytes.byteLength,extension:captured.extension,phase:'preparing',createdAt:now,updatedAt:now};
    await this.write(owner,rows=>{if(!existing){if(rows.length>=500)throw Error('The saved Google upload limit was reached. Preserve these records before starting another upload.');rows.push(row);}else{const saved=rows.find(value=>value.id===row.id)!;saved.phase='preparing';saved.updatedAt=now;}});
    let creating=false;
    try{
     const staged=await authority.client.uploadFile({name:input.name,mimetype:kind.source,bytes:captured.bytes,tool:uploadTool,toolkit:'googledrive'},()=>this.guard(owner,input,authority,signal),signal);
-    const args=this.args(upload,{file_to_upload:staged,metadata:{name:input.name.replace(/\.[^.]+$/,''),mimeType:kind.target,appProperties:{agentopia_operation:row.id}},chunkSize:262144,queryParams:{uploadType:'resumable'}});
+    const args=this.args(upload,{file_to_upload:staged,metadata:{name:input.name.replace(/\.[^.]+$/,''),mimeType:kind.target,appProperties:{sylvana_operation:row.id}},chunkSize:262144,queryParams:{uploadType:'resumable'}});
     await this.guard(owner,input,authority,signal);await this.phase(owner,row.id,'creating');creating=true;
     // The durable creation marker precedes this only cloud-creating request. Never retry it on an uncertain result.
     await this.execute(owner,input,authority,upload,args,signal);return await this.inspect(owner,input,authority,row,signal);

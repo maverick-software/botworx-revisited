@@ -2,19 +2,19 @@
 import glob,json,os,subprocess
 from pathlib import Path
 from urllib.parse import urlparse,unquote
-assert Path('/opt/agentopia/runtime-instance').read_text().strip()=='b521a8fe-d803-4031-af23-4bb51f4e1e56'
-assert Path('/opt/agentopia/runtime-identity').read_text().strip()=='local.agentopia.desktop-runtime.v1'
-marker=Path('/mnt/f/Agentopia-Acceptance/agent-creation75-transition76-1792860573077-source/home/AppData/Roaming/Agentopia/schema-release.json')
+assert Path('/opt/sylvana/runtime-instance').read_text().strip()=='b521a8fe-d803-4031-af23-4bb51f4e1e56'
+assert Path('/opt/sylvana/runtime-identity').read_text().strip()=='local.sylvana.desktop-runtime.v1'
+marker=Path('/mnt/f/Sylvana-Acceptance/agent-creation75-transition76-1792860573077-source/home/AppData/Roaming/Sylvana/schema-release.json')
 before_marker=marker.read_bytes();release=json.loads(before_marker);assert release['version']=='0.44.82' and release['schema']==88
 state=json.loads(subprocess.check_output(['supabase','status','--output-format','json'],text=True,stderr=subprocess.DEVNULL));url=urlparse(state['env']['DB_URL']);assert url.port==60750;assert urlparse(state['env']['API_URL']).port==60749
-psql=glob.glob('/home/agentopia/.supabase/cache/stack/slim-services/postgres/*/linux-amd64/*/bin/psql')[0]
+psql=glob.glob('/home/sylvana/.supabase/cache/stack/slim-services/postgres/*/linux-amd64/*/bin/psql')[0]
 env=dict(os.environ,PGPASSWORD=unquote(url.password or ''))
 args=[psql,'-XqAt','-h','127.0.0.1','-p',str(url.port),'-U','supabase_admin','-d','postgres']
 def query(sql):
  r=subprocess.run(args,input=sql,capture_output=True,text=True,env=env)
  if r.returncode or 'ERROR:' in r.stderr:raise RuntimeError(r.stderr)
  return r.stdout.strip()
-baseline_sql="SELECT json_build_object('migrations',coalesce((SELECT json_agg(row_to_json(m)) FROM (SELECT * FROM agentopia_desktop.migrations ORDER BY version) m),'[]'::json),'profiles',(SELECT count(*) FROM desktop_agent_profiles),'revisions',(SELECT count(*) FROM desktop_agent_definition_revisions),'agents',(SELECT count(*) FROM agents),'previews',(SELECT count(*) FROM desktop_preview_requests),'newRpc',to_regprocedure('public.desktop_save_agent_unified(uuid,uuid,text,text,text,text,text,jsonb)')::text,'previewFunction',md5(pg_get_functiondef('public.desktop_begin_scoped_preview(uuid,uuid,uuid,uuid,jsonb,text,jsonb,uuid)'::regprocedure)),'creationFunction',md5(pg_get_functiondef('public.desktop_create_agent_presentation(uuid,uuid,text,text,text,text,text,jsonb,text)'::regprocedure)),'saveFunction',md5(pg_get_functiondef('public.desktop_save_agent(uuid,uuid,text,text,text,text,text)'::regprocedure)));"
+baseline_sql="SELECT json_build_object('migrations',coalesce((SELECT json_agg(row_to_json(m)) FROM (SELECT * FROM sylvana_desktop.migrations ORDER BY version) m),'[]'::json),'profiles',(SELECT count(*) FROM desktop_agent_profiles),'revisions',(SELECT count(*) FROM desktop_agent_definition_revisions),'agents',(SELECT count(*) FROM agents),'previews',(SELECT count(*) FROM desktop_preview_requests),'newRpc',to_regprocedure('public.desktop_save_agent_unified(uuid,uuid,text,text,text,text,text,jsonb)')::text,'previewFunction',md5(pg_get_functiondef('public.desktop_begin_scoped_preview(uuid,uuid,uuid,uuid,jsonb,text,jsonb,uuid)'::regprocedure)),'creationFunction',md5(pg_get_functiondef('public.desktop_create_agent_presentation(uuid,uuid,text,text,text,text,text,jsonb,text)'::regprocedure)),'saveFunction',md5(pg_get_functiondef('public.desktop_save_agent(uuid,uuid,text,text,text,text,text)'::regprocedure)));"
 baseline=query(baseline_sql)
 grants_sql="SELECT json_agg(row_to_json(x)) FROM (SELECT oid::regprocedure::text signature,proacl FROM pg_proc WHERE oid IN ('public.desktop_save_agent(uuid,uuid,text,text,text,text,text)'::regprocedure,'public.desktop_create_agent_presentation(uuid,uuid,text,text,text,text,text,jsonb,text)'::regprocedure,'public.desktop_begin_scoped_preview(uuid,uuid,uuid,uuid,jsonb,text,jsonb,uuid)'::regprocedure) ORDER BY oid::regprocedure::text) x;"
 grants=query(grants_sql)

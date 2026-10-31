@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),{randomUUID}=require('node:crypto');
-const build=process.env.AGENTOPIA_DELIVERY_BUILD,{ChatQueue}=require(path.join(build,'chat-queue.js')),{ChatDeliveryQueue}=require(path.join(build,'chat-delivery-queue.js')),{defaultAgentPolicy}=require(path.join(build,'agent-contracts.js'));
+const build=process.env.SYLVANA_DELIVERY_BUILD,{ChatQueue}=require(path.join(build,'chat-queue.js')),{ChatDeliveryQueue}=require(path.join(build,'chat-delivery-queue.js')),{defaultAgentPolicy}=require(path.join(build,'agent-contracts.js'));
 const tick=()=>new Promise(resolve=>setTimeout(resolve,15));
 function fixture(){
  const owner=randomUUID(),conversation=randomUUID(),values=new Map(),rows=new Map(),grants=new Map(),sent=[],steered=[],changes=[],decisions=[];let available=false,pending=false;

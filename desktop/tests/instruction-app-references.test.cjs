@@ -1,11 +1,11 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
-const {instructionAppMarkdown:format,instructionAppAt:parse,instructionAppReferences:references,instructionAppContext:context,withInstructionApps:expand}=require(path.join(process.env.AGENTOPIA_INSTRUCTION_BUILD||path.join(__dirname,'../build'),'instruction-app-references.js'));
+const {instructionAppMarkdown:format,instructionAppAt:parse,instructionAppReferences:references,instructionAppContext:context,withInstructionApps:expand}=require(path.join(process.env.SYLVANA_INSTRUCTION_BUILD||path.join(__dirname,'../build'),'instruction-app-references.js'));
 const a='mcp:11111111-1111-4111-8111-111111111111',b='mcp:22222222-2222-4222-8222-222222222222';
 const source=(id,name,enabled=true,ready=true)=>({id,name,enabled,ready,kind:id==='web_search'?'web':'mcp',detail:''});
 const definitions=['mcp_search','mcp_call','web_search'].map(name=>({name,description:'',parameters:{}}));
 test('app references preserve connection identity and escaped human names',()=>{
  for(const label of ['A &copy; & team','Microsoft Learn','A [team] (work) *plan*','Quotes " and \\ backslash','Receipt `code` | #notes']){const markdown=format(a,label),parsed=parse(markdown);assert.equal(parsed.id,a);assert.equal(parsed.label,label);assert.equal(parsed.to,markdown.length);}
- assert.throws(()=>format('https://untrusted.invalid','Unsafe'));assert.equal(parse('[@x](agentopia-app:javascript%3Aalert)'),undefined);
+ assert.throws(()=>format('https://untrusted.invalid','Unsafe'));assert.equal(parse('[@x](sylvana-app:javascript%3Aalert)'),undefined);
 });
 test('ordinary source positions survive multiple and repeated app references',()=>{
  const first=format(a,'Learn'),second=format(b,'Learn'),text='Use '+first+' then '+second+'. '+first;

@@ -1,0 +1,45 @@
+import {mkdir,readFile,writeFile,copyFile,access} from 'node:fs/promises';
+import path from 'node:path';
+import {createHash} from 'node:crypto';
+import Module from 'node:module';
+import {extractFile} from '@electron/asar';
+import assert from 'node:assert/strict';
+
+const root='F:/Sylvana/verification/windows-wizard-20261029',home=path.join(root,'test-user'),directory=path.join(home,'.sylvana/desktop'),profile=path.join(directory,'profile'),destination=path.join(root,'Upgrade Selected Folder/Sylvana'),old=path.join(home,'AppData/Local/SylvanaDesktop'),instance='12345678-1234-4123-8123-123456789abc';
+const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
+const json=async file=>JSON.parse(await readFile(file,'utf8'));
+const ownedJson=async(file,value)=>writeFile(file,JSON.stringify(value,null,2)+'\n',{flag:'wx'});
+if(process.argv[2]==='prepare'){
+ await assert.rejects(access(path.join(destination,'Sylvana.exe')),{code:'ENOENT'});
+ await assert.rejects(access(path.join(directory,'profile-location.json')),{code:'ENOENT'});
+ await mkdir(path.join(profile,'chats'),{recursive:true});await mkdir(path.join(old,'app-0.46.1'),{recursive:true});
+ await ownedJson(path.join(profile,'settings.json'),{generatedFixture:true,theme:'dark',retainedSetting:'legacy'});
+ await ownedJson(path.join(profile,'chats/preserved.json'),{generatedFixture:true,messages:['Keep this legacy conversation.']});
+ await ownedJson(path.join(profile,'archived-account.json'),{generatedFixture:true,archived:true});
+ await copyFile(path.join(home,'AppData/Roaming/Sylvana/credentials.bin'),path.join(profile,'credentials.bin'));
+ await writeFile(path.join(old,'app-0.46.1/Sylvana.exe'),'Generated legacy program placeholder; never executed.',{flag:'wx'});
+ await writeFile(path.join(old,'Update.exe'),'Generated legacy updater placeholder; never executed.',{flag:'wx'});
+ const dataFiles=['settings.json','chats/preserved.json','archived-account.json','credentials.bin'],manifest={};
+ for(const name of dataFiles)manifest[name]=sha(await readFile(path.join(profile,name)));
+ await ownedJson(path.join(profile,'copy-manifest.json'),manifest);
+ const migration={format:1,status:'complete',source:'generated-existing-squirrel-profile',files:dataFiles.length,encryptedStorageVerified:true,nativeHistoryVerified:true,copyManifestSha256:sha(await readFile(path.join(profile,'copy-manifest.json')))};
+ await ownedJson(path.join(profile,'profile-migration.json'),migration);
+ await ownedJson(path.join(profile,'runtime-binding.json'),{format:1,distribution:'SylvanaRuntime-'+instance,instanceId:instance});
+ await ownedJson(path.join(directory,'profile-location.json'),{format:1,kind:'verified-profile-migration',installationRoot:old,profile:'profile',runtimeInstanceId:instance,migrationSha256:sha(await readFile(path.join(profile,'profile-migration.json')))});
+ const before=await json(root+'/data-before-upgrade.json');delete before['test-user/.sylvana/desktop/wizard-installation.json'];
+ const additions=[...dataFiles,'copy-manifest.json','profile-migration.json','runtime-binding.json'].map(name=>path.relative(root,path.join(profile,name))).concat([path.relative(root,path.join(directory,'profile-location.json')),path.relative(root,path.join(old,'app-0.46.1/Sylvana.exe')),path.relative(root,path.join(old,'Update.exe'))]);
+ for(const name of additions)before[name]=sha(await readFile(path.join(root,name)));
+ await ownedJson(root+'/data-before-squirrel-migration.json',before);
+ console.log('Synthetic existing Squirrel profile prepared; ordinary profile and retained legacy program are included in preservation checks.');
+}else if(process.argv[2]==='verify'){
+ const proof=await json(root+'/isolated-v1/qualified-installer.json');assert.equal(proof.isolatedVerification,true);
+ const before=await json(root+'/data-before-squirrel-migration.json');for(const [name,digest] of Object.entries(before))assert.equal(sha(await readFile(path.join(root,name))),digest,name);
+ const record=await json(path.join(directory,'wizard-installation.json'));
+ assert.equal(path.resolve(record.installationRoot),path.resolve(destination));assert.equal(path.resolve(record.profile),path.resolve(profile));assert.equal(path.resolve(record.legacyInstallationRoot),path.resolve(old));
+ const compiled=extractFile(path.join(destination,'resources/app.asar'),'build/desktop-profile.js');
+ const filename=path.join(root,'installed-profile-selection.cjs'),selection=new Module(filename);selection.filename=filename;selection.paths=Module._nodeModulePaths(root);selection._compile(compiled.toString('utf8'),filename);
+ const selected=selection.exports.desktopProfile({platform:'win32',packaged:true,testProfile:false,exe:path.join(destination,'Sylvana.exe'),home,appData:path.join(home,'AppData/Roaming'),current:path.join(home,'AppData/Roaming/Sylvana')});
+ assert.equal(path.resolve(selected),path.resolve(profile));
+ await writeFile(root+'/squirrel-migration-verified.json',JSON.stringify({success:true,scope:'isolated-windows-installer',installerSha256:proof.installerSha256,programFiles:Object.keys(proof.files).length,preservedFiles:Object.keys(before).length,legacyDataSelectedByInstalledApplicationCode:true,ordinaryProfileAlsoPreserved:true,legacyProgramRetained:true,originalMigrationReceiptUnchanged:true,liveProfileNotModified:true},null,2));
+ console.log('Installed application code selects the preserved legacy profile; all ordinary and legacy test data bytes match.');
+}else throw Error('Choose prepare or verify.');

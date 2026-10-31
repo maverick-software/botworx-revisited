@@ -19,6 +19,6 @@ export class AgentQueue{
  }
  async cancelQueued(id:string,reason='Cancelled by you.'){const job=this.pending.get(id);if(!job)return false;this.pending.delete(id);await job.interrupted(reason);return true;}
  async interruptWhere(predicate:(job:AgentJob)=>boolean,reason:string){let count=0;for(const [id,job] of [...this.pending])if(predicate(job)){this.pending.delete(id);count++;await job.interrupted(reason);}return count;}
- async close(){this.closed=true;if(this.timer)clearTimeout(this.timer);await this.interruptWhere(()=>true,'Agentopia closed before this assignment started. Resume explicitly after reviewing its saved state.');}
+ async close(){this.closed=true;if(this.timer)clearTimeout(this.timer);await this.interruptWhere(()=>true,'Sylvana closed before this assignment started. Resume explicitly after reviewing its saved state.');}
  async settled(){await Promise.all([...this.active.values()].map(value=>value.done));}
 }

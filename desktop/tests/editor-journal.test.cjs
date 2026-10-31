@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
-const {encodeEditorJournal:encode,decodeEditorJournal:decode}=require(path.join(process.env.AGENTOPIA_PREVIEW_BUILD,'editor-journal.js'));
+const {encodeEditorJournal:encode,decodeEditorJournal:decode}=require(path.join(process.env.SYLVANA_PREVIEW_BUILD,'editor-journal.js'));
 const owner='11111111-1111-4111-8111-111111111111',scope='editor:new',row=value=>({version:1,owner,scope,value,base:null,pending:null});
 test('compact journals retain exact Unicode, controls and lone UTF-16 code units',()=>{for(const text of ['café 東京 😀\n\u0001\ud800','Backslash \\ and quotes "'.repeat(7000)]){const original={...row(text),rejected:text+'new'};assert.deepEqual(decode(encode(original),owner,scope),original);}});
 test('a full payload shared by current/base/pending occurs once and small changes use patches',()=>{const value='q'.repeat(3000000),original={...row(value),base:{payload:value},pending:{payload:value+'new'}};const packed=encode(original);assert(packed.length<value.length+1000);assert.deepEqual(decode(packed,owner,scope),original);});

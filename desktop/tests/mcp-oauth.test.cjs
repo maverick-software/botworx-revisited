@@ -1,6 +1,6 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
 const {createServer}=require('node:http'),{createHash}=require('node:crypto');
-const build=process.env.AGENTOPIA_OAUTH_TEST_BUILD||path.resolve(__dirname,'../build');
+const build=process.env.SYLVANA_OAUTH_TEST_BUILD||path.resolve(__dirname,'../build');
 const {McpOAuth}=require(path.join(build,'mcp-oauth.js')),{oauthNetwork,publicOAuthAddress}=require(path.join(build,'mcp-oauth-network.js')),{withMcp}=require(path.join(build,'mcp-client.js'));
 const scope={owner:'owner-a',agent:'agent-a',connection:'connection-a'};
 async function fixture(t,options={}){
@@ -86,7 +86,7 @@ test('a provided public client avoids dynamic registration',async t=>{
  const f=await fixture(t);await f.oauth.connect(scope,{clientId:'provided-public-client'});assert.equal(f.counts.registrations,0);assert.equal(new URL(f.browser[0]).searchParams.get('client_id'),'provided-public-client');
 });
 test('client metadata registration uses the declared public HTTPS document',async t=>{
- const f=await fixture(t);await f.oauth.connect(scope,{clientMetadataUrl:'https://agentopia.example/oauth-client.json'});assert.equal(f.counts.registrations,0);assert.equal(new URL(f.browser[0]).searchParams.get('client_id'),'https://agentopia.example/oauth-client.json');
+ const f=await fixture(t);await f.oauth.connect(scope,{clientMetadataUrl:'https://sylvana.example/oauth-client.json'});assert.equal(f.counts.registrations,0);assert.equal(new URL(f.browser[0]).searchParams.get('client_id'),'https://sylvana.example/oauth-client.json');
 });
 for(const missing of [false,true])test('wrong or missing advertised callback issuer cannot exchange a code: '+missing,async t=>{
  const f=await fixture(t,{hold:true}),pending=f.oauth.connect(scope);pending.catch(()=>{});await f.opened;

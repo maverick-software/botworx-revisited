@@ -4,7 +4,7 @@ test('the pinned MCP client negotiates a real HTTP connection, discovers schemas
  const traffic=[];let writes=0;const server=createServer(async(req,res)=>{
   if(req.method!=='POST'){res.writeHead(405);res.end();return;}let text='';for await(const chunk of req)text+=chunk;const body=JSON.parse(text);traffic.push({body,authorization:req.headers.authorization});res.setHeader('Content-Type','application/json');
   if(!body.id&&body.id!==0){res.writeHead(202);res.end();return;}
-  let result;if(body.method==='initialize')result={protocolVersion:'2025-06-18',capabilities:{tools:{}},serverInfo:{name:'Agentopia fixture',version:'1.0.0'}};
+  let result;if(body.method==='initialize')result={protocolVersion:'2025-06-18',capabilities:{tools:{}},serverInfo:{name:'Sylvana fixture',version:'1.0.0'}};
   else if(body.method==='tools/list')result={tools:[{name:'record_note',description:'Store a fixture note.',inputSchema:{type:'object',properties:{note:{type:'string'}},required:['note'],additionalProperties:false}}]};
   else if(body.method==='tools/call'){writes++;result={content:[{type:'text',text:'Stored '+body.params.arguments.note}],isError:false};}
   else{res.end(JSON.stringify({jsonrpc:'2.0',id:body.id,error:{code:-32601,message:'Method not found'}}));return;}

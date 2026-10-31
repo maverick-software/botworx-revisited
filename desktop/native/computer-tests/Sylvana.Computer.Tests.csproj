@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net10.0-windows</TargetFramework><UseWPF>true</UseWPF><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
+    <StartupObject>Sylvana.Computer.RegressionTests</StartupObject><NuGetAudit>false</NuGetAudit>
+  </PropertyGroup>
+  <ItemGroup><Compile Include="../computer/Program.cs" Link="Program.cs"/><Compile Include="../computer/EmergencyStop.cs" Link="EmergencyStop.cs"/></ItemGroup>
+</Project>

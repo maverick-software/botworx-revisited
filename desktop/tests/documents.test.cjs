@@ -5,7 +5,7 @@ const fixture=name=>readFile(path.join(__dirname,'fixtures/documents',name));
 class Secrets{values=new Map();get(k){return this.values.get(k);}async set(k,v){this.values.set(k,v);}}
 
 test('visual workspace reads include original bytes while AI context stays extracted and owner-scoped',async()=>{
- const root=await mkdtemp(path.join(os.tmpdir(),'agentopia-visual-document-')),file=path.join(root,'report.docx'),secrets=new Secrets(),files=new WorkspaceFiles(secrets),tools=new WorkspaceTools(files);
+ const root=await mkdtemp(path.join(os.tmpdir(),'sylvana-visual-document-')),file=path.join(root,'report.docx'),secrets=new Secrets(),files=new WorkspaceFiles(secrets),tools=new WorkspaceTools(files);
  try{const bytes=await fixture('sample.docx');await writeFile(file,bytes);const selected=await files.attach('owner',[{path:file}]),id=selected.selected[0],options={permission:'files',mode:'chat',thinking:'default',files:[id]};
   const visual=await tools.view('owner',options,{reference_id:id,path:''});assert.equal(visual.document.visual.extension,'.docx');assert.deepEqual(Buffer.from(visual.document.visual.base64,'base64'),bytes);
   const text=await tools.read('owner',options,{reference_id:id,path:''});assert.equal(text.document.visual,undefined);assert(text.content.includes('WORD-ALPHA-641'));
@@ -22,7 +22,7 @@ test('real PDF and Office files preserve pages, Unicode, dates, formula results,
  }finally{await reader.close();}
 });
 test('PowerPoint visual bytes are returned only for an authorized workspace view, while model context remains extracted',async()=>{
- const root=await mkdtemp(path.join(os.tmpdir(),'agentopia-presentation-bytes-')),file=path.join(root,'slides.pptx'),files=new WorkspaceFiles(new Secrets()),tools=new WorkspaceTools(files);
+ const root=await mkdtemp(path.join(os.tmpdir(),'sylvana-presentation-bytes-')),file=path.join(root,'slides.pptx'),files=new WorkspaceFiles(new Secrets()),tools=new WorkspaceTools(files);
  try{const bytes=await fixture('sample.pptx');await writeFile(file,bytes);const selected=await files.attach('owner',[{path:file}]),id=selected.selected[0],options={permission:'files',mode:'chat',thinking:'default',files:[id]};
   const viewed=await tools.view('owner',options,{reference_id:id,path:''});assert.equal(viewed.document.visual.extension,'.pptx');assert.deepEqual(Buffer.from(viewed.document.visual.base64,'base64'),bytes);assert.match(viewed.document.sections[0].text,/SLIDE-SECOND-147/);
   const read=await tools.read('owner',options,{reference_id:id,path:''});assert.equal(read.document.visual,undefined);const context=await files.context('owner',[id],'files');assert(!JSON.stringify(context).includes('"visual"'));assert(!JSON.stringify(context).includes(bytes.toString('base64')));
@@ -47,7 +47,7 @@ test('Office archives reject traversal, duplicate parts, oversized expansion and
  }finally{await reader.close();}
 });
 test('document cancellation is owner-bound, covers queued and not-yet-started reads, and recovers capacity after timeout',async()=>{
- const root=await mkdtemp(path.join(os.tmpdir(),'agentopia-doc-cancel-')),workerFile=path.join(root,'busy.cjs');await writeFile(workerFile,'setInterval(()=>{},1000);');const settings={workerFile,timeoutMs:2000},reader=new DocumentReader(settings),bytes=await fixture('sample.pdf');
+ const root=await mkdtemp(path.join(os.tmpdir(),'sylvana-doc-cancel-')),workerFile=path.join(root,'busy.cjs');await writeFile(workerFile,'setInterval(()=>{},1000);');const settings={workerFile,timeoutMs:2000},reader=new DocumentReader(settings),bytes=await fixture('sample.pdf');
  try{
   const ids=[randomUUID(),randomUUID(),randomUUID()],one=reader.read('one',bytes,'.pdf',{id:ids[0]}),two=reader.read('two',bytes,'.pdf',{id:ids[1]}),three=reader.read('three',bytes,'.pdf',{id:ids[2]});let secondEnded=false;two.finally(()=>{secondEnded=true;}).catch(()=>{});
   const a=assert.rejects(one,/cancelled/),b=assert.rejects(two,/cancelled/),c=assert.rejects(three,/cancelled/);reader.cancel('one',ids[1]);reader.cancel('one',ids[0]);await a;assert.equal(secondEnded,false);reader.cancelOwner('two');reader.cancelOwner('three');await Promise.all([b,c]);
@@ -57,7 +57,7 @@ test('document cancellation is owner-bound, covers queued and not-yet-started re
  }finally{await reader.close();assert(path.resolve(root).startsWith(path.resolve(os.tmpdir())+path.sep));await rm(root,{recursive:true,force:true});}
 });
 test('document context keeps permission checks, bounded folder sources and immutable read-only tool results',async()=>{
- const root=await mkdtemp(path.join(os.tmpdir(),'agentopia-doc-context-')),files=new WorkspaceFiles(new Secrets(),{showMessageBox:async()=>({response:0})});
+ const root=await mkdtemp(path.join(os.tmpdir(),'sylvana-doc-context-')),files=new WorkspaceFiles(new Secrets(),{showMessageBox:async()=>({response:0})});
  try{
   for(const ext of ['pdf','docx','xlsx','pptx'])await copyFile(path.join(__dirname,'fixtures/documents','sample.'+ext),path.join(root,'sample.'+ext));await writeFile(path.join(root,'.env'),'PRIVATE_CREDENTIAL');
   const refs=await files.add('owner',[root,path.join(root,'sample.pdf')]),folder=refs.find(r=>r.kind==='folder'),pdf=refs.find(r=>r.kind==='file');await assert.rejects(files.context('other',[pdf.id],'files'),/another account/);assert.equal((await files.context('owner',[pdf.id],'ask'))[0].document.totalUnits,2);await assert.rejects(files.context('owner',[pdf.id],'chat'),/Chat only/);

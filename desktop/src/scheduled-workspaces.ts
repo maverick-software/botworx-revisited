@@ -33,7 +33,7 @@ type BundleCommand=(args:string[],input?:PackInput)=>Promise<string>;
  * These are ordinary user workspaces; credentials/journals stay in Secrets. */
 export function scheduledWorkspaceDirectory(profile:string,outputs:string){
  const windows=/^[a-z]:[\\/]/i.test(profile)&&/^[a-z]:[\\/]/i.test(outputs);
- if(windows&&path.win32.parse(profile).root.toLowerCase()!==path.win32.parse(outputs).root.toLowerCase())return path.win32.join(path.win32.parse(profile).root,'Agentopia-Chat','Scheduled workspaces',sha(path.win32.normalize(profile).toLowerCase()).slice(0,12));
+ if(windows&&path.win32.parse(profile).root.toLowerCase()!==path.win32.parse(outputs).root.toLowerCase())return path.win32.join(path.win32.parse(profile).root,'Sylvana-Chat','Scheduled workspaces',sha(path.win32.normalize(profile).toLowerCase()).slice(0,12));
  return path.join(outputs,'scheduled-workspaces');
 }
 
@@ -133,7 +133,7 @@ export class ScheduledWorkspaces{
    await guard();signal.throwIfAborted();await this.secrets.set(key,journal);
    await this.parent(path.dirname(destination),guard,signal);await guard();signal.throwIfAborted();await mkdir(destination);
    journal={...journal,rootIdentity:await this.canonical(destination,'folder')};await this.secrets.set(key,journal);await guard();signal.throwIfAborted();
-   await found.storage.verify(guard,signal);await this.git(found.binary,source.path,['worktree','add','--detach','--no-checkout','--lock','--reason','Agentopia scheduled run '+run.id,destination,commit],signal,[0],filters);
+   await found.storage.verify(guard,signal);await this.git(found.binary,source.path,['worktree','add','--detach','--no-checkout','--lock','--reason','Sylvana scheduled run '+run.id,destination,commit],signal,[0],filters);
    journal={...journal,phase:'checkout'};await this.secrets.set(key,journal);await guard();signal.throwIfAborted();
    if(await this.canonical(destination,'folder')!==journal.rootIdentity||!same((await this.git(found.binary,destination,['rev-parse','--show-toplevel'],signal)).trim(),destination)||!same((await this.git(found.binary,destination,['rev-parse','--path-format=absolute','--git-common-dir'],signal)).trim(),workspace.commonDirectory))throw Error('Git did not bind the new checkout to its reserved folder.');
    const checkoutFilters=await this.filters(found.binary,destination,signal);
@@ -212,7 +212,7 @@ export class ScheduledWorkspaces{
    await storage.verify(guard,signal);
    if(JSON.stringify(current)!==JSON.stringify(expected))throw Error('The reviewed workspace identity changed.');
    await storageDirectory(copy);const info=await lstat(copy,{bigint:true});if(sha([info.dev,info.ino,info.birthtimeNs].join(':'))!==copyIdentity)throw Error('The private recovery directory changed.');
-   const env:NodeJS.ProcessEnv={...this.environment(),GIT_AUTHOR_NAME:'Agentopia recovery',GIT_AUTHOR_EMAIL:'recovery@agentopia.invalid',GIT_COMMITTER_NAME:'Agentopia recovery',GIT_COMMITTER_EMAIL:'recovery@agentopia.invalid'};
+   const env:NodeJS.ProcessEnv={...this.environment(),GIT_AUTHOR_NAME:'Sylvana recovery',GIT_AUTHOR_EMAIL:'recovery@sylvana.invalid',GIT_COMMITTER_NAME:'Sylvana recovery',GIT_COMMITTER_EMAIL:'recovery@sylvana.invalid'};
    if(options.input&&Buffer.byteLength(options.input)>64*1024**2)throw Error('Git recovery input exceeds its bounded limit.');
    if(options.indexFile!==undefined){if(!same(options.indexFile,path.join(copy,'index.bin'))||!options.gitDirectory||!same(options.gitDirectory,copy))throw Error('Only the private recovery index can be inspected.');for(const name of ['HEAD','index.bin','commondir'])await recoveryFile(path.join(copy,name),guard,signal);if(!same((await readFile(path.join(copy,'commondir'),'utf8')).trim().replaceAll('/',path.sep),expected.journal.workspace.commonDirectory))throw Error('The private recovery common-directory pointer changed.');env.GIT_INDEX_FILE='index.bin';env.GIT_DIR='.';env.GIT_WORK_TREE=expected.journal.path;}
    else if(options.gitDirectory!==undefined)throw Error('Invalid private Git recovery directory.');
@@ -295,8 +295,8 @@ export class ScheduledWorkspaces{
   // file with exclusive creation, then require Git to resolve the exact object.
   await command(['cat-file','-e',pack.commit+'^{commit}']);await guard();signal.throwIfAborted();
   if(await this.canonical(path.join(root,'.git'),'folder',true)!==gitIdentity)throw Error('The restored Git directory changed.');
-  await writeFile(path.join(root,'.git','packed-refs'),'# pack-refs with: peeled fully-peeled sorted\n'+pack.commit+' refs/agentopia/restored\n',{flag:'wx',mode:0o600});
-  if((await command(['rev-parse','--verify','refs/agentopia/restored^{commit}'])).trim()!==pack.commit)throw Error('The restored recovery reference did not verify.');
+  await writeFile(path.join(root,'.git','packed-refs'),'# pack-refs with: peeled fully-peeled sorted\n'+pack.commit+' refs/sylvana/restored\n',{flag:'wx',mode:0o600});
+  if((await command(['rev-parse','--verify','refs/sylvana/restored^{commit}'])).trim()!==pack.commit)throw Error('The restored recovery reference did not verify.');
   await command(['cat-file','-e',head+'^{commit}']);
   // The destination is a new, exclusively owned repository. Git 2.56 rejects
   // the null-old-value form while its initial symbolic HEAD is still dangling.

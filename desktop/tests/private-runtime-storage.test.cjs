@@ -1,15 +1,15 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
 const {mkdir,mkdtemp,writeFile,readFile,rm,symlink}=require('node:fs/promises');
-const build=process.env.AGENTOPIA_PRIVATE_STORAGE_BUILD||path.resolve(__dirname,'../build');
+const build=process.env.SYLVANA_PRIVATE_STORAGE_BUILD||path.resolve(__dirname,'../build');
 const {privateRuntimeStoragePaths,localRuntimeStoragePath,registeredPrivateRuntimeStorage}=require(path.join(build,'private-runtime-storage.js'));
 const {privateRuntimePath,privateDistribution,transferPrefix}=require(path.join(build,'runtime-binding.js'));
 const {WorkspaceFiles}=require(path.join(build,'workspace.js')),{WorkspaceTools}=require(path.join(build,'workspace-tools.js'));
-const runtime='AgentopiaRuntime-12345678-1234-4123-8123-123456789abc',reader='AgentopiaBackupReader-22345678-1234-4123-8123-123456789abc';
-const fixtureParent=process.env.AGENTOPIA_PRIVATE_STORAGE_FIXTURES||'F:/Agentopia-Acceptance/private-storage-tests';
+const runtime='SylvanaRuntime-12345678-1234-4123-8123-123456789abc',reader='SylvanaBackupReader-22345678-1234-4123-8123-123456789abc';
+const fixtureParent=process.env.SYLVANA_PRIVATE_STORAGE_FIXTURES||'F:/Sylvana-Acceptance/private-storage-tests';
 class Secrets{data=new Map();get(k){return this.data.get(k);}async set(k,v){this.data.set(k,v);}}
 
 test('private runtime storage follows registered folders across drives while unrelated WSL distributions remain outside this policy',()=>{
- const rows=[{name:'AgentopiaRuntime',path:'\\\\?\\F:\\PrivateData\\legacy\\',version:2},{name:runtime,path:'G:/PrivateData/current',version:2},{name:reader,path:'H:\\PrivateData\\reader',version:2},{name:runtime.toUpperCase(),path:'g:\\privatedata\\CURRENT',version:2},{name:'Ubuntu',path:'I:\\Personal Linux',version:2},{name:'AgentopiaRuntime-ordinary-project',path:'J:\\Public',version:2}];
+ const rows=[{name:'SylvanaRuntime',path:'\\\\?\\F:\\PrivateData\\legacy\\',version:2},{name:runtime,path:'G:/PrivateData/current',version:2},{name:reader,path:'H:\\PrivateData\\reader',version:2},{name:runtime.toUpperCase(),path:'g:\\privatedata\\CURRENT',version:2},{name:'Ubuntu',path:'I:\\Personal Linux',version:2},{name:'SylvanaRuntime-ordinary-project',path:'J:\\Public',version:2}];
  const found=privateRuntimeStoragePaths(rows).map(x=>x.toLowerCase()).sort();assert.deepEqual(found,['f:\\privatedata\\legacy','g:\\privatedata\\current','h:\\privatedata\\reader']);
 });
 test('unverified private runtime locations fail closed instead of becoming ordinary workspaces',()=>{
@@ -21,7 +21,7 @@ test('local mounted-volume paths and WSL1 retained private folders remain protec
  const volume='\\\\?\\Volume{12345678-1234-1234-1234-123456789abc}\\private';assert.equal(localRuntimeStoragePath(volume),volume);assert.throws(()=>localRuntimeStoragePath(volume.slice(0,-7)),/private runtime storage/);assert.deepEqual(privateRuntimeStoragePaths([{name:runtime,path:'F:\\Retained',version:1}]),['F:\\Retained']);
 });
 test('registered aliases also protect their physical destination, with unavailable old registrations kept protected by their logical path',async()=>{
- const calls=[],result=await registeredPrivateRuntimeStorage({platform:'win32',read:async()=>[{name:runtime,path:'D:\\Alias',version:2},{name:'AgentopiaRuntime',path:'C:\\Old',version:2}],canonical:async value=>{calls.push(value);if(value==='C:\\Old')throw Object.assign(Error('removed'),{code:'ENOENT'});return 'F:\\PrivateData';}});assert.deepEqual(result,['D:\\Alias','C:\\Old','F:\\PrivateData']);assert.deepEqual(calls,['D:\\Alias','C:\\Old']);
+ const calls=[],result=await registeredPrivateRuntimeStorage({platform:'win32',read:async()=>[{name:runtime,path:'D:\\Alias',version:2},{name:'SylvanaRuntime',path:'C:\\Old',version:2}],canonical:async value=>{calls.push(value);if(value==='C:\\Old')throw Object.assign(Error('removed'),{code:'ENOENT'});return 'F:\\PrivateData';}});assert.deepEqual(result,['D:\\Alias','C:\\Old','F:\\PrivateData']);assert.deepEqual(calls,['D:\\Alias','C:\\Old']);
 });
 test('registry errors and unverifiable physical paths do not silently disable the private-folder guard',async()=>{
  await assert.rejects(registeredPrivateRuntimeStorage({platform:'win32',read:async()=>{throw Error('registry read failed');}}));
@@ -29,7 +29,7 @@ test('registry errors and unverifiable physical paths do not silently disable th
  let touched=false;assert.deepEqual(await registeredPrivateRuntimeStorage({platform:'linux',read:async()=>{touched=true;throw Error('must not run Windows tools');}}),[]);assert.equal(touched,false);
 });
 test('recovery readers are excluded as private UNC storage without becoming valid application runtime bindings',()=>{
- for(const name of [runtime,'AgentopiaRuntime',reader])for(const prefix of ['\\\\wsl$\\','\\\\wsl.localhost\\','\\\\?\\UNC\\wsl.localhost\\'])assert(privateRuntimePath(prefix+name+'\\home\\private'));
+ for(const name of [runtime,'SylvanaRuntime',reader])for(const prefix of ['\\\\wsl$\\','\\\\wsl.localhost\\','\\\\?\\UNC\\wsl.localhost\\'])assert(privateRuntimePath(prefix+name+'\\home\\private'));
  assert(!privateDistribution(reader));assert.throws(()=>transferPrefix(reader,'root'),/Invalid private runtime/);assert(!privateRuntimePath('\\\\wsl.localhost\\Ubuntu\\home\\project'));
 });
 test('private relocated folders reject attachments, stale selected references and external backup capture in both permission modes',async t=>{

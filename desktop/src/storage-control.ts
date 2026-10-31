@@ -5,7 +5,7 @@ export class StorageControl {
  private closing=false;
  get busy(){return this.closing||this.pending.size>0;}
  run<T>(work:()=>Promise<T>):Promise<T>{
-  if(this.closing)throw Error('Agentopia is closing. Reopen it before changing Storage.');
+  if(this.closing)throw Error('Sylvana is closing. Reopen it before changing Storage.');
   const operation=Promise.resolve().then(work);this.pending.add(operation);
   void operation.finally(()=>this.pending.delete(operation)).catch(()=>{});
   return operation;

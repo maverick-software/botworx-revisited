@@ -5,7 +5,7 @@ class Secrets{data=new Map();get(key){return this.data.get(key);}async set(key,v
 const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const until=async predicate=>{const end=Date.now()+5000;while(!predicate()){if(Date.now()>end)throw Error('File notification did not arrive.');await pause(20);}};
 test('active-file monitoring covers direct attachments, in-place writes and atomic saves without reading siblings or sending contents',async()=>{
- const base=await mkdtemp(path.join(os.tmpdir(),'agentopia-file-monitor-')),target=path.join(base,'document.md'),events=[],files=new WorkspaceFiles(new Secrets());await writeFile(target,'original');
+ const base=await mkdtemp(path.join(os.tmpdir(),'sylvana-file-monitor-')),target=path.join(base,'document.md'),events=[],files=new WorkspaceFiles(new Secrets());await writeFile(target,'original');
  const reference=(await files.add('owner',[target]))[0],id=randomUUID(),monitor=new WorkspaceMonitor(files,new WorkspaceTools(files),()=>true,(_,event)=>events.push(event),25,70);
  try{
   await monitor.start('owner',id,reference.id,'',async()=>{},monitor.generation,'file');
@@ -17,7 +17,7 @@ test('active-file monitoring covers direct attachments, in-place writes and atom
  }finally{monitor.close();await rm(base,{recursive:true,force:true});}
 });
 test('file polling detects same-length writes even when modification time is restored, and rejects unsafe targets',async()=>{
- const base=await mkdtemp(path.join(os.tmpdir(),'agentopia-file-poll-')),root=path.join(base,'workspace'),target=path.join(root,'document.md'),outside=path.join(base,'outside.md'),events=[],files=new WorkspaceFiles(new Secrets());await mkdir(root);await writeFile(target,'first');await writeFile(outside,'outside');
+ const base=await mkdtemp(path.join(os.tmpdir(),'sylvana-file-poll-')),root=path.join(base,'workspace'),target=path.join(root,'document.md'),outside=path.join(base,'outside.md'),events=[],files=new WorkspaceFiles(new Secrets());await mkdir(root);await writeFile(target,'first');await writeFile(outside,'outside');
  const reference=(await files.add('owner',[root]))[0],id=randomUUID(),monitor=new WorkspaceMonitor(files,new WorkspaceTools(files),()=>true,(_,event)=>events.push(event),25,70);
  try{
   await monitor.start('owner',id,reference.id,'document.md',async()=>{},monitor.generation,'file');
@@ -30,7 +30,7 @@ test('file polling detects same-length writes even when modification time is res
  }finally{monitor.close();await rm(base,{recursive:true,force:true});}
 });
 test('file monitoring stops after account change, pending cancellation or an unsafe replacement',async()=>{
- const base=await mkdtemp(path.join(os.tmpdir(),'agentopia-file-revoke-')),target=path.join(base,'document.md'),outside=path.join(base,'outside.md'),events=[],files=new WorkspaceFiles(new Secrets());await writeFile(target,'first');await writeFile(outside,'outside');
+ const base=await mkdtemp(path.join(os.tmpdir(),'sylvana-file-revoke-')),target=path.join(base,'document.md'),outside=path.join(base,'outside.md'),events=[],files=new WorkspaceFiles(new Secrets());await writeFile(target,'first');await writeFile(outside,'outside');
  const reference=(await files.add('owner',[target]))[0],id=randomUUID();let active=true,release;const monitor=new WorkspaceMonitor(files,new WorkspaceTools(files),()=>active,(_,event)=>events.push(event),20,60);
  try{
   const gate=new Promise(resolve=>release=resolve),pending=monitor.start('owner',id,reference.id,'',()=>gate,monitor.generation,'file');monitor.stop('owner',id);release();await assert.rejects(pending,/closed/);

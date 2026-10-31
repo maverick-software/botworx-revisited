@@ -3,12 +3,12 @@ import glob,hashlib,json,os,re,subprocess
 from pathlib import Path
 from urllib.parse import urlparse,unquote
 
-assert Path('/opt/agentopia/runtime-instance').read_text().strip()=='b521a8fe-d803-4031-af23-4bb51f4e1e56'
-assert Path('/opt/agentopia/runtime-identity').read_text().strip()=='local.agentopia.desktop-runtime.v1'
-marker=Path('/mnt/f/Agentopia-Acceptance/agent-creation75-transition76-1792860573077-source/home/AppData/Roaming/Agentopia/schema-release.json')
+assert Path('/opt/sylvana/runtime-instance').read_text().strip()=='b521a8fe-d803-4031-af23-4bb51f4e1e56'
+assert Path('/opt/sylvana/runtime-identity').read_text().strip()=='local.sylvana.desktop-runtime.v1'
+marker=Path('/mnt/f/Sylvana-Acceptance/agent-creation75-transition76-1792860573077-source/home/AppData/Roaming/Sylvana/schema-release.json')
 before_marker=marker.read_bytes();release=json.loads(before_marker);assert release['version']=='0.44.83' and release['schema']==89
 state=json.loads(subprocess.check_output(['supabase','status','--output-format','json'],text=True,stderr=subprocess.DEVNULL));url=urlparse(state['env']['DB_URL']);assert url.port==60750;assert urlparse(state['env']['API_URL']).port==60749
-psql=glob.glob('/home/agentopia/.supabase/cache/stack/slim-services/postgres/*/linux-amd64/*/bin/psql')[0]
+psql=glob.glob('/home/sylvana/.supabase/cache/stack/slim-services/postgres/*/linux-amd64/*/bin/psql')[0]
 env=dict(os.environ,PGPASSWORD=unquote(url.password or ''));args=[psql,'-XqAt','-h','127.0.0.1','-p',str(url.port),'-U','supabase_admin','-d','postgres']
 def query(sql):
  result=subprocess.run(args,input=sql,capture_output=True,text=True,env=env)
@@ -17,7 +17,7 @@ def query(sql):
 
 # Only hashes leave PostgreSQL. Include all public account/application rows,
 # the auth account rows, migration history, public function definitions and ACLs.
-tables=json.loads(query("SELECT json_agg(row_to_json(t)) FROM (SELECT schemaname,tablename FROM pg_tables WHERE schemaname IN ('public','agentopia_desktop') OR schemaname='auth' AND tablename='users' ORDER BY schemaname,tablename) t;"))
+tables=json.loads(query("SELECT json_agg(row_to_json(t)) FROM (SELECT schemaname,tablename FROM pg_tables WHERE schemaname IN ('public','sylvana_desktop') OR schemaname='auth' AND tablename='users' ORDER BY schemaname,tablename) t;"))
 def baseline():
  hashes=[]
  for table in tables:
@@ -25,7 +25,7 @@ def baseline():
   hashes.append(query('SELECT count(*)::text||\':\'||md5(coalesce(string_agg(value,\'\' ORDER BY value),\'\')) FROM (SELECT to_jsonb(t)::text value FROM "'+schema+'"."'+name+'" t) x;'))
  hashes.append(query("SELECT md5(string_agg(oid::regprocedure::text||pg_get_functiondef(oid)||coalesce(proacl::text,''),'' ORDER BY oid::regprocedure::text)) FROM pg_proc WHERE pronamespace='public'::regnamespace AND prokind='f';"))
  return hashlib.sha256(json.dumps(hashes).encode()).hexdigest()
-assert query('SELECT count(*) FROM agentopia_desktop.migrations;')=='89'
+assert query('SELECT count(*) FROM sylvana_desktop.migrations;')=='89'
 before=baseline();root=Path(__file__).resolve().parents[2]
 migration=(root/'desktop/database/0090-agent-builder-resources.sql').read_text()
 instructions=re.search(r'export const builderInstructions=`([\s\S]*?)`;', (root/'desktop/src/agent-builder.ts').read_text()).group(1)

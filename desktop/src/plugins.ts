@@ -1,3 +1,4 @@
+import {migrateBrandPlugins} from './brand-plugin-migration';
 import {Skills} from './skills';
 import {hostPluginFamilies,hostPluginNames,type HostPluginFamily,ownHostTool} from './host-plugin-contracts';
 import type {ToolDefinition} from './tool-contracts';
@@ -53,6 +54,7 @@ export class Plugins {
  async availableDefinitions(user:string,agent:PluginPrincipal|undefined,definitions:ToolDefinition[]){const available=await this.hostAvailability(user,agent);return definitions.map(ownHostTool).filter(tool=>(tool.hostPlugins??[]).every(name=>!hostPluginNames.includes(name as any)||available.has(name)));}
  async assertHostTool(user:string,agent:PluginPrincipal|undefined,name:string){const {hostToolPlugin}=await import('./host-plugin-contracts');const plugin=hostToolPlugin(name);if(plugin&&!(await this.hostAvailability(user,agent)).has(plugin))throw Error('This tool’s plugin is disabled or is not assigned to this agent.');}
  async ensure(user:string){
+  await migrateBrandPlugins(this.db,user);
   for(const pkg of bundledPlugins.filter(pkg=>!hostPlugins.includes(pkg)))data(await this.db.from('desktop_plugins').upsert({user_id:user,name:pkg.manifest.name,package:pkg,digest:pluginDigest(pkg),source:'bundled'},{onConflict:'user_id,name',ignoreDuplicates:true}));
   data(await this.db.rpc('desktop_seed_host_plugins',{p_user:user,p_packages:hostPlugins.map(pkg=>({name:pkg.manifest.name,package:pkg,digest:pluginDigest(pkg)}))}));
   const connections=data(await this.db.from('agent_mcp_connections').select('id,agent_id,connection_name,agents!inner(user_id)').eq('agents.user_id',user));
@@ -75,7 +77,7 @@ export class Plugins {
    this.db.from('desktop_plugin_credentials').select('plugin_name,vault_secret_id,enabled').eq('user_id',user.id).then(data)
   ]);
   const configuredServices=new Map<string,boolean>();for(const row of rows){const slug=composioServicePackageSlug(row.package);if(slug)configuredServices.set(row.name,this.serviceConfigured?await this.serviceConfigured(user.id,slug):false);}
-  return rows.filter((row:any)=>!hidden.has(row.name)).map((row:any)=>{const adapter=row.package.manifest.extensions?.['com.agentopia']?.adapter,service=composioServicePackageSlug(row.package);this.checked(row);return {name:row.name,...(service?{displayName:row.package.manifest.extensions['com.openai'].interface.displayName}:{}),version:row.package.manifest.version,description:row.package.manifest.description,enabled:row.enabled,bundled:row.source==='bundled',updatable:row.source==='imported',digest:row.digest,validation:'Schema validated',package:row.package,kind:service?'composio-service':row.package.manifest.extensions?.['com.agentopia']?.hostFamily?(row.name==='composio'?'composio':'host'):row.package.manifest.extensions?.['com.agentopia']?.imageGeneration==='v1'?'images':adapter?'search':row.package.files&&!row.package.mcp?'skills':'mcp',configured:service?configuredServices.get(row.name)===true:row.name==='composio'?this.legacyComposioConfigured():row.package.manifest.extensions?.['com.agentopia']?.imageGeneration==='v1'?this.imageConfigured():adapter?(ownedKeys.some((key:any)=>key.plugin_name===row.name)?ownedKeys.some((key:any)=>key.plugin_name===row.name&&key.enabled&&key.vault_secret_id):keys.some((key:any)=>key.provider_name===adapter+'_api'&&key.is_active&&key.vault_secret_id)):true,assignments:grants.filter((g:any)=>g.plugin_name===row.name).map((g:any)=>({agent_id:g.agent_id,enabled:g.enabled,connection_ids:service?[composioServiceConnectionId(row.name)]:row.name===composioMcpPluginName?[composioMcpConnectionId]:row.name===chromePluginName?[chromeConnectionId]:links.filter((l:any)=>l.plugin_name===row.name&&l.agent_id===g.agent_id).map((l:any)=>l.connection_id) }))};});
+  return rows.filter((row:any)=>!hidden.has(row.name)).map((row:any)=>{const adapter=row.package.manifest.extensions?.['com.sylvana']?.adapter,service=composioServicePackageSlug(row.package);this.checked(row);return {name:row.name,...(service?{displayName:row.package.manifest.extensions['com.openai'].interface.displayName}:{}),version:row.package.manifest.version,description:row.package.manifest.description,enabled:row.enabled,bundled:row.source==='bundled',updatable:row.source==='imported',digest:row.digest,validation:'Schema validated',package:row.package,kind:service?'composio-service':row.package.manifest.extensions?.['com.sylvana']?.hostFamily?(row.name==='composio'?'composio':'host'):row.package.manifest.extensions?.['com.sylvana']?.imageGeneration==='v1'?'images':adapter?'search':row.package.files&&!row.package.mcp?'skills':'mcp',configured:service?configuredServices.get(row.name)===true:row.name==='composio'?this.legacyComposioConfigured():row.package.manifest.extensions?.['com.sylvana']?.imageGeneration==='v1'?this.imageConfigured():adapter?(ownedKeys.some((key:any)=>key.plugin_name===row.name)?ownedKeys.some((key:any)=>key.plugin_name===row.name&&key.enabled&&key.vault_secret_id):keys.some((key:any)=>key.provider_name===adapter+'_api'&&key.is_active&&key.vault_secret_id)):true,assignments:grants.filter((g:any)=>g.plugin_name===row.name).map((g:any)=>({agent_id:g.agent_id,enabled:g.enabled,connection_ids:service?[composioServiceConnectionId(row.name)]:row.name===composioMcpPluginName?[composioMcpConnectionId]:row.name===chromePluginName?[chromeConnectionId]:links.filter((l:any)=>l.plugin_name===row.name&&l.agent_id===g.agent_id).map((l:any)=>l.connection_id) }))};});
  }
  private checked(row:any){
   if(!row||row.name!==row.package?.manifest?.name||row.digest!==pluginDigest(row.package))throw new Error('Plugin integrity verification failed. Reinstall the reviewed package.');
@@ -97,8 +99,8 @@ export class Plugins {
   if(!row.enabled||!grant.enabled)throw new Error('This plugin is disabled or is not assigned to this agent.');return row;
  }
  async accountComposio(user:string,agent:string){await this.owned(user,agent);const row=await this.allowed(user,agent,composioMcpPluginName);if(row.source!=='bundled')throw Error('The Composio connector differs from its pinned declaration.');data(await this.db.from('agents').select('id').eq('id',agent).eq('user_id',user).eq('active',true).single());return row;}
- async managedChrome(user:string,agent:string){await this.owned(user,agent);const row=await this.allowed(user,agent,chromePluginName);if(row.source!=='bundled'||row.package.manifest.extensions?.['com.agentopia']?.managedMcp!==chromePluginName)throw new Error('The Chrome plugin runtime is not its pinned declaration.');return row;}
- async imageGeneration(user:string,agent:string){await this.owned(user,agent);const row=await this.allowed(user,agent,imageGenerationPluginName);if(row.source!=='bundled'||row.package.manifest.extensions?.['com.agentopia']?.imageGeneration!=='v1')throw new Error('The image plugin differs from its pinned declaration.');return row;}
+ async managedChrome(user:string,agent:string){await this.owned(user,agent);const row=await this.allowed(user,agent,chromePluginName);if(row.source!=='bundled'||row.package.manifest.extensions?.['com.sylvana']?.managedMcp!==chromePluginName)throw new Error('The Chrome plugin runtime is not its pinned declaration.');return row;}
+ async imageGeneration(user:string,agent:string){await this.owned(user,agent);const row=await this.allowed(user,agent,imageGenerationPluginName);if(row.source!=='bundled'||row.package.manifest.extensions?.['com.sylvana']?.imageGeneration!=='v1')throw new Error('The image plugin differs from its pinned declaration.');return row;}
  async searchCredential(user:string,adapter:string,provider=adapter+'_api'){
   if(!['serper','tavily'].includes(adapter))throw Error('Choose a supported search adapter.');
   const own=data(await this.db.from('desktop_plugin_credentials').select('vault_secret_id,enabled').eq('user_id',user).eq('plugin_name',adapter+'-search').maybeSingle());
@@ -108,7 +110,7 @@ export class Plugins {
  async search(user:string,agent:string){
   await this.owned(user,agent);
   const grants=data(await this.db.from('desktop_agent_plugins').select('plugin_name,enabled').eq('user_id',user).eq('agent_id',agent));
-  for(const g of grants){if(!g.enabled)continue;const row=data(await this.db.from('desktop_plugins').select('*').eq('user_id',user).eq('name',g.plugin_name).single());const adapter=row.package.manifest.extensions?.['com.agentopia']?.adapter;if(adapter){this.checked(row);return {name:row.name,adapter,enabled:row.enabled,digest:row.digest};}}
+  for(const g of grants){if(!g.enabled)continue;const row=data(await this.db.from('desktop_plugins').select('*').eq('user_id',user).eq('name',g.plugin_name).single());const adapter=row.package.manifest.extensions?.['com.sylvana']?.adapter;if(adapter){this.checked(row);return {name:row.name,adapter,enabled:row.enabled,digest:row.digest};}}
   return {name:'serper-search',adapter:'serper',enabled:false,digest:''};
  }
  async call(action:string,args:Record<string,unknown>,user:Identity){
@@ -142,7 +144,7 @@ export class Plugins {
    data(await this.db.rpc('desktop_remove_plugin',{p_user:user.id,p_name:row.name}));return;
   }
   if(action==='plugins.key.save'||action==='plugins.key.remove'){
-   const adapter=row.package.manifest.extensions?.['com.agentopia']?.adapter;if(row.source!=='bundled'||!['serper','tavily'].includes(adapter as string))throw new Error('Choose a bundled search connection.');
+   const adapter=row.package.manifest.extensions?.['com.sylvana']?.adapter;if(row.source!=='bundled'||!['serper','tavily'].includes(adapter as string))throw new Error('Choose a bundled search connection.');
    const key=action.endsWith('remove')?null:args.key;if(key!==null&&(typeof key!=='string'||!key.trim()||key.length>4096))throw new Error('Enter a valid search API key.');
    data(await this.db.rpc('desktop_store_plugin_credential',{p_user:user.id,p_plugin:row.name,p_secret:key}));return;
   }

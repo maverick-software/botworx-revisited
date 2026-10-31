@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),{randomUUID}=require('node:crypto');
-const build=process.env.AGENTOPIA_AGENT_REPORT_BUILD??path.resolve(__dirname,'../build'),{recoverNamedAgentReports}=require(path.join(build,'agent-report-recovery.js')),{AgentReportQueue}=require(path.join(build,'agent-report-queue.js'));
+const build=process.env.SYLVANA_AGENT_REPORT_BUILD??path.resolve(__dirname,'../build'),{recoverNamedAgentReports}=require(path.join(build,'agent-report-recovery.js')),{AgentReportQueue}=require(path.join(build,'agent-report-queue.js'));
 function fixture(){
  const owner=randomUUID(),parent={id:randomUUID(),user_id:owner,conversation_id:randomUUID(),agent_instance_id:randomUUID(),status:'completed'},watch={childRequestId:randomUUID(),childInstanceId:randomUUID(),createdAt:new Date().toISOString()},state={namedAssignments:[watch],reports:[]};
  const invocation={user_id:owner,request_id:watch.childRequestId,child_instance_id:watch.childInstanceId,caller_instance_id:parent.agent_instance_id,origin_request_id:parent.id},nativeRows=[{request_id:parent.id,user_id:owner,state}],requests=[parent],reads=[],queries=[];

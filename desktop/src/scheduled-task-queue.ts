@@ -85,5 +85,5 @@ export class ScheduledTaskQueue{
   await this.cancelRequests(owner,ids);
   for(const run of runs)if(run&&run.owner===owner&&!run.requestCreatedAt&&!await this.store.requestExists(owner,run.requestId))await this.store.finish(owner,run.id,{status:'cancelled',error:reason});
  }
- async close(){for(const owner of new Set([...this.dispatches.values()].map(row=>row.owner)))await this.closeOwner(owner,'Agentopia closed before this scheduled response started.');}
+ async close(){for(const owner of new Set([...this.dispatches.values()].map(row=>row.owner)))await this.closeOwner(owner,'Sylvana closed before this scheduled response started.');}
 }

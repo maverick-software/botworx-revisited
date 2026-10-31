@@ -1,8 +1,9 @@
+import {currentBrandKind} from './legacy-brand';
 import {createHash} from 'node:crypto';
 import {maxImageBytes} from './image-limits';
 import type {PublicOutputInventory} from './public-file-recovery';
 export type ClipboardAccount={owner:string;references:{id:string;name:string;bytes:number;relativePath:string}[]};
-export type ClipboardRecoveryRecord={format:1;kind:'agentopia-portable-clipboard';accounts:ClipboardAccount[];manifest:PublicOutputInventory;archiveSha256:string;indexSha256:string};
+export type ClipboardRecoveryRecord={format:1;kind:'sylvana-portable-clipboard';accounts:ClipboardAccount[];manifest:PublicOutputInventory;archiveSha256:string;indexSha256:string};
 export const clipboardUuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 export const clipboardLimit=maxImageBytes;
 const sha=(bytes:Buffer)=>createHash('sha256').update(bytes).digest('hex');
@@ -13,7 +14,7 @@ export function portableImage(value:string){
 }
 export function clipboardRecordId(record:Omit<ClipboardRecoveryRecord,'indexSha256'>|ClipboardRecoveryRecord){return sha(Buffer.from(JSON.stringify({format:record.format,kind:record.kind,accounts:record.accounts,manifest:record.manifest,archiveSha256:record.archiveSha256})));}
 export function validateClipboardRecord(record:ClipboardRecoveryRecord){
- if(record?.format!==1||record.kind!=='agentopia-portable-clipboard'||!Array.isArray(record.accounts)||record.accounts.length>10000||!record.manifest?.files||!Array.isArray(record.manifest.directories)||!/^[a-f0-9]{64}$/.test(record.archiveSha256)||record.indexSha256!==clipboardRecordId(record)||Buffer.byteLength(JSON.stringify(record))>16*1024**2)throw Error('The portable clipboard record is invalid or changed.');
+ if(record?.format!==1||currentBrandKind(record.kind)!=='sylvana-portable-clipboard'||!Array.isArray(record.accounts)||record.accounts.length>10000||!record.manifest?.files||!Array.isArray(record.manifest.directories)||!/^[a-f0-9]{64}$/.test(record.archiveSha256)||record.indexSha256!==clipboardRecordId(record)||Buffer.byteLength(JSON.stringify(record))>16*1024**2)throw Error('The portable clipboard record is invalid or changed.');
  const owners=new Set<string>(),files=new Set<string>(),directories=new Set<string>();for(const account of record.accounts){if(!clipboardUuid.test(account.owner)||owners.has(account.owner.toLowerCase())||!Array.isArray(account.references)||account.references.length>100)throw Error('Invalid clipboard recovery account.');owners.add(account.owner.toLowerCase());const ids=new Set<string>();let bytes=0;
   for(const reference of account.references){const name=account.owner+'/'+reference.id+'.image',file=record.manifest.files[name];if(!clipboardUuid.test(reference.id)||ids.has(reference.id.toLowerCase())||reference.relativePath!==name||typeof reference.name!=='string'||!reference.name.trim()||reference.name.length>240||/[\x00-\x1f\x7f]/.test(reference.name)||/[\uD800-\uDFFF]/u.test(reference.name)||!Number.isSafeInteger(reference.bytes)||reference.bytes<=0||reference.bytes>clipboardLimit||!file||file.bytes!==reference.bytes||!/^[a-f0-9]{64}$/.test(file.sha256))throw Error('Invalid or foreign portable clipboard reference.');ids.add(reference.id.toLowerCase());files.add(name);directories.add(account.owner);bytes+=reference.bytes;}
   if(bytes>40*1024**2)throw Error('Portable clipboard images exceed the per-account limit.');

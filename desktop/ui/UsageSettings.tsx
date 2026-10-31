@@ -1,16 +1,8 @@
-import React,{useEffect,useState} from 'react';
-import {ExternalLink} from 'lucide-react';
-import {call,type Connections} from './ui';
-import type {Run} from './Panels';
-
-export function UsageSettings({run,connections}:{run:Run;connections:()=>void}){
- const [status,setStatus]=useState<Connections|null>(null),[error,setError]=useState('');
- useEffect(()=>{let live=true;void call<Connections>('providers.status').then(value=>{if(live)setStatus(value);}).catch(error=>{if(live)setError(error.message);});return()=>{live=false;};},[]);
- return <><p className="pane-intro">Review your plan allowance, requests and spending with your AI provider.</p>
- <h3>Your AI accounts</h3><div className="settings-card">
- <div className="setting-row"><div><strong>ChatGPT</strong><p>{status?.chatgpt?.authorized?'Using your ChatGPT plan':status?'Connect ChatGPT to use your plan':'Checking connection…'}</p></div><button className="secondary" onClick={()=>void run(()=>call('providers.manageUsage',{provider:'openai-oauth'}))}>Manage usage<ExternalLink size={14}/></button></div>
- <div className="setting-row"><div><strong>OpenRouter</strong><p>{status?.openrouter?'View requests, token usage and spending':status?'Connect an OpenRouter account':'Checking connection…'}</p></div><button className="secondary" onClick={()=>void run(()=>call('providers.manageUsage',{provider:'openrouter'}))}>View activity<ExternalLink size={14}/></button></div>
- </div><p className="hint">Usage dashboards open in your web browser. Your provider shows the current allowance and billing details for the account signed in there.</p>
- {error&&<p role="alert" className="pane-error">{error}</p>}
- <button className="secondary" onClick={connections}>Manage AI connections</button></>;
+import React,{useEffect,useState} from 'react';import {ExternalLink} from 'lucide-react';import type {ProviderStatus} from '../src/contracts';import {call} from './ui';import type {Run} from './Panels';
+export function UsageSettings({run}:{run:Run;connections:()=>void}){
+ const [status,setStatus]=useState<ProviderStatus|null>(null),[error,setError]=useState('');
+ useEffect(()=>{let live=true;const refresh=()=>void call<ProviderStatus>('providers.status').then(s=>{if(live){setStatus(s);setError('');}}).catch(e=>{if(live)setError(e.message);});refresh();const timer=setInterval(refresh,30000);window.addEventListener('focus',refresh);return()=>{live=false;clearInterval(timer);window.removeEventListener('focus',refresh);};},[]);
+ if(!status)return <p role="status">{error||'Loading your usage…'}</p>;
+ const chatgpt=!status.legalMode&&status.connections?.chatgpt===true&&status.chatgpt?.authorized===true,a=status.sylvana?.allowance,percent=a?.limit_units?Math.max(0,Math.min(100,a.remaining_units/a.limit_units*100)):0;
+ return <section className="connection" aria-label="Your AI usage">{chatgpt?<><h3>Your ChatGPT account</h3><p>{status.chatgpt?.email}</p><button className="secondary" onClick={()=>void run(()=>call('providers.manageUsage',{provider:'openai-oauth'}))}>Manage ChatGPT usage<ExternalLink size={14}/></button></>:<><h3>Your Sylvana weekly usage</h3><p>{status.sylvana?.email}</p>{a?.unlimited_llm?<><strong>Unlimited LLM usage</strong><p>Included with your platform-admin access. Image and voice services follow their usual allowances.</p></>:<><strong>{a?.status==='active'?Math.round(percent)+'% remaining':'No active weekly allowance'}</strong><progress aria-label="Your Sylvana weekly allowance remaining" value={percent} max={100}/><p>{a?.resets_at?'Resets '+new Date(a.resets_at).toLocaleString():'Your allowance becomes available when your workspace subscription and seat are active.'}</p></>}</>}{error&&<p role="alert">Usage could not refresh. Please try again.</p>}</section>;
 }

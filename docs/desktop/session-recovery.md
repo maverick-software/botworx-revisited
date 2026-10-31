@@ -1,5 +1,7 @@
 # Saved local sign-in recovery
 
+Current behavior, October 27, 2026: Sylvana 0.45.1 requires **Continue with Sylvana** for login and upgrade recovery. The website handles passwords and password recovery. Local users and content remain stored locally, and the token-persistence safeguards described below still protect the internal data session. User-facing local password authentication is disabled. See [web-only login](web-only-login.md) for the current implementation and verification record. The following notes describe the earlier 0.43.7 repair and its historical evidence.
+
 October 17, 2026. Included in installed 0.43.7. Compilation, focused authentication checks, five encrypted process-restart phases and the packaged interface workflow pass. Ordinary startup restored the existing administrator without entering a password. The application is open and signed in. See [the coordinated release](maintenance-0.43.7.md).
 
 ## Finding

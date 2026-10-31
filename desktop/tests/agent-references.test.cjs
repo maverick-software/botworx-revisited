@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
-const build=process.env.AGENTOPIA_AGENT_TEST_BUILD??path.resolve(__dirname,'../build'),{AgentService}=require(path.join(build,'agent-service.js'));
+const build=process.env.SYLVANA_AGENT_TEST_BUILD??path.resolve(__dirname,'../build'),{AgentService}=require(path.join(build,'agent-service.js'));
 test('tool-read revisions override an earlier automatic memory snapshot and survive independent child request wrappers',async()=>{
  const calls=[],service=new AgentService({rpc:async(name,args)=>{calls.push({name,args});return {data:true};}}),request={agent_memory:{memories:[{id:'note',revision:1}],instances:[{id:'own-instance'}]},agent_references:{memories:[],instances:[]}};
  service.references({...request,native_scope_id:'native:child'},[{id:'note',revision:2}],['specialist-instance']);

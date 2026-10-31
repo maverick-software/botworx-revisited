@@ -2,12 +2,12 @@ import type {ToolDefinition} from './tool-contracts';
 
 /** Pinned local executors. A package cannot select an arbitrary host runtime. */
 export const hostPluginFamilies={
- browser:{name:'agentopia-browser',title:'Browser',description:'Browse web pages in this chat’s Agentopia browser, with existing sharing and action reviews.'},
- files:{name:'agentopia-files-terminal',title:'Files & Terminal',description:'Read selected workspaces and run authorized commands or propose file changes under the current chat permissions.'},
- computer:{name:'agentopia-computer',title:'Computer Use',description:'Inspect and operate explicitly shared application windows under existing administrator and chat permissions.'},
- agents:{name:'agentopia-workspace-agents',title:'Workspace Agents',description:'Find and delegate to workspace agents, inspect chats and maintain authorized agent and project memory.'},
- documents:{name:'agentopia-documents-planning',title:'Documents & Planning',description:'Read agent documents and maintain this conversation’s reviewed plans.'},
- schedules:{name:'agentopia-schedules',title:'Automations',description:'Inspect and propose scheduled tasks with existing schedule reviews.'},
+ browser:{name:'sylvana-browser',title:'Browser',description:'Browse web pages in this chat’s Sylvana browser, with existing sharing and action reviews.'},
+ files:{name:'sylvana-files-terminal',title:'Files & Terminal',description:'Read selected workspaces and run authorized commands or propose file changes under the current chat permissions.'},
+ computer:{name:'sylvana-computer',title:'Computer Use',description:'Inspect and operate explicitly shared application windows under existing administrator and chat permissions.'},
+ agents:{name:'sylvana-workspace-agents',title:'Workspace Agents',description:'Find and delegate to workspace agents, inspect chats and maintain authorized agent and project memory.'},
+ documents:{name:'sylvana-documents-planning',title:'Documents & Planning',description:'Read agent documents and maintain this conversation’s reviewed plans.'},
+ schedules:{name:'sylvana-schedules',title:'Automations',description:'Inspect and propose scheduled tasks with existing schedule reviews.'},
  composio:{name:'composio',title:'Composio API connections',description:'Use existing account-owned Composio project connections and their assigned apps.'}
 } as const;
 export type HostPluginFamily=keyof typeof hostPluginFamilies;

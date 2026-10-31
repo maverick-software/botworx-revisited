@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
-const build=process.env.AGENTOPIA_PREVIEW_BUILD||path.resolve(__dirname,'../build');
+const build=process.env.SYLVANA_PREVIEW_BUILD||path.resolve(__dirname,'../build');
 const {normalizeAgentInstructions,legacyAgentInstructions,agentInstructionsLimit}=require(path.join(build,'agent-unified-instructions.js'));
 const {agentInstructions}=require(path.join(build,'agent-policy.js'));
 const {agentDraftSnapshot}=require(path.join(build,'agent-draft-preview-contracts.js'));
@@ -37,7 +37,7 @@ test('starter validation accepts actual editable prompts, rejects authority chan
 });
 test('starter generation runs the existing preview executor with selected provider/model, no tools or saved-agent writes',async()=>{
  let state=null,received;const db={from(table){assert.equal(table,'desktop_preview_codex_turns');return {select(){return this;},eq(){return this;},async single(){return {data:{state},error:null};}};}};
- const executor=new CodexDraftPreview(db,{},'F:/Agentopia-Consolidation/runtime/.supabase/preview-test','',()=>{},async()=>{});
+ const executor=new CodexDraftPreview(db,{},'F:/Sylvana-Consolidation/runtime/.supabase/preview-test','',()=>{},async()=>{});
  executor.native.run=async(user,request,agent,provider,model,options,refs,history,definitions,execute,controller,validate)=>{await validate();received={user,request,agent,provider,model,options,refs,definitions};assert.equal(provider,'openrouter');assert.equal(model,'owner-selected-model');assert.equal(options.permission,'chat');assert.deepEqual(definitions,[]);assert.deepEqual(refs,[]);assert.equal(user.admin,false);await assert.rejects(execute('write_file',{},'call',controller.signal),/unavailable/);state={threadId:'mock-model-thread',items:[{threadId:'mock-model-thread',item:{type:'agentMessage',text:output()}}]};};
  const snapshot=agentDraftSnapshot(builderSnapshot(config(),'openrouter','owner-selected-model')),request={id,user_id:owner,conversation_id:id,snapshot,input_text:starterGenerationRequest,created_at:'2026-10-26T00:00:00Z',status:'running',output_text:'',error:null},signal=new AbortController().signal;
  const actual=await executor.run({id:owner,admin:true},request,[],signal,async()=>{});assert.equal(actual,output());assert.equal(starterGenerationProposal(actual).changes.starters.length,1);assert(received.agent.system_instructions.includes('Reviews supplied invoices.'));assert.equal(received.request.agent_profile.policy.delegation,false);assert.equal(received.request.agent_profile.policy.memory,false);assert.deepEqual(received.request.agent_profile.policy.tools,[]);

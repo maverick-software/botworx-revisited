@@ -11,7 +11,7 @@ import {WorkspaceLinks} from './WorkspaceLinks';
 export function ComputerControls({options,change,open,close,disabled,inline}:{options:ChatOptions;change:(patch:Partial<ChatOptions>)=>void;open:boolean;close:()=>void;disabled:boolean;inline?:boolean}){
  const {owner}=useContext(WorkspaceLinks),ids=options.windows??[],[references,setReferences]=useState<ComputerReference[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState('');
  useEffect(()=>{let live=true;setReferences([]);if(ids.length)void call<ComputerReference[]>('computer.references',{ids}).then(value=>{if(live)setReferences(value);}).catch(failure=>{if(live)setError(failure.message);});return()=>{live=false;};},[ids.join(',')]);
- useEffect(()=>window.agentopia.onCommand(command=>{if(command==='computer-stopped'&&ids.length){setReferences([]);change({windows:[]});}}),[change,ids.join(',')]);
+ useEffect(()=>window.sylvana.onCommand(command=>{if(command==='computer-stopped'&&ids.length){setReferences([]);change({windows:[]});}}),[change,ids.join(',')]);
  useEffect(()=>{if(!ids.length||['ask','full'].includes(options.permission))return;let live=true;void Promise.all(ids.map(id=>call('computer.revoke',{id}))).then(()=>{if(live){setReferences([]);change({windows:[]});}}).catch(failure=>{if(live)setError(failure.message);});return()=>{live=false;};},[options.permission,ids.join(',')]);
  async function remove(id:string){setBusy(true);setError('');try{await call('computer.revoke',{id});change({windows:ids.filter(value=>value!==id)});}catch(failure){setError((failure as Error).message);}finally{setBusy(false);}}
  return <>

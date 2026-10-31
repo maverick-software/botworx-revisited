@@ -1,7 +1,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const path=require('node:path');
-const build=process.env.AGENTOPIA_PREVIEW_BUILD||path.resolve(__dirname,'../build');
+const build=process.env.SYLVANA_PREVIEW_BUILD||path.resolve(__dirname,'../build');
 const {AgentDraftPreviews}=require(path.join(build,'agent-draft-previews.js'));
 const {agentDraftPreviewInput}=require(path.join(build,'agent-draft-preview-contracts.js'));
 const {draftPreviewProfile}=require(path.join(build,'codex-draft-preview.js'));
@@ -56,7 +56,7 @@ test('malformed behavior, excessive skills and nested authority injection are re
 test('the normal instruction assembler includes all draft behavior while Chat only caps actual authority',()=>{
  const value=agentDraftPreviewInput(input()),profile=draftPreviewProfile(owner,{snapshot:value.snapshot,conversation_id:session,created_at:'2026-10-23T00:00:00Z'}),prompt=agentInstructions(profile,'draft');
  for(const text of [value.snapshot.name,'@draft-mira',behavior().role,behavior().sops,behavior().guardrails,behavior().skills[0].name,behavior().skills[0].description,behavior().skills[0].content])assert(prompt.includes(text),text);
- assert(prompt.includes('unsaved Agentopia draft'));assert(!prompt.includes('Your persistent Agentopia identity'));assert(agentInstructions(profile).includes('Your persistent Agentopia identity'));assert.deepEqual(profile.policy,{tools:[],delegation:false,delegateAgents:[],memory:false,memoryWrite:false,maxDepth:0,maxTurns:1});assert.deepEqual(value.snapshot.behavior.policy,behavior().policy);assert.equal(profile.skills[0].sha256,createHash('sha256').update(behavior().skills[0].content).digest('hex'));
+ assert(prompt.includes('unsaved Sylvana draft'));assert(!prompt.includes('Your persistent Sylvana identity'));assert(agentInstructions(profile).includes('Your persistent Sylvana identity'));assert.deepEqual(profile.policy,{tools:[],delegation:false,delegateAgents:[],memory:false,memoryWrite:false,maxDepth:0,maxTurns:1});assert.deepEqual(value.snapshot.behavior.policy,behavior().policy);assert.equal(profile.skills[0].sha256,createHash('sha256').update(behavior().skills[0].content).digest('hex'));
 });
 test('a duplicate request during preparation shares one acceptance and starts inference once',async()=>{
  const f=fixture();f.catalogGate=deferred();f.runGate=deferred();const first=f.service.start(user,input()),duplicate=f.service.start(user,input());assert.equal(f.service.activeCount,1);f.catalogGate.resolve();const [a,b]=await Promise.all([first,duplicate]);assert.equal(a.id,b.id);assert.equal(b.existing,true);await assert.rejects(f.service.start(user,input({requestId:next})),/already working/);await assert.rejects(f.service.start(user,input({text:'Changed same request'})),/different instructions or text/);for(let n=0;n<20&&!f.runs.length;n++)await new Promise(resolve=>setImmediate(resolve));assert.equal(f.runs.length,1);f.runGate.resolve();await settled(f.service);assert.equal(f.rows.get(id).status,'completed');assert.equal(f.events.length,2);

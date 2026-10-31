@@ -8,8 +8,8 @@ const {pack} = require('tar-stream');
 const {
   workspaceRecoveryInventory: inventory,
   recoveryFile, writeWorkspaceRecovery: write, verifyWorkspaceRecovery: verify,
-} = require(path.join(process.env.AGENTOPIA_SCHEDULE_PROJECT_BUILD, 'workspace-recovery-files.js'));
-const fixtures = process.env.AGENTOPIA_SCHEDULE_RECOVERY_FIXTURES;
+} = require(path.join(process.env.SYLVANA_SCHEDULE_PROJECT_BUILD, 'workspace-recovery-files.js'));
+const fixtures = process.env.SYLVANA_SCHEDULE_RECOVERY_FIXTURES;
 assert(fixtures && path.isAbsolute(fixtures));
 const guard = async () => {}, signal = () => new AbortController().signal;
 const sha = value => createHash('sha256').update(value).digest('hex');
@@ -26,7 +26,7 @@ async function snapshot(state, extras = []) {
   return write(state.source, captured, extras, {run: 'controlled recovery test'}, state.target, guard, signal());
 }
 async function crafted(state, entries, members, options = {}) {
-  const record = {format: 1, kind: 'agentopia-workspace-recovery', entries, extras: [], contentSha256: sha(JSON.stringify(entries)), metadata: {}};
+  const record = {format: 1, kind: 'sylvana-workspace-recovery', entries, extras: [], contentSha256: sha(JSON.stringify(entries)), metadata: {}};
   const manifest = Buffer.from(JSON.stringify(record));
   const tar = pack(), chunks = [];
   const drain = (async () => { for await (const chunk of tar) chunks.push(chunk); })();

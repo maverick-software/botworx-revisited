@@ -6,7 +6,7 @@ export function usePreviewMonitor(owner:string,scope:string,referenceId:string|u
  const [notice,setNotice]=useState({changed:false,warning:''});
  useEffect(()=>{
   let live=true;setNotice({changed:false,warning:''});if(!enabled||!referenceId)return;
-  const id=crypto.randomUUID(),off=window.agentopia.onChat(event=>{
+  const id=crypto.randomUUID(),off=window.sylvana.onChat(event=>{
    if(!live||event.kind!=='workspace'||event.ownerId!==owner||event.workspace?.id!==id)return;
    setNotice({changed:true,warning:event.workspace.error??''});
   });

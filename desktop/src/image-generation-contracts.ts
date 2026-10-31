@@ -3,7 +3,7 @@ import type {ToolDefinition} from './tool-contracts';
 export const imageGenerationPluginName='image-generation';
 export const imageGenerationToolName='generate_image';
 export const maxGeneratedImageBytes=32*1024*1024;
-export type ImageProvider='openrouter'|'openai-api';
+export type ImageProvider='openrouter'|'openai-api'|'sylvana';
 export type ImageConnection={enabled:boolean;provider:ImageProvider;model:string};
 export type RasterImageType='image/png'|'image/jpeg'|'image/webp';
 export type ImageReference={bytes:Buffer;mediaType:RasterImageType};
@@ -17,7 +17,7 @@ export class ImageGenerationError extends Error{
 
 const object=(value:unknown):value is Record<string,unknown>=>!!value&&typeof value==='object'&&!Array.isArray(value);
 export function imageConnection(value:unknown):ImageConnection{
- if(!object(value)||Object.keys(value).some(key=>!['enabled','provider','model'].includes(key))||typeof value.enabled!=='boolean'||!['openrouter','openai-api'].includes(String(value.provider))||typeof value.model!=='string'||value.model.length>200||value.model!==value.model.trim()||value.model&&!/^[a-z0-9][a-z0-9._:/-]+$/i.test(value.model)||value.model.includes('://')||value.model.includes('..'))throw new Error('Choose an explicit image connection and model. Credentials and endpoint URLs do not belong in this configuration.');
+ if(!object(value)||Object.keys(value).some(key=>!['enabled','provider','model'].includes(key))||typeof value.enabled!=='boolean'||!['openrouter','openai-api','sylvana'].includes(String(value.provider))||typeof value.model!=='string'||value.model.length>200||value.model!==value.model.trim()||value.model&&!/^[a-z0-9][a-z0-9._:/-]+$/i.test(value.model)||value.model.includes('://')||value.model.includes('..'))throw new Error('Choose an explicit image connection and model. Credentials and endpoint URLs do not belong in this configuration.');
  if(value.enabled&&!value.model)throw new Error('Choose an image model before enabling image generation.');
  return {enabled:value.enabled,provider:value.provider as ImageProvider,model:value.model};
 }

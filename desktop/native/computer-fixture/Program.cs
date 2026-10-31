@@ -6,7 +6,7 @@ class Fixture:Form
  readonly string file;string visual;readonly TextBox note;readonly Label receipt;readonly System.Windows.Forms.Timer watch=new(){Interval=200};int count;
  public Fixture(string file,string visual,string? cardFile=null,string? events=null)
  {
-  this.file=file;this.visual=visual;Text="Agentopia Computer Verification";StartPosition=FormStartPosition.Manual;Location=new Point(100,100);ClientSize=new Size(760,500);BackColor=Color.FromArgb(248,248,248);Font=new Font("Segoe UI",12);
+  this.file=file;this.visual=visual;Text="Sylvana Computer Verification";StartPosition=FormStartPosition.Manual;Location=new Point(100,100);ClientSize=new Size(760,500);BackColor=Color.FromArgb(248,248,248);Font=new Font("Segoe UI",12);
   var title=new Label{Text="Windows computer-use verification",AutoSize=true,Location=new Point(25,20)};
   var label=new Label{Text="Note",AutoSize=true,Location=new Point(25,85)};
   note=new TextBox{AccessibleName="Verification note",Name="note",Location=new Point(90,80),Width=420};

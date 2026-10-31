@@ -11,14 +11,14 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-RESOURCE = Path(os.environ.get('AGENTOPIA_MANAGE_RESOURCE', Path(__file__).parents[1] / 'runtime/manage.py')).resolve()
+RESOURCE = Path(os.environ.get('SYLVANA_MANAGE_RESOURCE', Path(__file__).parents[1] / 'runtime/manage.py')).resolve()
 
 
 class ImportShutdown(unittest.TestCase):
     def execute_import(self, statuses, expected_error=None, mismatch=False):
         self.assertEqual(os.name, 'nt', 'The controlled importer fixture must run in Windows Python.')
-        self.assertFalse(Path('/home/agentopia/.config/agentopia/runtime-secrets.json').exists())
-        with tempfile.TemporaryDirectory(prefix='agentopia-import-boundary-') as directory:
+        self.assertFalse(Path('/home/sylvana/.config/sylvana/runtime-secrets.json').exists())
+        with tempfile.TemporaryDirectory(prefix='sylvana-import-boundary-') as directory:
             base = Path(directory)
             backup, data = base / 'backup', base / 'stack/data/server/data'
             backup.mkdir(); data.mkdir(parents=True)

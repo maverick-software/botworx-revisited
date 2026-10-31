@@ -12,7 +12,7 @@ const readable=(error:unknown)=>error instanceof Error?error.message:String(erro
 export class AgentPreviewConversation{
  private view:PreviewView;private live=true;private off?:()=>void;private timer?:ReturnType<typeof setTimeout>;private reading=false;private reread=false;private inspectAgain=false;private eventRevision=0;private sending=false;private receipting=false;private key:string;private cacheFault=false;private sendEpoch=0;
  constructor(private owner:string,private source:string|null,editorKey:string,private bridge:PreviewBridge,private cache:PreviewCache,private changed:(view:PreviewView)=>void,private creationId?:string){
-  if(creationId!==undefined)this.creationId=draftPreviewId(creationId);previewEditorScope(source,this.creationId);this.key='agentopia.preview.'+owner+':'+(this.creationId?'new:'+this.creationId:editorKey);this.view={sessionId:crypto.randomUUID(),prompt:'',thinking:'default',execution:emptyExecution(),pending:null,rows:[],working:false,uncertain:false,loading:true,error:''};
+  if(creationId!==undefined)this.creationId=draftPreviewId(creationId);previewEditorScope(source,this.creationId);this.key='sylvana.preview.'+owner+':'+(this.creationId?'new:'+this.creationId:editorKey);this.view={sessionId:crypto.randomUUID(),prompt:'',thinking:'default',execution:emptyExecution(),pending:null,rows:[],working:false,uncertain:false,loading:true,error:''};
   if(!this.cache.hydrate)this.restore();
  }
  private restore(){

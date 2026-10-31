@@ -52,9 +52,21 @@ test('OpenRouter catalog respects text output, image input, and mandatory reason
  try{
   const providers=new Providers(secrets,'fixture');await secrets.set('openrouter',{key:'private-key'});
   const models=await providers.routerModels();assert.equal(models.length,1);assert.deepEqual(models[0].inputModalities,['text','image']);assert.deepEqual(models[0].thinking,['high']);
-  await providers.defaultRouter('vendor/text');assert.equal(providers.status('a').defaultModel,'vendor/text');assert(!JSON.stringify(providers.status('a')).includes('private-key'));
+  await providers.defaultRouter('vendor/text');assert.equal(providers.status('a').defaultModel,'standard');assert.equal(values.get('openrouter-default'),'vendor/text');assert(!JSON.stringify(providers.status('a')).includes('private-key'));
   await providers.removeRouter();assert.equal(providers.status('a').openrouter,false);assert.equal(values.get('models:openrouter:shared'),undefined);
  }finally{global.fetch=original;}
 });
 
 test('usage actions allow only the two fixed provider dashboards',()=>{assert.equal(providerUsageURL(),'https://chatgpt.com/settings/usage');assert.equal(providerUsageURL('openrouter'),'https://openrouter.ai/activity');for(const value of ['https://attacker.invalid',null,{},'other'])assert.throws(()=>providerUsageURL(value),/Choose ChatGPT or OpenRouter/);});
+
+test('Legal compliance mode preserves saved connections while refusing direct inference',async()=>{
+ const {Providers,streamTurn}=require('../build/providers.js');const owner='12345678-1234-4123-8123-123456789abc';
+ const original={access_token:'synthetic-original',refresh_token:'synthetic-refresh',scope:'chatgpt.tokens.use.direct'};
+ const values=new Map([['openai:'+owner,original],['openrouter',{key:'synthetic-router'}],['sylvana-legal:'+owner,true]]);
+ const store={get:k=>values.get(k),set:async(k,v)=>values.set(k,v),setMany:async rows=>{for(const[k,v]of rows)values.set(k,v);}};
+ const providers=new Providers(store,'synthetic-host');const status=providers.status(owner);assert(status.legalMode&&!status.openrouter&&!status.chatgpt);
+ for(const provider of ['openrouter','openai-oauth']){await assert.rejects(providers.token(provider,owner),/Legal compliance/);assert.throws(()=>providers.harnessScope(provider,owner),/Legal compliance/);}
+ await assert.rejects(providers.connect(owner),/Legal compliance/);let requests=0;
+ await assert.rejects(streamTurn('sylvana','synthetic','sylvana-simulated-v1','',[],new AbortController().signal,async()=>{},async()=>{requests++;return Response.json({});}),/managed Sylvana/);
+ assert.equal(requests,0);assert.equal(values.get('openai:'+owner),original);assert.equal(values.get('openrouter').key,'synthetic-router');
+});

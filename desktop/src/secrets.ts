@@ -1,4 +1,6 @@
 import {safeStorage} from 'electron';
+import {migrateSecretMetadata} from './legacy-brand';
+import {loadBrandPaths} from './brand-path-migration';
 import {readFile,writeFile,rename,mkdir} from 'node:fs/promises';
 import path from 'node:path';
 const persisted=(value:unknown):string|undefined=>JSON.stringify(value,(_,item)=>item&&typeof item==='object'&&!Array.isArray(item)?Object.fromEntries(Object.keys(item).sort().map(key=>[key,item[key]])):item);
@@ -7,9 +9,10 @@ export class Secrets {
  private writing:Promise<void>=Promise.resolve();
  constructor(private directory:string){}
  async load(){
+  loadBrandPaths(this.directory);
   if(!safeStorage.isEncryptionAvailable())throw new Error('Windows credential encryption is unavailable. Sign in to Windows and retry.');
-  try{this.values=JSON.parse(safeStorage.decryptString(await readFile(path.join(this.directory,'credentials.bin'))));}
-  catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw new Error('Saved credentials could not be decrypted for this Windows account. Restore the original Windows account or remove the credential file to reconnect.');}
+  try{this.values=migrateSecretMetadata(JSON.parse(safeStorage.decryptString(await readFile(path.join(this.directory,'credentials.bin'))))).value;}
+  catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw new Error('Saved credentials could not be decrypted for this Windows account. Restore the original Windows account and its verified credential backup before continuing.');}
  }
  get<T>(key:string):T|undefined{return this.values[key] as T|undefined;}
  credentialMetadata(owner:string){

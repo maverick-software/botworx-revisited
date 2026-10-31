@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),{randomUUID}=require('node:crypto');
-const {BrowserDataStore,browserPartition,downloadName}=require(require('node:path').join(process.env.AGENTOPIA_PREVIEW_BUILD||require('node:path').resolve(__dirname,'../build'),'browser-data.js'));
+const {BrowserDataStore,browserPartition,downloadName}=require(require('node:path').join(process.env.SYLVANA_PREVIEW_BUILD||require('node:path').resolve(__dirname,'../build'),'browser-data.js'));
 test('browser partitions keep accounts, temporary sessions and HTML canvases separate',()=>{
  assert.equal(browserPartition('owner-a',true),browserPartition('owner-a',true));assert(browserPartition('owner-a',true).startsWith('persist:'));
  assert(!browserPartition('owner-a',false).startsWith('persist:'));assert(!browserPartition('owner-a',true,true).startsWith('persist:'));
