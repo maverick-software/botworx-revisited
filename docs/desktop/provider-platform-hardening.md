@@ -1,6 +1,18 @@
 # Provider and desktop verification — October 31, 2026
 
-The existing VPS provider is active at api.sylvana.dev. Its encrypted credentials remain outside the desktop and repository. The installed development application is 0.46.3. The portal/provider integration is maintained in the separate sylvana-legal-web-app repository.
+## Current qualified release
+
+The normal installed application and published immutable Windows installer are now 0.46.4. The installer SHA-256 is `fe03b6e2d08516d939dce588afde8b9ea88f6c524529e3ac97c7d25a4db263cf`; the application archive is `4ecafd5d5e72cf5ddf98013e914f73b8d757c811f3b253cdd091d84a0241255c`. The public object's full SHA-256 matches the tested installer. All 7,565 installed program files matched their manifest. Normal upgrade preserved the existing profile, account fingerprint, 12 chats, 46 messages, three agents and saved PDF canvas at 70%, with verified recovery data.
+
+Fresh application data and an empty bundled WSL runtime under the existing Windows login completed real native OAuth sign-in and Standard/Max turns. Both tiers also completed through the final installed visible UI; the encrypted sign-in restored after reopening. Browser consent was automated through the hosted API. Four non-admin ZDR operations settled with exactly four debits totaling 126.915 credits and no reservations; the web and desktop account meter agreed. The synthetic account and entitlement were retired. This does not establish a clean-Windows or different-Windows-user installation.
+
+Qualification corrected portable backup/restore validation for managed and direct-API model choices, and extended mandatory cold database/startup deadlines to eight/ten minutes. The final archive passes 34 focused tests and backend type checking; all other 3,689 archived files are unchanged from the earlier compatible candidate. The provider also stopped misclassifying image fields in tool schemas as attached images, while preserving text reservation bounds and real-image handling. The reproduced regression and all 80 web/provider tests pass. Current VPS release is `73a232aaa0a697c2`, deployed after an idle check with credentials preserved.
+
+This exact unsigned release is explicitly user-authorized and makes no trusted Windows publisher claim. Live Stripe activation/testing remains deferred. Unavailable GitHub Actions does not block delivery and is not reported as passed. Final evidence is under `F:/Sylvana/verification/public-release-0.46.4/`; the companion web repository owns the website release manifest and deployment. The following sections retain the earlier engineering and acceptance history; their historical version/deployment references are superseded by this release record.
+
+## Earlier engineering and acceptance history
+
+The existing VPS provider is active at api.sylvana.dev. Its encrypted credentials remain outside the desktop and repository. The portal/provider integration is maintained in the separate sylvana-legal-web-app repository.
 
 ## Concurrent firms and meaningful work
 
