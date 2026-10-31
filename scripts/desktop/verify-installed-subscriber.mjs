@@ -26,7 +26,7 @@ const result=await launchDurableProfileProbe(cfg,{label:'installed-new-user',exp
   const deadline=Date.now()+45*60000;while(Date.now()<deadline){
    const status=await application.evaluate(async()=>{const b=globalThis.__coordination.broker;let identity;try{identity=await b.identity();}catch{}if(!identity)return {signedIn:false};const requests=await b.admin.from('desktop_requests').select('id,status,error,created_at').eq('user_id',identity.id).order('created_at',{ascending:false}).limit(8);if(requests.error)throw Error('Could not inspect generated requests');return {signedIn:true,owner:identity.id,requests:requests.data,provider:b.providers.account.status(identity.id)};});
    await writeFile(root+'/native-state.json',JSON.stringify(status,null,2));
-   try{await access(root+'/finish.json');assert(status.signedIn);assert(status.requests.filter(r=>r.status==='completed').length>=2);return {realModelRequests:true,syntheticInference:false,cloudOwner:status.owner,requests:status.requests,credentialStorage:'Actual Windows safeStorage',signInInitiatedFromInstalledUI:true};}catch(error){if(error.code!=='ENOENT')throw error;}
+   try{await access(root+'/finish.json');assert(status.signedIn);assert(status.requests.filter(r=>r.status==='completed').length>=2);return {realModelRequests:true,syntheticInference:false,cloudOwner:status.owner,requests:status.requests,credentialStorage:'Actual Windows safeStorage',signInInitiatedFromInstalledUI:false,signInInitiatedFromNativeApplicationAPI:true};}catch(error){if(error.code!=='ENOENT')throw error;}
    await new Promise(resolve=>setTimeout(resolve,2000));
   }throw Error('Installed new-user verification requires completion or normal close; no paid request is replayed automatically.');
  }});
