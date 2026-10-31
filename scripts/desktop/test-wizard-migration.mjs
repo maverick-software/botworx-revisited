@@ -5,7 +5,11 @@ import Module from 'node:module';
 import {extractFile} from '@electron/asar';
 import assert from 'node:assert/strict';
 
-const root='F:/Sylvana/verification/windows-wizard-20261029',home=path.join(root,'test-user'),directory=path.join(home,'.sylvana/desktop'),profile=path.join(directory,'profile'),destination=path.join(root,'Upgrade Selected Folder/Sylvana'),old=path.join(home,'AppData/Local/SylvanaDesktop'),instance='12345678-1234-4123-8123-123456789abc';
+const root=path.resolve(process.env.SYLVANA_WIZARD_TEST_ROOT??'F:/Sylvana/verification/windows-wizard-20261029');
+assert(root==='F:\\Sylvana\\verification\\windows-wizard-20261029'||root.startsWith('F:\\Sylvana\\verification\\windows-wizard-20261029\\'),'Use a scoped F-drive installer verification folder.');
+const out=path.resolve(process.env.SYLVANA_WIZARD_OUTPUT??path.join(root,'isolated-v1'));
+const home=path.join(root,'test-user'),directory=path.join(home,'.sylvana/desktop'),profile=path.join(directory,'profile'),destination=path.resolve(process.env.SYLVANA_WIZARD_TEST_DESTINATION??path.join(root,'Upgrade Selected Folder/Sylvana')),old=path.join(home,'AppData/Local/SylvanaDesktop'),instance='12345678-1234-4123-8123-123456789abc';
+for(const selected of [out,destination])assert(selected.startsWith(root+path.sep),'Keep installer fixtures inside their owned root.');
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 const json=async file=>JSON.parse(await readFile(file,'utf8'));
 const ownedJson=async(file,value)=>writeFile(file,JSON.stringify(value,null,2)+'\n',{flag:'wx'});
@@ -32,7 +36,7 @@ if(process.argv[2]==='prepare'){
  await ownedJson(root+'/data-before-squirrel-migration.json',before);
  console.log('Synthetic existing Squirrel profile prepared; ordinary profile and retained legacy program are included in preservation checks.');
 }else if(process.argv[2]==='verify'){
- const proof=await json(root+'/isolated-v1/qualified-installer.json');assert.equal(proof.isolatedVerification,true);
+ const proof=await json(path.join(out,'qualified-installer.json'));assert.equal(proof.isolatedVerification,true);
  const before=await json(root+'/data-before-squirrel-migration.json');for(const [name,digest] of Object.entries(before))assert.equal(sha(await readFile(path.join(root,name))),digest,name);
  const record=await json(path.join(directory,'wizard-installation.json'));
  assert.equal(path.resolve(record.installationRoot),path.resolve(destination));assert.equal(path.resolve(record.profile),path.resolve(profile));assert.equal(path.resolve(record.legacyInstallationRoot),path.resolve(old));

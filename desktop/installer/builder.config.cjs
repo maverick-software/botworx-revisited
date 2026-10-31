@@ -3,8 +3,10 @@ const input=process.env.SYLVANA_WIZARD_INPUT,output=process.env.SYLVANA_WIZARD_O
 if(!input||!output)throw Error('Set SYLVANA_WIZARD_INPUT and SYLVANA_WIZARD_OUTPUT to qualified F-drive paths.');
 const verification=process.env.SYLVANA_WIZARD_VERIFICATION==='1';
 if(verification&&!process.env.SYLVANA_WIZARD_TEST_HOME)throw Error('An isolated verification home is required.');
+const verificationId=process.env.SYLVANA_WIZARD_TEST_ID??'com.sylvana.setup.verification';
+if(verification&&!/^com\.sylvana\.setup\.verification(?:\.[a-z0-9-]+)?$/.test(verificationId))throw Error('Choose a scoped installer verification ID.');
 module.exports={
- appId:verification?'com.sylvana.setup.verification':'com.squirrel.SylvanaDesktop.Sylvana',
+ appId:verification?verificationId:'com.squirrel.SylvanaDesktop.Sylvana',
  productName:verification?'Sylvana Setup Verification':'Sylvana',
  executableName:'Sylvana',
  directories:{output,buildResources:path.join(__dirname,'assets')},
