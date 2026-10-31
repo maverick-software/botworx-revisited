@@ -132,3 +132,4 @@ desktop/native/**/obj/
 
 # Local verification can contain generated sessions, drafts and test profiles.
 /.qa/
+/supabase/.temp/
