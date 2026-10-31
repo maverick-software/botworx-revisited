@@ -89,7 +89,7 @@ export class Runtime {
   if(keys.restartRequired)await this.command(['supabase','stop']);
   await this.command(['python3','/opt/sylvana/database_state.py']);
   this.notify('database','Starting PostgreSQL and Supabase services…');
-  await this.command(['supabase','start','--runtime','native','--eager','--exclude','analytics,pooler,studio']);
+  await this.command(['supabase','start','--runtime','native','--eager','--exclude','analytics,pooler,studio'],600000);
   // Copy versioned maintenance resources on every upgrade; mutable database data stays in WSL.
   const migrations=(await readdir(path.join(this.resources,'database'))).filter(name=>/^\d{4}-[a-z0-9-]+\.sql$/.test(name)).sort();
   if(!migrations.includes('0001-baseline.sql'))throw new Error('The packaged database baseline is missing. Reinstall the complete application.');

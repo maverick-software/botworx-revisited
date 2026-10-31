@@ -14,7 +14,7 @@ max_rows = 1000
 port = 56322
 shadow_port = 56320
 major_version = 17
-health_timeout = "3m"
+health_timeout = "8m"
 
 [db.seed]
 enabled = false

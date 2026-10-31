@@ -13,6 +13,8 @@ The user requested that image generation remain disabled for now. Retain the con
 
 # Delivery discipline
 
+On October 31, 2026 the user assigned qualification and publication of compatible Sylvana 0.46.4 to this workflow. Do not leave the release pending on another chat. Continue applicable local tests, deployed-service checks and actual desktop verification when GitHub Actions is unavailable. Installer publication and remote CI availability must not stop ongoing web, desktop and provider fixes. Report their actual status without claiming unavailable checks passed, and preserve accounts, credentials, chats and data.
+
 The user requested on October 24, 2026 that this work avoid overengineering.
 
 - Tie each work slice to a specific user-visible outcome and define its acceptance checks before implementation. Keep the full parity goal intact while delivering it in usable increments.

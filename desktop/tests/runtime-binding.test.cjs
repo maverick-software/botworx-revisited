@@ -24,6 +24,12 @@ test('a missing migrated registration does not create a blank runtime or stop th
  const directory=await fixture(t);await writeFile(path.join(directory,'runtime-binding.json'),JSON.stringify(binding));const calls=[],runtime=new Runtime('unused',directory,()=>{});runtime.wsl=async args=>{calls.push(args);return 'SylvanaRuntime\r\nUbuntu';};
  await assert.rejects(runtime.start(),/migrated.*not registered/);await runtime.stop();assert.deepEqual(calls,[['--list','--quiet']]);
 });
+test('cold startup gives healthy initialization time without skipping service health checks',async t=>{
+ const directory=await fixture(t);await writeFile(path.join(directory,'runtime-binding.json'),JSON.stringify(binding));const runtime=new Runtime('unused',directory,()=>{});let startup;
+ runtime.send=async()=>{};runtime.wsl=async args=>args[0]==='--list'?distribution:JSON.stringify({restartRequired:false});runtime.command=async(args,timeout)=>{if(args[0]==='cat')return args[1].endsWith('runtime-instance')?instanceId:'local.sylvana.desktop-runtime.v1';if(args[0]==='supabase'&&args[1]==='start'){startup={args,timeout};throw Error('Controlled cold-start boundary');}return '{}';};
+ await assert.rejects(runtime.start(),/Controlled cold-start boundary/);assert.deepEqual(startup,{args:['supabase','start','--runtime','native','--eager','--exclude','analytics,pooler,studio'],timeout:600000});
+ const config=await readFile(path.join(__dirname,'../runtime/poc-config.toml'),'utf8');assert.match(config,/health_timeout = "8m"/);assert(!startup.args.includes('--ignore-health-check'));
+});
 test('wrong copied-instance identity stops before transfers, provisioning or shutdown',async t=>{
  const directory=await fixture(t);await writeFile(path.join(directory,'runtime-binding.json'),JSON.stringify(binding));const calls=[],runtime=new Runtime('unused',directory,()=>{});runtime.wsl=async args=>{calls.push(args);if(args[0]==='--list')return distribution;return args.at(-1)==='/opt/sylvana/runtime-identity'?'local.sylvana.desktop-runtime.v1':'different-instance';};runtime.send=async()=>{throw new Error('Unexpected transfer');};
  await assert.rejects(runtime.start(),/does not match/);await runtime.stop();assert.equal(calls.length,3);assert(calls.every(args=>!args.includes('--terminate')&&!args.includes('supabase')));
